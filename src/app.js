@@ -21,6 +21,8 @@ const Menu = (() => {
     $('#bResume').hidden = !(saved && saved.st && saved.st.phase !== 'lobby' && saved.st.phase !== 'over');
     $('#onlineBox').hidden = !SITE;
     $('#onlineNote').hidden = SITE;
+    $('#bLocal').classList.toggle('gold', !SITE);          // without online rooms this is the way to play
+    $('#bLocal').classList.toggle('big', !SITE);
   }
   function onClick(ev) {
     Sound.unlock();

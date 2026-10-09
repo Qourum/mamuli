@@ -137,10 +137,12 @@ const View = (() => {
     if (gl) Board3D.show(shown, pos, fresh);
     render();
   }
-  // the 3D board, made once per page
+  // the 3D board, made once per page (usually ready by now: it is made while the menu is on screen)
+  let boarded = false;
   function board() {
     const stage = $('#stage');
-    if (!stage || Board3D.ok) return;
+    if (!stage || boarded) return;
+    boarded = true;
     gl = Board3D.init(stage);
     if (!gl) { stage.innerHTML = '<p class="nogl">ამ ბრაუზერში 3D დაფა ვერ ჩაირთო. სცადე სხვა ბრაუზერი (Chrome, Safari) ან განაახლე ეს.</p>'; return; }
     Board3D.onPick(i => Sheet.open('deed', i));

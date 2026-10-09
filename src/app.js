@@ -218,5 +218,7 @@ function boot() {
   fromLink();
   window.addEventListener('hashchange', fromLink);
   offlineHelper();
+  // the 3D board is made in the background while the menu is on screen, so that a game starts without a stall
+  setTimeout(() => Board3D.prepare($('#stage')), 400);
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();

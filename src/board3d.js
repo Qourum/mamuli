@@ -59,17 +59,24 @@ const Board3D = (() => {
 
   // ===== the writing on the squares =====
   const FONT = { sans: "'Noto Sans Georgian', 'Sylfaen', sans-serif", serif: "'Noto Serif Georgian', 'Sylfaen', serif", num: "'Lilita One', 'Arial Rounded MT Bold', sans-serif" };
-  const IMG = {};
+  const IMG = {}, LABEL_PICS = ['ui_coin', 'ui_page', 'ui_chest_wood', 'ui_coinbag'], missed = new Set();
   let relabelT = 0;
+  const relabelSoon = () => { clearTimeout(relabelT); relabelT = setTimeout(relabelAll, 60); };
   function pic(name) {
     if (!IMG[name]) {
       const im = new Image();
-      im.onload = () => { clearTimeout(relabelT); relabelT = setTimeout(relabelAll, 60); };
+      im.onload = () => { if (missed.delete(name)) relabelSoon(); };      // drawn without it: once more, now with it
       im.src = ART(name);
       IMG[name] = im;
     }
-    return IMG[name].complete && IMG[name].naturalWidth ? IMG[name] : null;
+    const ready = IMG[name].complete && IMG[name].naturalWidth;
+    if (!ready) missed.add(name);
+    return ready ? IMG[name] : null;
   }
+  // the writing's fonts: when one of them was not there yet, the squares are written again once it is
+  const LABEL_FONTS = [['800 40px "Noto Sans Georgian"', 'ქალაქი'], ['900 50px "Noto Serif Georgian"', 'სტარტი'], ['400 50px "Lilita One"', '120']];
+  const fontsReady = () => { try { return !document.fonts || LABEL_FONTS.every(([f, t]) => document.fonts.check(f, t)); } catch (e) { return true; } };
+  let drawnWithFonts = false;
   function rr(x, a, b, w, h, r) { x.beginPath(); x.moveTo(a + r, b); x.arcTo(a + w, b, a + w, b + h, r); x.arcTo(a + w, b + h, a, b + h, r); x.arcTo(a, b + h, a, b, r); x.arcTo(a, b, a + w, b, r); x.closePath(); }
   function fit(x, text, weight, family, size, maxW, min = 12) {
     let s = size;
@@ -168,9 +175,13 @@ const Board3D = (() => {
     }
     return cv;
   }
+  const PERF = { relabel: 0, relabelMs: 0, build: 0, frames: 0, shadows: 0 };    // counted for tests
   function relabelAll() {
     if (!ok) return;
-    for (let i = 0; i < 40; i++) { drawLabel(i); if (labelTex[i]) labelTex[i].needsUpdate = true; }
+    const t0 = performance.now();
+    drawnWithFonts = fontsReady();
+    for (let i = 0; i < 40; i++) { if (!labelTex[i]) continue; drawLabel(i); labelTex[i].needsUpdate = true; }
+    PERF.relabel++; PERF.relabelMs += performance.now() - t0;
   }
 
   // ===== building the board =====
@@ -197,7 +208,8 @@ const Board3D = (() => {
     };
     ownerMats = SEAT_COLORS.map(c => new T.MeshLambertMaterial({ color: c }));
   }
-  function buildStatic() {
+  // made in steps (each yield is a pause where the page may do other things): see prepare()
+  function* buildStatic() {
     root = new T.Group();
     scene.add(root);
     // the plinth with a gold rim, and a soft shadow on the landscape under it
@@ -213,16 +225,19 @@ const Board3D = (() => {
     sh.rotation.x = -Math.PI / 2; sh.position.y = -0.62; root.add(sh);
     // the painting in the middle, in a gold frame
     const inner = S - 2 * D - 2 * LOT;
-    const tex = new T.TextureLoader().load(ART('g_svan'), tx => { const a = tx.image.width / tx.image.height; if (a > 1) { tx.repeat.set(1 / a, 1); tx.offset.set((1 - 1 / a) / 2, 0); } });
+    const tex = new T.TextureLoader().load(ART('g_svan'), tx => { const a = tx.image.width / tx.image.height; if (a > 1) { tx.repeat.set(1 / a, 1); tx.offset.set((1 - 1 / a) / 2, 0); } try { R.initTexture(tx); } catch (e) { } });
     tex.encoding = T.sRGBEncoding; tex.anisotropy = maxAniso;
     const pic = new T.Mesh(new T.PlaneGeometry(inner - 0.12, inner - 0.12), new T.MeshLambertMaterial({ map: tex }));
     pic.rotation.x = -Math.PI / 2; pic.position.y = 0.045; pic.receiveShadow = true; root.add(pic);
     const fr = new T.Mesh(slabGeo(inner + 0.08, inner + 0.08, 0.08, 0.06, 0.015, inner - 0.12), mats.gold);
     root.add(fr);
+    yield;
     // the squares
     const geoP = slabGeo(TW - 0.06, D - 0.06, TH, 0.07, 0.03), geoC = slabGeo(C - 0.06, C - 0.06, TH, 0.1, 0.03);
     const grounds = new Models.Builder();
+    drawnWithFonts = fontsReady();
     for (let i = 0; i < 40; i++) {
+      yield;
       const cv = drawLabel(i), tx = new T.CanvasTexture(cv);
       tx.encoding = T.sRGBEncoding; tx.anisotropy = maxAniso;
       labelTex[i] = tx;
@@ -254,6 +269,7 @@ const Board3D = (() => {
     }
     // the inside corners of the ring
     for (let k = 0; k < 4; k++) {
+      yield;
       const [ox, oz] = OUT[k], [ax, az] = ALONG[k], a = S / 2 - D - LOT / 2;
       const x = ox * a - ax * a, z = oz * a - az * a;
       grounds.add(new T.BoxGeometry(LOT, 0.05, LOT).translate(0, 0.025, 0), [0x8fb85e, 0x9fa889, 0x96b45a, 0xa8b07c][k], x, 0, z);
@@ -262,18 +278,21 @@ const Board3D = (() => {
       sm.position.set(x, 0.05, z); sm.rotation.y = yawOf(k); sm.castShadow = true; sm.receiveShadow = true; root.add(sm);
       lotMesh[100 + k] = sm;
     }
+    yield;
     const gmesh = new T.Mesh(grounds.build(), mats.scenery);
     gmesh.receiveShadow = true; gmesh.userData.ground = true;
     root.add(gmesh); lotGround.push(gmesh);
+    yield;
     buildingMeshes();
+    yield;
     // the mill's wheel turns
     const M = Models.shapes, WB = new Models.Builder();
     WB.add(new T.TorusGeometry(0.1, 0.014, 5, 14), 0x4a3020);
     for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; WB.add(new T.BoxGeometry(0.02, 0.09, 0.05), 0x7a5232, Math.cos(a) * 0.1, Math.sin(a) * 0.1, 0, { rz: a }); }
     const wg = new T.Mesh(WB.build(), mats.scenery);
-    wg.rotation.y = Math.PI / 2; wg.castShadow = true;
+    wg.rotation.y = Math.PI / 2;
     const wpos = toWorld(12, 0.17, -(D / 2 + LOT / 2) - 0.12, 0.16);
-    wheel = new T.Group(); wheel.add(wg); wheel.position.copy(wpos); wheel.rotation.y = yawOf(1); wheel.castShadow = true;
+    wheel = new T.Group(); wheel.add(wg); wheel.position.copy(wpos); wheel.rotation.y = yawOf(1);
     root.add(wheel);
     // clouds drifting over the mountains
     for (let k = 0; k < 0; k++) {
@@ -296,7 +315,7 @@ const Board3D = (() => {
     const cg = new T.PlaneGeometry(0.26, 0.16, 8, 1);
     cg.translate(0.13, 0, 0);
     const cloth = new T.Mesh(cg, new T.MeshLambertMaterial({ color: 0xffffff, side: T.DoubleSide }));
-    cloth.position.set(0.012, 0.52, 0); cloth.castShadow = true;
+    cloth.position.set(0.012, 0.52, 0);
     cloth.userData.base = Float32Array.from(cg.attributes.position.array);
     g.add(cloth);
     const p = toWorld(i, 0.38, -(D / 2) + 0.03, 0.05);
@@ -321,6 +340,7 @@ const Board3D = (() => {
   const _m = new T.Matrix4(), _q = new T.Quaternion(), _s = new T.Vector3(), _c = new T.Color(), _up = new T.Vector3(0, 1, 0);
   function layoutBuildings(now) {
     if (!BLD.ready) return;
+    shadowDirty = true;
     let nt = 0, nc = 0, anim = 0;
     for (let i = 0; i < 40; i++) {
       const k = mark[i];
@@ -351,13 +371,15 @@ const Board3D = (() => {
     }
     layoutBuildings(performance.now());
   }
+  let dustGeo = null;
   function dust(p) {
     if (!ok) return;
+    dustGeo = dustGeo || new T.IcosahedronGeometry(0.05, 0);
     for (let k = 0; k < 6; k++) {
-      const m = new T.Mesh(new T.IcosahedronGeometry(0.05, 0), new T.MeshBasicMaterial({ color: 0xe8dcc4, transparent: true, opacity: 0.8 }));
+      const m = new T.Mesh(dustGeo, new T.MeshBasicMaterial({ color: 0xe8dcc4, transparent: true, opacity: 0.8 }));
       const a = k * Math.PI / 3;
       m.position.set(p.x, TH + 0.04, p.z); root.add(m);
-      tween(0.55, e => { m.position.set(p.x + Math.cos(a) * 0.25 * e, TH + 0.04 + 0.1 * e, p.z + Math.sin(a) * 0.25 * e); m.material.opacity = 0.8 * (1 - e); m.scale.setScalar(1 + e); }, ease.out).then(() => root.remove(m));
+      tween(0.55, e => { m.position.set(p.x + Math.cos(a) * 0.25 * e, TH + 0.04 + 0.1 * e, p.z + Math.sin(a) * 0.25 * e); m.material.opacity = 0.8 * (1 - e); m.scale.setScalar(1 + e); }, ease.out).then(() => { root.remove(m); m.material.dispose(); });
     }
   }
   const CREAM = new T.Color(0xe9d6a8);
@@ -516,6 +538,7 @@ const Board3D = (() => {
   }
   function placeTokens(anim) {
     if (!ok || !st) return;
+    shadowDirty = true;
     st.players.forEach((p, s) => {
       const tk = toks[s];
       if (!tk || p.out) return;
@@ -632,7 +655,8 @@ const Board3D = (() => {
     cam.aspect = W / H; cam.updateProjectionMatrix();
     distances();
     Dice3D.layout(W, H);
-    if (running) draw(0);                          // a resized canvas is blank until drawn: draw it now, not a frame later
+    shadowDirty = true;
+    if (running) { R.shadowMap.needsUpdate = true; draw(0); }   // a resized canvas is blank until drawn: now, not a frame later
   }
 
   // ===== tapping a square =====
@@ -666,14 +690,14 @@ const Board3D = (() => {
 
   // ===== the frame loop =====
   // quality follows the device: when frames come slowly the picture gets fewer pixels, then loses its shadows
-  let last = 0, running = false, frame = 0, slow = 0, quality = 2, basePR = 1;
+  let last = 0, running = false, frame = 0, slow = 0, quality = 2, basePR = 1, shadowDirty = true;
   function adapt(real) {
     if (real > 0.2) return;                       // a hiccup (a tab switch), not the device
     slow = slow * 0.97 + (real > 1 / 26 ? 1 : 0) * 0.03;
-    if (frame % 90 || frame < 120 || slow < 0.55 || quality <= 0) return;
+    if (frame % 40 || frame < 40 || slow < 0.55 || quality <= 0) return;
     quality--;
     slow = 0;
-    if (quality === 1) { R.setPixelRatio(Math.max(1, basePR * 0.7)); resize(); }
+    if (quality === 1) { R.setPixelRatio(Math.max(1, basePR * 0.7)); resize(); shadowDirty = true; }
     if (quality === 0) { R.setPixelRatio(1); R.shadowMap.enabled = false; scene.traverse(o => { if (o.material) [].concat(o.material).forEach(m => { m.needsUpdate = true; }); }); resize(); }
   }
   function loop(now) {
@@ -704,9 +728,15 @@ const Board3D = (() => {
     if (wheel) wheel.children[0].rotation.z = t * 1.4;
     if (BLD.busy || tweens.length) layoutBuildings(now);
     for (const c of clouds) { const u = c.userData; u.a += dt * u.sp; c.position.set(Math.cos(u.a) * u.r, u.h, Math.sin(u.a) * u.r); }
-    const still = !tweens.length && !BLD.busy && !Dice3D.busy && Math.abs(camT.yaw - camS.yaw) < 0.002 && Math.abs(camT.d - camS.d) < 0.01 && Math.abs(camT.x - camS.x) < 0.005 && Math.abs(camT.z - camS.z) < 0.005;
-    if (still && frame % 2) return;          // nothing but flags and glows moving: half the frames are enough
-    draw((still ? dt * 2 : dt) * speedK);
+    const moving = tweens.length > 0 || BLD.busy > 0;
+    const camStill = Math.abs(camT.yaw - camS.yaw) < 0.002 && Math.abs(camT.d - camS.d) < 0.01 && Math.abs(camT.x - camS.x) < 0.005 && Math.abs(camT.z - camS.z) < 0.005;
+    const still = !moving && camStill && !Dice3D.busy;
+    if (still && frame % 3) return;          // nothing but flags and glows moving: a third of the frames is enough (a phone stays cool)
+    // the shadows are drawn again only when what casts them has moved, or the sun has (it turns with the camera):
+    // not while the dice roll over a board that stands still, nor while nothing happens
+    if (moving || !camStill || shadowDirty) { R.shadowMap.needsUpdate = true; shadowDirty = false; PERF.shadows++; }
+    PERF.frames++;
+    draw(dt * speedK);
   }
   function draw(diceDt) {
     R.setViewport(0, 0, W, H); R.setScissorTest(false);
@@ -727,6 +757,7 @@ const Board3D = (() => {
   let riseAt = 0;
   function rise() {
     if (!ok || REDUCED) return;
+    shadowDirty = true;
     for (let i = 0; i < 40; i++) { tiles[i].position.y = -0.6; if (lotMesh[i]) lotMesh[i].scale.set(1, 0.001, 1); }
     for (let k = 0; k < 4; k++) if (lotMesh[100 + k]) lotMesh[100 + k].scale.set(1, 0.001, 1);
     riseAt = frame + 3;
@@ -742,19 +773,26 @@ const Board3D = (() => {
   }
 
   // ===== public =====
-  function init(el) {
+  // Making the board takes a while on a phone (the scenery is built piece by piece, the shaders are compiled). So it is
+  // made in small steps while the menu is on screen (prepare), and starting a game finds it ready; init() finishes
+  // at once whatever is still left.
+  let prep = null, failed = false, done = false;
+  const idle = fn => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 300 }) : setTimeout(fn, 20));
+  function* making(el) {
     host = el;
-    if (ok) { if (R.domElement.parentNode !== el) el.appendChild(R.domElement); resize(); return true; }
-    if (!T || !Models || /[?&]nogl\b/.test(location.search)) return false;
+    if (!T || !Models || /[?&]nogl\b/.test(location.search)) { failed = true; return; }
+    for (const n of LABEL_PICS) pic(n);            // the squares' pictures start loading now
     try {
       R = new T.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-    } catch (e) { console.warn('no WebGL', e); return false; }
+    } catch (e) { console.warn('no WebGL', e); failed = true; return; }
     const mobile = Math.min(screen.width, screen.height) < 700;
     basePR = Math.min(window.devicePixelRatio || 1, mobile ? 2 : 1.75);
     if (/[?&]lq\b/.test(location.search)) { basePR = 1; quality = 0; }
     R.setPixelRatio(basePR);
     R.outputEncoding = T.sRGBEncoding;
-    R.shadowMap.enabled = quality > 0; R.shadowMap.type = T.PCFSoftShadowMap;
+    // a phone gets the plainer shadow filter (a quarter of the work per pixel) and a smaller shadow map
+    R.shadowMap.enabled = quality > 0; R.shadowMap.type = mobile ? T.PCFShadowMap : T.PCFSoftShadowMap;
+    R.shadowMap.autoUpdate = false;                // drawn again only when something moved (see the frame loop)
     R.setClearColor(0x000000, 0);
     R.autoClear = false;
     maxAniso = Math.min(8, R.capabilities.getMaxAnisotropy());
@@ -766,25 +804,72 @@ const Board3D = (() => {
     scene.add(new T.HemisphereLight(0xe6f2ff, 0x8a6a48, 0.62));
     sun = new T.DirectionalLight(0xfff0d6, 1.0);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(mobile ? 1536 : 2048, mobile ? 1536 : 2048);
+    sun.shadow.mapSize.set(mobile ? 1024 : 2048, mobile ? 1024 : 2048);
     const sc = sun.shadow.camera; sc.left = -9; sc.right = 9; sc.top = 9; sc.bottom = -9; sc.near = 2; sc.far = 40;
     sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.02;
     scene.add(sun); scene.add(sun.target);
     ray = new T.Raycaster();
     ok = true;
+    yield;
     makeMaterials();
-    buildStatic();
+    const tb = performance.now();
+    yield* buildStatic();
+    PERF.build = performance.now() - tb;
     cv.addEventListener('pointerdown', onDown);
     cv.addEventListener('pointerup', onUp);
     cv.addEventListener('webglcontextlost', e => { e.preventDefault(); stop(); });
     cv.addEventListener('webglcontextrestored', () => { start(); });
     if (document.fonts) {
-      Promise.all(['800 40px "Noto Sans Georgian"', '900 50px "Noto Serif Georgian"', '400 50px "Lilita One"'].map(f => document.fonts.load(f, 'ქალაქი 120').catch(() => null))).then(relabelAll);
-      document.fonts.addEventListener && document.fonts.addEventListener('loadingdone', () => { clearTimeout(relabelT); relabelT = setTimeout(relabelAll, 60); });
+      const again = () => { if (!drawnWithFonts && fontsReady()) relabelSoon(); };
+      Promise.all(LABEL_FONTS.map(([f, t]) => document.fonts.load(f, t).catch(() => null))).then(again);
+      document.fonts.addEventListener && document.fonts.addEventListener('loadingdone', again);
     }
+    yield;
     Dice3D.init(T, host);
     if (window.ResizeObserver) new ResizeObserver(() => resize()).observe(el);
     window.addEventListener('resize', resize);
+    resize();
+    yield;
+    // one figure made ahead: its shaders are compiled with the rest (it is the first seat's, until a game says whose)
+    if (!toks[0]) { toks[0] = makeToken(0, 'david'); toks[0].g.visible = false; }
+    yield;
+    warm();
+    done = true;
+  }
+  // every shader the game needs is compiled now and every picture is on the graphics card, so the first moments of a
+  // game and the first throw of the dice do not stall
+  function warm() {
+    try {
+      R.compile(scene, cam);
+      for (const t of labelTex) if (t) R.initTexture(t);
+      R.shadowMap.needsUpdate = true;
+      R.setViewport(0, 0, W, H); R.setScissorTest(false); R.clear();
+      R.render(scene, cam);                        // the shadow pass compiles its own shaders on its first run
+      Dice3D.warm(R);
+      R.clear();
+      shadowDirty = true;
+    } catch (e) { console.warn(e); }
+  }
+  // the menu is on screen: the board is made a little at a time, when the page has nothing else to do
+  function prepare(el) {
+    if (done || prep || failed || !el) return;
+    prep = making(el);
+    const slice = () => {
+      if (!prep) return;
+      const until = performance.now() + 8;
+      do { if (prep.next().done) { prep = null; return; } } while (performance.now() < until);
+      idle(slice);
+    };
+    idle(slice);
+  }
+  function init(el) {
+    if (!done && !failed) {
+      if (!prep) prep = making(el);
+      while (prep && !prep.next().done) { }
+      prep = null;
+    }
+    if (failed || !ok) return false;
+    if (host !== el || R.domElement.parentNode !== el) { host = el; el.appendChild(R.domElement); }
     resize();
     return true;
   }
@@ -792,6 +877,7 @@ const Board3D = (() => {
   function show(state, positions, animate) {
     if (!ok) return;
     st = state; pos = positions.slice();
+    shadowDirty = true;
     ensureTokens();
     for (let i = 0; i < 40; i++) {
       if (!OWNABLE(BOARD[i])) continue;
@@ -828,13 +914,14 @@ const Board3D = (() => {
   function leave() { built = false; stop(); }
 
   return {
-    init, show, sync, walk, fly, setOwner, setLevel, setMort, pop, celebrate, coins, focus, snap, setMode, setTurn, leave, resize, halt,
+    init, prepare, show, sync, walk, fly, setOwner, setLevel, setMort, pop, celebrate, coins, focus, snap, setMode, setTurn, leave, resize, halt,
     speed(k) { speedK = k > 0 ? k : 1; },
-    get ok() { return ok; }, get mode() { return mode; },
+    get ok() { return done; }, get mode() { return mode; },
     onPick(cb) { pickCb = cb; },
     setPos(seat, at) { pos[seat] = at; },
     tween, ease, toWorld,
     _screen(i) { const c = centerOf(i).setY(TH); c.project(cam); const r = host.getBoundingClientRect(); return [r.left + (c.x + 1) / 2 * r.width, r.top + (1 - c.y) / 2 * r.height]; },
-    _dbg: () => ({ y: tiles.slice(0, 6).map(t => +t.position.y.toFixed(2)), tw: tweens.length, built, running, frame, quality })
+    _dbg: () => ({ y: tiles.slice(0, 6).map(t => +t.position.y.toFixed(2)), tw: tweens.length, built, running, frame, quality }),
+    _perf: () => R ? Object.assign({ calls: R.info.render.calls, tris: R.info.render.triangles, programs: R.info.programs.length, textures: R.info.memory.textures, geometries: R.info.memory.geometries, frame, quality, pr: R.getPixelRatio() }, PERF) : PERF
   };
 })();

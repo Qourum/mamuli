@@ -2,6 +2,8 @@
 // The throw is simulated first (gravity, bounces off the floor and an invisible tray, friction), then played back. Once
 // it is known which face of each die ends up on top, the die's picture is turned by one of the cube's own symmetries so
 // that this face shows the number that was rolled: the motion stays exactly as simulated.
+// Since a throw does not depend on the numbers, the next one is simulated ahead, a little at a time while the page is
+// idle: a roll starts at once, without a pause for the arithmetic (which a phone would feel).
 
 const Dice3D = (() => {
   let T = null, ok = false, scene = null, cam = null, host = null, badge = null;
@@ -47,6 +49,7 @@ const Dice3D = (() => {
     return g;
   }
 
+  const mobile = Math.min(screen.width, screen.height) < 700;
   function init(THREE, el) {
     if (ok) return;
     T = THREE; host = el;
@@ -56,15 +59,16 @@ const Dice3D = (() => {
     scene.add(new T.HemisphereLight(0xffffff, 0x9a7a58, 0.75));
     const sun = new T.DirectionalLight(0xfff3dc, 0.85);
     sun.position.set(-2.5, 6, 3); sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.mapSize.set(mobile ? 512 : 1024, mobile ? 512 : 1024);
     const sc = sun.shadow.camera; sc.left = -3; sc.right = 3; sc.top = 3; sc.bottom = -3; sc.near = 1; sc.far = 15;
     sun.shadow.bias = -0.001;
     scene.add(sun);
-    const floor = new T.Mesh(new T.PlaneGeometry(12, 8), new T.ShadowMaterial({ opacity: 0.32 }));
-    floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true;
+    // the floor only where shadows fall (the tray, and the near side the dice come in over): fewer pixels to shade
+    const floor = new T.Mesh(new T.PlaneGeometry(4.9, 3.9), new T.ShadowMaterial({ opacity: 0.32 }));
+    floor.rotation.x = -Math.PI / 2; floor.position.set(0.25, 0, 0.35); floor.receiveShadow = true;
     scene.add(floor);
     const geo = roundedBox(SZ, SZ * 0.16, 5);
-    const mats = FACES.map(f => new T.MeshStandardMaterial({ map: pipTexture(f), roughness: 0.42, metalness: 0 }));
+    const mats = FACES.map(f => new T.MeshPhongMaterial({ map: pipTexture(f), shininess: 46, specular: 0x2c2c2c }));
     for (let k = 0; k < 2; k++) {
       const m = new T.Mesh(geo, mats);
       m.castShadow = true;
@@ -77,6 +81,7 @@ const Dice3D = (() => {
     badge.hidden = true;
     host.appendChild(badge);
     ok = true;
+    later(spareUp);
   }
   // the dice are shown over the lower part of the board
   function layout(w, h) {
@@ -93,8 +98,8 @@ const Dice3D = (() => {
     if (badge) { badge.style.bottom = (rect.y + rect.h * 0.9) + 'px'; }
   }
 
-  // ----- the simulation -----
-  function simulate(rnd) {
+  // ----- the simulation: a throw that is advanced step by step (run(n)), until both dice rest -----
+  function throwOf(rnd) {
     const V3 = T.Vector3, Q4 = T.Quaternion;
     const bodies = [0, 1].map(k => ({
       p: new V3((k ? 0.5 : -0.5) + (rnd() - 0.5) * 0.3, 0.75 + rnd() * 0.35, AZ + 0.9),
@@ -110,7 +115,8 @@ const Dice3D = (() => {
     const frames = [], hits = [];
     let entered = [false, false];
     const planes = [[0, 1, 0, 0], [1, 0, 0, -AX], [-1, 0, 0, -AX], [0, 0, 1, -AZ], [0, 0, -1, -AZ]];
-    for (let step = 0; step < 240 * 4.5; step++) {
+    let step = 0, result = null;
+    function once() {
       bodies.forEach((b, bi) => {
         if (b.sleep) return;
         b.v.y += g * dt;
@@ -177,9 +183,11 @@ const Dice3D = (() => {
         if (vrel < 0) { const j = -(1 + 0.35) * vrel / 2; A.v.addScaledVector(n, j); B.v.addScaledVector(n, -j); A.sleep = B.sleep = false; if (j > 0.3) hits.push({ f: frames.length, v: Math.min(1, j) }); }
       }
       if (step % 4 === 0) frames.push(bodies.map(b => [b.p.x, b.p.y, b.p.z, b.q.x, b.q.y, b.q.z, b.q.w]));
-      if (bodies.every(b => b.sleep)) break;
+      step++;
+      return bodies.every(b => b.sleep) || step >= 240 * 4.5;
     }
     // land exactly flat: turn each die the last little bit onto its nearest face
+    function finish() {
     const ends = bodies.map(b => {
       const up = new V3(0, 1, 0).applyQuaternion(b.q.clone().invert());
       const ax = Math.abs(up.x) > Math.abs(up.y) ? (Math.abs(up.x) > Math.abs(up.z) ? 'x' : 'z') : (Math.abs(up.y) > Math.abs(up.z) ? 'y' : 'z');
@@ -197,6 +205,34 @@ const Dice3D = (() => {
       }));
     }
     return { frames, hits, ends, bodies };
+    }
+    return {
+      run(n) { while (!result && n-- > 0) if (once()) result = finish(); return !!result; },
+      get result() { return result; }
+    };
+  }
+  function simulate(rnd) { const t = throwOf(rnd); t.run(Infinity); return t.result; }
+  // the next throw, worked out ahead in slices of a few milliseconds
+  let spare = null, making = null;
+  const later = fn => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 600 }) : setTimeout(fn, 30));
+  const seedRnd = () => { const seed = (Math.random() * 1e9) | 0; return Engine.mulberry ? Engine.mulberry(seed) : Math.random; };
+  function spareUp() {
+    if (spare || making || !ok) return;
+    const job = making = throwOf(seedRnd());
+    const work = () => {
+      if (making !== job) return;
+      const t = performance.now();
+      while (performance.now() - t < 4) if (job.run(12)) { spare = job.result; making = null; return; }
+      later(work);
+    };
+    later(work);
+  }
+  function nextThrow() {
+    let sim = spare;
+    spare = null;
+    if (!sim && making) { making.run(Infinity); sim = making.result; }
+    making = null;
+    return sim || simulate(seedRnd());
   }
 
   // ----- a throw -----
@@ -204,8 +240,8 @@ const Dice3D = (() => {
   function roll(values) {
     if (!ok) return Promise.resolve();
     return new Promise(res => {
-      const seed = (Math.random() * 1e9) | 0;
-      const sim = simulate(Engine.mulberry ? Engine.mulberry(seed) : Math.random);
+      const sim = nextThrow();
+      later(spareUp);                              // the one after this, while this one plays
       sim.ends.forEach((en, k) => { dice[k].off.setFromUnitVectors(NORMAL[values[k]], en.u); });
       badge.hidden = true;
       visible = true;
@@ -246,7 +282,7 @@ const Dice3D = (() => {
       if (play.after > 1.6) {
         const e = Math.min(1, (play.after - 1.6) / 0.3);
         dice.forEach(d => d.m.scale.setScalar(Math.max(0.001, 1 - e)));
-        if (e >= 1) { visible = false; badge.hidden = true; const r = play.res; play = null; if (r) r(); }
+        if (e >= 1) { visible = false; badge.hidden = true; const r = play.res; play = null; if (r) r(); later(spareUp); }
       }
     }
   }
@@ -258,11 +294,31 @@ const Dice3D = (() => {
     R.setScissor(rect.x, rect.y, rect.w, rect.h);
     R.setViewport(rect.x, rect.y, rect.w, rect.h);
     R.clearDepth();
+    R.shadowMap.needsUpdate = true;              // the dice move: their shadows with them
     R.render(scene, cam);
     R.setScissorTest(false);
     R.setViewport(0, 0, W, H);
   }
   // the screen is going away mid-throw: finish at once
-  function skip() { if (play && play.res) { const r = play.res; play.res = null; r(); } play = null; visible = false; if (badge) badge.hidden = true; }
-  return { init, layout, roll, frame, skip, get busy() { return !!play; }, _sim: (THREE, rnd) => { T = T || THREE; return simulate(rnd); } };
+  function skip() { if (play && play.res) { const r = play.res; play.res = null; r(); } play = null; visible = false; if (badge) badge.hidden = true; later(spareUp); }
+  // drawn once, out of sight, so that its shaders are compiled and its pictures uploaded before the first throw
+  function warm(R) {
+    if (!ok) return;
+    dice.forEach(d => { d.m.visible = true; });
+    R.compile(scene, cam);
+    R.setScissorTest(true); R.setScissor(0, 0, 1, 1); R.setViewport(0, 0, 1, 1);
+    R.shadowMap.needsUpdate = true;
+    R.render(scene, cam);
+    R.setScissorTest(false); R.setViewport(0, 0, W, H);
+  }
+  // (for tests) the numbers the dice show on top now, and whether a throw is ready ahead
+  function top() {
+    return dice.map(d => {
+      const u = new T.Vector3(0, 1, 0).applyQuaternion(d.m.quaternion.clone().invert()), a = [Math.abs(u.x), Math.abs(u.y), Math.abs(u.z)];
+      const ax = a.indexOf(Math.max(...a));
+      return FACES[ax * 2 + (u.getComponent(ax) > 0 ? 0 : 1)];
+    });
+  }
+  return { init, layout, roll, frame, skip, warm, get busy() { return !!play; }, _sim: (THREE, rnd) => { T = T || THREE; return simulate(rnd); },
+    _top: top, get _spare() { return !!spare; }, get _landed() { return !!(play && play.done); } };
 })();

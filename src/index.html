@@ -1,0 +1,63 @@
+<!--HEAD-->
+<div id="app">
+  <section class="screen" id="scr-menu">
+    <div class="menu-bg"></div>
+    <div class="menu-wrap">
+      <header>
+        <h1 class="logo">მამული</h1>
+        <p class="tagline">იყიდე ციხე-ქალაქები, ააშენე კოშკები და ივაჭრე მეგობრებთან</p>
+      </header>
+      <div class="menu-card">
+        <div class="me-hero"><img id="heroFig" src="art/h_davidride.webp" alt=""><div><p class="lbl">შენი გმირი</p><b id="heroName"></b></div></div>
+        <div class="hero-pick" id="heroPick"></div>
+        <label class="field" for="nameIn"><span class="lbl">სახელი</span><input id="nameIn" maxlength="16" autocomplete="nickname" spellcheck="false"></label>
+        <div id="onlineBox" class="online">
+          <button class="btn gold wide big" id="bHost">ოთახის შექმნა</button>
+          <div class="join"><input id="codeIn" maxlength="4" placeholder="კოდი" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="ოთახის კოდი"><button class="btn" id="bJoin">შესვლა</button></div>
+        </div>
+        <p class="note" id="onlineNote" hidden>ონლაინ ოთახები თამაშის საიტზე მუშაობს: <b>qourum.github.io/mamuli</b>. აქ ბოტებთან ან ერთ ეკრანზე ითამაშებ.</p>
+        <button class="btn wide" id="bLocal">ბოტებთან ან ერთ ეკრანზე</button>
+        <button class="btn ghost wide" id="bResume" hidden>შენახული თამაშის გაგრძელება</button>
+        <button class="link" id="bRules">წესები</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" id="scr-lobby" hidden>
+    <div class="lobby-wrap">
+      <header class="lobby-top"><button class="ib back" id="bLeave" aria-label="უკან">‹</button><h2 id="lobbyTitle">ოთახი</h2></header>
+      <div class="code-box" id="codeBox">
+        <p class="lbl">ოთახის კოდი</p>
+        <div class="code" id="roomCode">····</div>
+        <p class="hint" id="roomState"></p>
+        <div class="row"><button class="btn" id="bShare">გაზიარება</button><button class="btn" id="bCopy">ბმულის კოპირება</button></div>
+      </div>
+      <ul class="seats" id="seats"></ul>
+      <div id="lobbyHeroes"></div>
+      <div id="cfg"></div>
+      <div id="lobbyActs" class="lobby-acts"></div>
+    </div>
+  </section>
+
+  <section class="screen" id="scr-game" hidden>
+    <div class="game">
+      <div class="scene" aria-hidden="true"></div>
+      <header class="hud"><div class="players" id="players"></div><div class="round" id="round"></div></header>
+      <main class="table" id="table">
+        <div class="stage" id="stage"><div class="board" id="board"></div></div>
+        <div class="cardpop" id="cardpop" hidden></div>
+        <div class="banner" id="banner"></div>
+      </main>
+      <section class="panel" id="panel" aria-live="polite"></section>
+      <nav class="dock" aria-label="მოქმედებები">
+        <button data-open="estate"><span class="rb"><img src="art/s_fort.webp" alt=""></span><span>მამული</span></button>
+        <button data-open="trade" id="bTrade"><span class="rb"><img src="art/ui_coinbag.webp" alt=""></span><span>ვაჭრობა</span></button>
+        <button data-open="log"><span class="rb"><img src="art/ui_book.webp" alt=""></span><span>ჟურნალი</span></button>
+        <button data-open="menu"><span class="rb"><span class="burger" aria-hidden="true"><i></i><i></i><i></i></span></span><span>მენიუ</span></button>
+      </nav>
+    </div>
+  </section>
+
+  <div class="sheet" id="sheet" hidden><div class="sheet-card" id="sheetBody" role="dialog" aria-modal="true"></div></div>
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+</div>

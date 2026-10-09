@@ -5,7 +5,7 @@
 // is in the room. If the host disappears, the next player in seat order takes over with their copy of the state.
 // "local" is a game on this device only (people taking turns and computer players), without any network.
 
-const PROTO = 1;
+const PROTO = 2;                 // 2: a move's steps are in 'steps' (in 1 they hid the event's number)
 const ONLINE = {
   ws: 'wss://wnpqmcucnqcpcceqwega.supabase.co/realtime/v1',
   key: 'sb_publishable_DEGb_dkdj1s3QEJFrxc-Aw_apfCzfNx',
@@ -158,6 +158,7 @@ async function hostRoom() {
     Engine.lobbyJoin(st, ROOM.me, PROFILE.name, PROFILE.hero);
     ROOM.st = st;
     UI.go('lobby');
+    Lobby.connecting();
     try { await connect(); } catch (e) { return fail(e && e.message === 'rt' ? 'site' : 'net'); }
     await wait(900);                                       // someone else already hosts a room with this code: another code
     if (!ROOM) return;
@@ -175,6 +176,7 @@ async function joinRoom(code) {
   ROOM = newRoom('online', 'guest', code);
   setHash(code);
   UI.go('lobby');
+  Lobby.connecting();
   try { await connect(); } catch (e) { return fail(e && e.message === 'rt' ? 'site' : 'net'); }
   if (!ROOM) return;
   const t0 = now();
@@ -233,9 +235,11 @@ function fail(why) {
     started: 'ამ ოთახში თამაში უკვე დაიწყო.',
     version: 'თამაშის ვერსიები განსხვავდება. ყველამ განაახლეთ გვერდი.'
   }[why] || why;
+  const code = ROOM && ROOM.role === 'guest' ? ROOM.code : '';
   leaveRoom(true);
   setHash('');
   UI.go('menu');
+  if (code && (why === 'net' || why === 'notfound')) { const c = $('#codeIn'); if (c) c.value = code; }   // to try again with one tap
   UI.toast(msg, 4200);
 }
 function leaveRoom(quiet) {
@@ -251,8 +255,9 @@ function leaveRoom(quiet) {
   View.clear();
 }
 const wait = ms => new Promise(r => setTimeout(r, ms));
+// the room stays in the address (…#join=ABCD): a reload goes back into it, and the address itself is the invitation
 function setHash(code) {
-  try { history.replaceState(null, '', location.pathname + location.search + (code ? '#' + code : '')); } catch (e) { }
+  try { history.replaceState(null, '', location.pathname + location.search + (code ? '#join=' + code : '')); } catch (e) { }
 }
 
 // ----- messages -----
@@ -423,6 +428,9 @@ function takeOver(st) {
 }
 
 // ----- the computer players, and players who are away -----
+// A computer player waits until the screen has shown everything that happened, then a moment more (so one can see where it
+// landed before it buys, say), and only then makes its move. The others' phones play the same things at the same time.
+const BEAT = { roll: 550, buy: 700, skip: 700, end: 300, build: 450, sell: 450, mort: 450, unmort: 450, offer: 700, accept: 900, decline: 900, cancel: 500 };
 function drive() {
   if (!ROOM || !isHost()) return;
   clearTimeout(ROOM.driveT);
@@ -432,19 +440,23 @@ function drive() {
   if (!p) return;
   const key = st.trade ? st.tn + ':' + st.trade.from + '>' + st.trade.to : '';
   if (key !== ROOM.tradeKey) { ROOM.tradeKey = key; ROOM.tradeAt = now(); }
-  const away = !p.bot && p.away && ROOM.mode === 'online';
-  let delay;
-  if (p.bot) delay = 650 + View.pending();
-  else if (away) delay = Math.max(900, (ROOM.awayAt[p.pid] || 0) + ONLINE.awayWait - now()) + View.pending();
-  else if (st.trade) delay = Math.max(500, ROOM.tradeAt + ONLINE.tradeWait - now());    // a person who does not answer an offer
-  else return;                                                                         // a person's turn: wait for them
-  const room = ROOM;
-  ROOM.driveT = setTimeout(() => {
+  const away = !p.bot && p.away && ROOM.mode === 'online', computer = p.bot || away;
+  let until;                                                                      // not before this time
+  if (p.bot) until = now();
+  else if (away) until = Math.max(now() + 900, (ROOM.awayAt[p.pid] || 0) + ONLINE.awayWait);
+  else if (st.trade) until = Math.max(now() + 500, ROOM.tradeAt + ONLINE.tradeWait);   // a person who does not answer an offer
+  else return;                                                                    // a person's turn: wait for them
+  const room = ROOM, plan = computer ? Engine.botMove(st, seat, away) : null;
+  const beat = plan ? BEAT[plan.t] || 650 : 0;
+  const go = () => {
     if (ROOM !== room || ROOM.st !== st) return;
-    const a = p.bot || away ? Engine.botMove(st, seat, away) : (st.trade && st.trade.to === seat ? { t: 'decline' } : null);
+    const left = Math.max(until - now(), computer ? beat - View.idleFor() : 0);
+    if (left > 0) { ROOM.driveT = setTimeout(go, computer ? Math.min(left, 300) : left); return; }   // the screen is checked often
+    const a = computer ? Engine.botMove(st, seat, away) : (st.trade && st.trade.to === seat ? { t: 'decline' } : null);
     if (!a) return;
     if (!Engine.act(st, seat, a, rndHost)) commit();
-  }, delay);
+  };
+  ROOM.driveT = setTimeout(go, 40);
 }
 
 // the page went to the background and came back: make sure we are still in the room

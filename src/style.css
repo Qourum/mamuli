@@ -86,9 +86,14 @@ img { max-width: 100%; }
 .lobby-top { display: flex; align-items: center; gap: 10px; }
 .lobby-top h2 { margin: 0; font: 900 22px var(--f-display); color: var(--gold); }
 .back { font-size: 22px; line-height: 1; }
-.code-box { text-align: center; padding: 14px; border-radius: 18px; border: 1px solid var(--line); background: rgba(44, 27, 16, .6); }
-.code { font: 400 46px/1.1 var(--f-num); letter-spacing: .25em; color: var(--gold-hi); text-shadow: 0 2px 0 var(--wood-2); padding-left: .25em; }
-.code-box .row { margin-top: 10px; }
+/* the room's code, big, with the invitation next to it (as in მეტეხი) */
+.code-box { display: flex; flex-direction: column; gap: 6px; }
+.ccode { display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px; border-radius: 16px; border: 1px solid var(--line); background: rgba(44, 27, 16, .6); box-shadow: inset 0 1px 0 rgba(255, 240, 188, .08); }
+.ccode span { font-size: 12px; font-weight: 800; letter-spacing: .1em; color: var(--gold); }
+.ccode b { flex: 1; min-width: 0; font: 400 40px/1.1 var(--f-num); letter-spacing: .2em; color: var(--gold-hi); text-shadow: 0 2px 0 var(--wood-2); }
+.ccode .btn { flex: none; }
+.code-box .hint { margin: 0; text-align: center; }
+.code-box .hint:empty { display: none; }
 .seats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .seat { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line-2); }
 .seat.sel { border-color: var(--gold); }
@@ -98,6 +103,11 @@ img { max-width: 100%; }
 .seat small { color: var(--muted); font-size: 12px; }
 .tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 2px; }
 .seat.empty { justify-content: center; color: var(--dim); font-size: 13px; border-style: dashed; }
+.seat.wait { border-style: dashed; }
+.seat[data-invite] { cursor: pointer; }
+.seat.wait > i { width: 44px; height: 44px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 2px var(--gold); animation: seatWait 1.4s ease-in-out infinite; }
+.seat.wait b { color: var(--cream); }
+@keyframes seatWait { 50% { opacity: .35; } }
 .seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 4px; border-radius: 14px; background: var(--ink-2); border: 1px solid var(--line-2); }
 .seg button { min-height: 38px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font-weight: 700; font-size: 13px; padding: 4px; }
 .seg button.on { background: var(--gold); color: var(--wood-2); }
@@ -133,7 +143,11 @@ img { max-width: 100%; }
 /* no overflow clip here: Chrome clips 3D content wrongly under one (what stands beyond the board vanished in strips) */
 .table { position: relative; min-height: 0; }
 .stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; perspective: var(--persp, 1000px); perspective-origin: 50% 50%; }
-.panel { position: relative; z-index: 3; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 6px; padding: 2px 14px 6px; text-align: center; }
+.panel { position: relative; z-index: 3; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 6px; padding: 2px 14px 6px; text-align: center;
+  height: clamp(150px, 21vh, 182px); }          /* one height whatever it says, so the board above never changes size mid-game */
+.panel > * { flex-shrink: 0; }
+.panel .row { gap: 6px; }
+@media (max-width: 400px) { .panel { padding-left: 10px; padding-right: 10px; } }
 .panel > :first-child { margin-top: auto; }
 .panel > :last-child { margin-bottom: auto; }
 .panel .status { font: 900 18px/1.25 var(--f-display); color: var(--cream); text-wrap: balance; text-shadow: 0 2px 6px rgba(0, 0, 0, .9); }
@@ -161,16 +175,16 @@ img { max-width: 100%; }
 .dock button:active:not(:disabled) .rb { transform: translateY(1px); }
 .dock .burger { display: grid; gap: 4px; width: 22px; align-content: center; }
 .dock .burger i { height: 3px; border-radius: 2px; background: var(--gold); }
-@media (orientation: landscape) and (min-width: 720px) {
+@media (orientation: landscape) and (min-width: 640px) {
   .game { grid-template-columns: minmax(0, 1fr) clamp(270px, 30vw, 380px); grid-template-rows: auto minmax(0, 1fr) auto; }
   .scene { background-position: 50% 40%; }
   .hud { grid-column: 2; grid-row: 1; max-height: 52vh; overflow-y: auto; padding: 12px 12px 6px 4px; }
   .players { grid-template-columns: 1fr; }
   .table { grid-column: 1; grid-row: 1 / 4; }
-  .panel { grid-column: 2; grid-row: 2; padding: 8px 12px 8px 4px; }
+  .panel { grid-column: 2; grid-row: 2; padding: 8px 12px 8px 4px; height: auto; }
   .dock { grid-column: 2; grid-row: 3; margin: 0 12px 12px 4px; border-radius: 18px; border: 2px solid var(--gold-lo); }
 }
-@media (orientation: landscape) and (min-width: 720px) and (max-height: 540px) {
+@media (orientation: landscape) and (min-width: 640px) and (max-height: 540px) {
   .hud { padding-top: 8px; gap: 2px; }
   .players { gap: 4px; grid-template-columns: 1fr 1fr; }
   .pl { grid-template-columns: 28px minmax(0, 1fr); }
@@ -350,4 +364,5 @@ img { max-width: 100%; }
   .cardpop.go .card, .banner.go, .buycard.go .bc, .dicesum.go { animation-duration: .01s; }
   .btn.roll { animation: none !important; }
   .banner.go { animation: none; }
+  .seat.wait > i { animation: none; }
 }

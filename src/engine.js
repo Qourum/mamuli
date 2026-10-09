@@ -101,7 +101,7 @@ const Engine = (() => {
   // ----- small helpers -----
   function push(st, k, o) {
     st.evn++;
-    st.ev.push(Object.assign({ n: st.evn, k }, o));
+    st.ev.push(Object.assign({}, o, { n: st.evn, k }));
     if (st.ev.length > 90) st.ev.splice(0, st.ev.length - 90);
   }
   const activeSeats = st => st.players.map((p, i) => i).filter(i => !st.players[i].out);
@@ -180,13 +180,13 @@ const Engine = (() => {
   function step(st, seat, n) {
     const p = st.players[seat], from = p.pos;
     p.pos = ((from + n) % 40 + 40) % 40;
-    push(st, 'move', { s: seat, from, to: p.pos, n });
+    push(st, 'move', { s: seat, from, to: p.pos, steps: n });      // not 'n': that is the event's number
     if (n > 0 && from + n >= 40) salary(st, seat);
   }
   function goTo(st, seat, to) {
     const p = st.players[seat], from = p.pos, n = (to - from + 40) % 40;
     p.pos = to;
-    push(st, 'move', { s: seat, from, to, n, fly: true });
+    push(st, 'move', { s: seat, from, to, steps: n, fly: true });
     if (n > 0 && from + n >= 40) salary(st, seat);
   }
   function toJail(st, seat, why) {

@@ -36,6 +36,8 @@ function check(st) {
     assert(inDeck + held === 1, 'feather count ' + d + ' ' + inDeck + '+' + held, st);
     assert(st.decks[d].length + held === CARDS[d].length, 'deck size', st);
   }
+  // the log counts its events one by one (the screen relies on it to know what it has not shown yet)
+  st.ev.forEach((e, k) => assert(e.n === st.evn - st.ev.length + 1 + k, `event number ${e.n} (${e.k}) at ${k} of ${st.ev.length}, last ${st.evn}`, st));
   if (st.phase === 'debt') assert(st.pend && st.pend.a > 0, 'debt without amount');
   if (st.phase === 'buy') assert(st.pend && !st.own[st.pend.i], 'buying an owned square');
 }

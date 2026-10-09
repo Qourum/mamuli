@@ -77,7 +77,10 @@ const nextSell = (st, s, g) => GROUP_TILES[g].filter(i => Engine.canSell(st, s, 
 // ----- the view -----
 const View = (() => {
   let target = null, shown = null, lastEv = 0, q = [], playing = false, busy = false, pos = [], endsAt = 0;
-  let built = false, cash = [], autoT = 0, gl = true, current = null;
+  let built = false, cash = [], autoT = 0, gl = true, current = null, idleAt = 0, rate = 1, gen = 0, batch = 0;
+  // a move's steps (games saved before the field had its own name kept them in 'n')
+  const stepsOf = e => e.steps != null ? e.steps : ((e.to - e.from) % 40 + 40) % 40;
+  const wait = ms => sleep(ms / rate);
 
   const controls = s => {
     const p = shown && shown.players[s];
@@ -106,16 +109,23 @@ const View = (() => {
     busy = false;
     if (st.phase === 'lobby') { target = st; shown = clone(st); lastEv = st.evn; q = []; leaveBoard(); UI.go('lobby'); Lobby.render(shown); return; }
     UI.go('game');
-    if (!built || !shown || shown.phase === 'lobby' || st.evn < lastEv || (st.ev.length && st.ev[0].n > lastEv + 1)) { reset(st); return; }
+    // the log holds the last events, numbered one by one: what this screen has not shown yet is at its end
+    const first = st.evn - st.ev.length + 1;
+    if (!built || !shown || shown.phase === 'lobby' || st.evn < lastEv || first > lastEv + 1) { reset(st); return; }
     target = clone(st);
-    for (const e of target.ev) if (e.n > lastEv) q.push(e);
+    const fresh = target.ev.slice(Math.max(0, lastEv + 1 - first));
+    if (fresh.length) batch++;
+    for (const e of fresh) { e._b = batch; q.push(e); }     // which change of the state it came with
     lastEv = target.evn;
-    if (q.length > 30 || document.visibilityState === 'hidden') { q = []; finishPlay(); return; }
-    endsAt = Math.max(endsAt, Date.now()) + estimate(q);
+    // far behind (a slow phone, a lost connection): jump to the present instead of playing it all
+    if (q.length > 60 || document.visibilityState === 'hidden') { q = []; if (gl && Board3D.ok) Board3D.halt(); finishPlay(); return; }
+    endsAt = Math.max(endsAt, Date.now()) + estimate(fresh);
     if (!playing) play();
   }
   function reset(st) {
-    target = clone(st); shown = clone(st); lastEv = st.evn; q = []; playing = false;
+    target = clone(st); shown = clone(st); lastEv = st.evn; q = []; playing = false; idleAt = Date.now(); speed(1);
+    gen++;
+    if (gl && Board3D.ok) Board3D.halt();
     if (Dice3D.busy) Dice3D.skip();
     pos = shown.players.map(p => p.pos);
     cash = shown.players.map(p => p.cash);
@@ -134,35 +144,53 @@ const View = (() => {
     Board3D.onPick(i => Sheet.open('deed', i));
   }
   function leaveBoard() { built = false; if (Board3D.ok) Board3D.leave(); if (Dice3D.busy) Dice3D.skip(); }
-  function clear() { target = shown = null; q = []; playing = false; lastEv = 0; leaveBoard(); Sheet.close(); hideBuy(); }
+  function clear() { target = shown = null; q = []; playing = false; lastEv = 0; gen++; leaveBoard(); Sheet.close(); hideBuy(); }
+  // roughly how long events take on screen (only a hint for tests and the like: the computer players wait for the screen itself)
   function estimate(list) {
     let t = 0;
     for (const e of list) {
-      if (e.k === 'roll') t += REDUCED ? 300 : 1900;
-      else if (e.k === 'move') t += e.fly || Math.abs(e.n) > 12 ? 800 : Math.abs(e.n) * 200 + 200;
-      else if (e.k === 'jail') t += 900;
+      if (e.k === 'roll') t += REDUCED ? 300 : 2300;
+      else if (e.k === 'move') t += e.fly || stepsOf(e) > 12 ? 1000 : stepsOf(e) * 190 + 300;
+      else if (e.k === 'jail') t += 1000;
       else if (e.k === 'card') t += 2600;
       else if (e.k === 'turn') t += 300;
-      else t += 250;
+      else t += 450;
     }
     return t;
   }
-  const pending = () => Math.max(0, endsAt - Date.now());
+  const pending = () => playing ? Math.max(1, endsAt - Date.now()) : 0;
+  // how long the screen has had nothing left to show (0 while it is showing something)
+  const idleFor = () => playing || !built ? 0 : Date.now() - idleAt;
+  // a long queue (this phone is slower than the others, or the connection stalled) plays faster until it has caught up
+  function speed(k) { rate = k; if (gl && Board3D.ok) Board3D.speed(k); }
 
+  // one player of the queue at a time: a newer one (after a jump to the present) makes an older one stop
   async function play() {
+    const my = ++gen;
     playing = true;
     clearTimeout(autoT);
     hideBuy();
-    while (q.length && playing) {
+    while (q.length && gen === my) {
       const e = q.shift();
       current = e;
-      try { await animate(e); } catch (err) { console.warn(err); }
-      current = null;
+      // several moves behind the present (this phone is slower than the host's, or the connection stalled): faster
+      const behind = q.length ? q[q.length - 1]._b - e._b : 0;
+      speed(behind >= 4 ? 2.4 : behind >= 2 ? 1.6 : 1);
+      // an animation that never ends (the 3D board lost its graphics, say) must not hold up the game
+      let late = 0;
+      const guard = new Promise(r => { late = setTimeout(() => r('late'), 9000); });
+      try { if (await Promise.race([animate(e), guard]) === 'late' && gen === my && gl && Board3D.ok) Board3D.halt(); } catch (err) { console.warn(err); }
+      clearTimeout(late);
+      if (gen === my) current = null;
     }
-    if (playing) finishPlay();
+    if (gen === my) finishPlay();
   }
   function finishPlay() {
+    gen++;
+    current = null;
     playing = false;
+    idleAt = Date.now();
+    speed(1);
     shown = target;
     pos = shown.players.map(p => p.pos);
     cash = shown.players.map(p => p.cash);
@@ -174,24 +202,26 @@ const View = (() => {
     const st = target;
     switch (e.k) {
       case 'roll': if (gl) { Board3D.focus(e.s); Sound.dice(); await Dice3D.roll(e.d); } break;
-      case 'move':
+      case 'move': {
+        const n = stepsOf(e), g0 = gen;
         Board3D.focus(e.s);
-        if (e.fly || Math.abs(e.n) > 12 || REDUCED) await Board3D.fly(e.s, e.to); else await Board3D.walk(e.s, e.from, e.to, e.n);
-        pos[e.s] = e.to;
+        if (e.fly || Math.abs(n) > 12 || REDUCED) await Board3D.fly(e.s, e.to); else await Board3D.walk(e.s, e.from, e.to, n);
+        if (gen === g0) pos[e.s] = e.to;
         break;
-      case 'jail': Board3D.focus(e.s); await Board3D.fly(e.s, JAIL); pos[e.s] = JAIL; Sound.bad(); await sleep(200); break;
-      case 'salary': case 'gain': money(e.s, e.a); Sound.coin(); await sleep(260); break;
+      }
+      case 'jail': { const g0 = gen; Board3D.focus(e.s); await Board3D.fly(e.s, JAIL); if (gen === g0) pos[e.s] = JAIL; Sound.bad(); await wait(200); break; }
+      case 'salary': case 'gain': money(e.s, e.a); Sound.coin(); await wait(260); break;
       case 'pay': {
         money(e.s, -e.a); if (e.to >= 0) money(e.to, e.a);
         if (gl) Board3D.coins(e.s, e.to, e.a);
         if (e.why === 'rent') toastEv(`${esc(pName(st, e.s))} → ${esc(pName(st, e.to))}: ქირა ${coin(e.a)}`, controls(e.to) ? 'good' : controls(e.s) ? 'bad' : '');
         else if (e.why === 'tax' && controls(e.s)) toastEv(`${esc(tName(e.i))}: ${coin(e.a)}`, 'bad');
-        Sound.pay(); await sleep(450); break;
+        Sound.pay(); await wait(450); break;
       }
-      case 'buy': Board3D.setOwner(e.i, e.s, true); money(e.s, -e.a); Sound.coin(); await sleep(450); whole(st, e.s, [e.i]); break;
-      case 'build': case 'sell': Board3D.setLevel(e.i, e.lv, true); money(e.s, e.k === 'build' ? -Engine.buildCost(e.i) : Engine.buildCost(e.i) / 2); Sound.build(); await sleep(380); break;
-      case 'mort': Board3D.setMort(e.i, true, true); money(e.s, Engine.mortValue(e.i)); await sleep(240); break;
-      case 'unmort': Board3D.setMort(e.i, false, true); money(e.s, -Engine.unmortCost(e.i)); await sleep(240); break;
+      case 'buy': Board3D.setOwner(e.i, e.s, true); money(e.s, -e.a); Sound.coin(); await wait(450); whole(st, e.s, [e.i]); break;
+      case 'build': case 'sell': Board3D.setLevel(e.i, e.lv, true); money(e.s, e.k === 'build' ? -Engine.buildCost(e.i) : Engine.buildCost(e.i) / 2); Sound.build(); await wait(380); break;
+      case 'mort': Board3D.setMort(e.i, true, true); money(e.s, Engine.mortValue(e.i)); await wait(240); break;
+      case 'unmort': Board3D.setMort(e.i, false, true); money(e.s, -Engine.unmortCost(e.i)); await wait(240); break;
       case 'card': await showCard(e); break;
       case 'turn': {
         Board3D.focus(e.s); Board3D.setTurn(e.s);
@@ -200,8 +230,8 @@ const View = (() => {
           banner(mine ? 'შენი სვლაა' : `${pName(st, e.s)}, შენი სვლაა`, e.s);
           Sound.turn();
           try { if (mine && navigator.vibrate) navigator.vibrate(60); } catch (err) { }
-          await sleep(700);
-        } else await sleep(250);
+          await wait(700);
+        } else await wait(250);
         break;
       }
       case 'decline': if (controls(e.from)) toastEv(`${esc(pName(st, e.to))}: უარი შენს შეთავაზებაზე`, 'bad'); break;
@@ -209,9 +239,9 @@ const View = (() => {
         for (const i of e.give.p) Board3D.setOwner(i, e.to, true);
         for (const i of e.get.p) Board3D.setOwner(i, e.from, true);
         whole(st, e.to, e.give.p); whole(st, e.from, e.get.p);
-        toastEv(`${esc(pName(st, e.from))} ⇄ ${esc(pName(st, e.to))}: გარიგება შედგა`, 'good'); Sound.coin(); await sleep(500); break;
+        toastEv(`${esc(pName(st, e.from))} ⇄ ${esc(pName(st, e.to))}: გარიგება შედგა`, 'good'); Sound.coin(); await wait(500); break;
       }
-      case 'bankrupt': toastEv(`${esc(pName(st, e.s))} გაკოტრდა`, 'bad'); Sound.bad(); await sleep(700); break;
+      case 'bankrupt': toastEv(`${esc(pName(st, e.s))} გაკოტრდა`, 'bad'); Sound.bad(); await wait(700); break;
     }
   }
 
@@ -256,7 +286,7 @@ const View = (() => {
     Sound.card();
     let closed = false;
     box.onclick = () => { closed = true; };
-    const until = Date.now() + 2600;
+    const until = Date.now() + 2600 / rate;
     while (!closed && Date.now() < until) await sleep(80);
     box.hidden = true;
   }
@@ -315,7 +345,7 @@ const View = (() => {
     if (L.roll) {
       if (p.jail) {
         extra = `<p class="hint">ზინდანში ხარ. გამოსასვლელად დუბლი გააგორე (${3 - p.jt} ცდა დარჩა), ან გადაიხადე ${JAIL_FINE}.</p>`;
-        acts = `<div class="row"><button class="btn gold" data-a="roll">${DICE_SVG}გააგორე</button>${L.jailpay ? `<button class="btn" data-a="jailpay">გადაიხადე ${JAIL_FINE}</button>` : ''}${L.feather ? '<button class="btn" data-a="feather">ბუმბული</button>' : ''}</div>`;
+        acts = `<div class="row"><button class="btn gold" data-a="roll">${DICE_SVG}გააგორე</button>${L.jailpay ? `<button class="btn${L.feather ? ' small' : ''}" data-a="jailpay">გადაიხადე ${JAIL_FINE}</button>` : ''}${L.feather ? '<button class="btn small" data-a="feather">ბუმბული</button>' : ''}</div>`;
       } else {
         acts = `<button class="btn gold roll" data-a="roll">${DICE_SVG}გააგორე</button>${build ? `<div class="row">${build}</div>` : ''}`;
         if (p.dbl > 0) extra = `<p class="hint">დუბლი! კიდევ ერთხელ აგორებ.</p>`;
@@ -351,6 +381,10 @@ const View = (() => {
     const lines = [];
     for (let k = st.ev.length - 1; k >= 0 && lines.length < 3; k--) { const t = evText(st, st.ev[k]); if (t) lines.push(t); }
     c.innerHTML = `<div class="status">${status}</div>${extra}<div class="acts">${acts}</div>${lines.length ? `<ul class="last">${lines.map(l => `<li>${l}</li>`).join('')}</ul>` : ''}`;
+    // the panel does not grow (the board would shrink): the oldest lines of the log give way when there is more to say
+    const ul = c.querySelector('.last');
+    while (ul && ul.children.length && c.scrollHeight > c.clientHeight + 1) ul.lastElementChild.remove();
+    if (ul && !ul.children.length) ul.remove();
     if (busy) $$('[data-a]', c).forEach(b => { b.disabled = true; });
   }
   // the town one may buy, as a card over the board
@@ -397,8 +431,16 @@ const View = (() => {
     b.setAttribute('aria-label', b.title);
   }
 
+  // the page went to the background: what is left to show is skipped (the game goes on without waiting for this screen)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'hidden' || !playing) return;
+    q = [];
+    if (gl && Board3D.ok) Board3D.halt();
+    finishPlay();
+  });
+
   return {
-    show, reset, clear, pending, render, fit, acting, mySeat, controls,
+    show, reset, clear, pending, idleFor, render, fit, acting, mySeat, controls,
     get st() { return shown; },
     get playing() { return current ? current.k : playing ? 'queue' : ''; },
     busy(b) { busy = b; if (b) $$('#panel [data-a], #buycard [data-a], #sheet [data-a]').forEach(x => { x.disabled = true; }); },
@@ -639,7 +681,8 @@ const Sheet = (() => {
   }
   function menu(st) {
     const host = ROOM && (ROOM.role === 'local' || (st && st.host === ROOM.me));
-    const code = ROOM && ROOM.mode === 'online' ? `<p class="facts"><span>ოთახი <b class="code">${esc(ROOM.code)}</b></span><span>${ROOM.up ? 'კავშირი წესრიგშია' : '<b class="bad">კავშირი გაწყდა, ვცდილობ აღდგენას</b>'}</span></p>` : '';
+    const code = ROOM && ROOM.mode === 'online' ? `<p class="facts"><span>ოთახი <b class="code">${esc(ROOM.code)}</b></span><span>${ROOM.up ? 'კავშირი წესრიგშია' : '<b class="bad">კავშირი გაწყდა, ვცდილობ აღდგენას</b>'}</span><button class="btn small" data-invite>მოწვევა</button></p>
+      <p class="hint">ვინც თამაშიდან გავარდა, ამ ბმულით იმავე ტელეფონიდან თავის ადგილს დაუბრუნდება.</p>` : '';
     return `<div class="sheet-h"><h2>მენიუ</h2><button class="x" data-close aria-label="დახურვა">×</button></div>${code}
       <div class="menu-list">
         <button class="btn wide" data-sheet="rules">წესები</button>
@@ -701,6 +744,7 @@ const Sheet = (() => {
     const sh = ev.target.closest('[data-sheet]');
     if (sh) return open(sh.dataset.sheet);
     if (ev.target.closest('[data-sound]')) { Sound.on = !Sound.on; Sound.unlock(); return draw(); }
+    if (ev.target.closest('[data-invite]')) return Lobby.invite();
     const c = ev.target.closest('[data-confirm]');
     if (c) {
       const what = c.dataset.confirm;

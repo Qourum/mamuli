@@ -13,7 +13,7 @@
         <label class="field" for="nameIn"><span class="lbl">სახელი</span><input id="nameIn" maxlength="16" autocomplete="nickname" spellcheck="false"></label>
         <div id="onlineBox" class="online">
           <button class="btn gold wide big" id="bHost">ოთახის შექმნა</button>
-          <div class="join"><input id="codeIn" maxlength="4" placeholder="კოდი" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="ოთახის კოდი"><button class="btn" id="bJoin">შესვლა</button></div>
+          <div class="join"><input id="codeIn" maxlength="120" placeholder="კოდი" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="ოთახის კოდი"><button class="btn" id="bJoin">შესვლა</button></div>
         </div>
         <p class="note" id="onlineNote" hidden>ონლაინ ოთახები თამაშის საიტზე მუშაობს: <b>qourum.github.io/mamuli</b>. აქ ბოტებთან ან ერთ ეკრანზე ითამაშებ.</p>
         <button class="btn wide" id="bLocal">ბოტებთან ან ერთ ეკრანზე</button>
@@ -27,10 +27,8 @@
     <div class="lobby-wrap">
       <header class="lobby-top"><button class="ib back" id="bLeave" aria-label="უკან">‹</button><h2 id="lobbyTitle">ოთახი</h2></header>
       <div class="code-box" id="codeBox">
-        <p class="lbl">ოთახის კოდი</p>
-        <div class="code" id="roomCode">····</div>
+        <div class="ccode"><span>ოთახი</span><b id="roomCode">····</b><button class="btn gold small" id="bInvite">მოწვევა</button></div>
         <p class="hint" id="roomState"></p>
-        <div class="row"><button class="btn" id="bShare">გაზიარება</button><button class="btn" id="bCopy">ბმულის კოპირება</button></div>
       </div>
       <ul class="seats" id="seats"></ul>
       <div id="lobbyHeroes"></div>

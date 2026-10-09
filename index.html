@@ -110,9 +110,14 @@ img { max-width: 100%; }
 .lobby-top { display: flex; align-items: center; gap: 10px; }
 .lobby-top h2 { margin: 0; font: 900 22px var(--f-display); color: var(--gold); }
 .back { font-size: 22px; line-height: 1; }
-.code-box { text-align: center; padding: 14px; border-radius: 18px; border: 1px solid var(--line); background: rgba(44, 27, 16, .6); }
-.code { font: 400 46px/1.1 var(--f-num); letter-spacing: .25em; color: var(--gold-hi); text-shadow: 0 2px 0 var(--wood-2); padding-left: .25em; }
-.code-box .row { margin-top: 10px; }
+/* the room's code, big, with the invitation next to it (as in მეტეხი) */
+.code-box { display: flex; flex-direction: column; gap: 6px; }
+.ccode { display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px; border-radius: 16px; border: 1px solid var(--line); background: rgba(44, 27, 16, .6); box-shadow: inset 0 1px 0 rgba(255, 240, 188, .08); }
+.ccode span { font-size: 12px; font-weight: 800; letter-spacing: .1em; color: var(--gold); }
+.ccode b { flex: 1; min-width: 0; font: 400 40px/1.1 var(--f-num); letter-spacing: .2em; color: var(--gold-hi); text-shadow: 0 2px 0 var(--wood-2); }
+.ccode .btn { flex: none; }
+.code-box .hint { margin: 0; text-align: center; }
+.code-box .hint:empty { display: none; }
 .seats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .seat { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line-2); }
 .seat.sel { border-color: var(--gold); }
@@ -122,6 +127,11 @@ img { max-width: 100%; }
 .seat small { color: var(--muted); font-size: 12px; }
 .tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 2px; }
 .seat.empty { justify-content: center; color: var(--dim); font-size: 13px; border-style: dashed; }
+.seat.wait { border-style: dashed; }
+.seat[data-invite] { cursor: pointer; }
+.seat.wait > i { width: 44px; height: 44px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 2px var(--gold); animation: seatWait 1.4s ease-in-out infinite; }
+.seat.wait b { color: var(--cream); }
+@keyframes seatWait { 50% { opacity: .35; } }
 .seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 4px; border-radius: 14px; background: var(--ink-2); border: 1px solid var(--line-2); }
 .seg button { min-height: 38px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font-weight: 700; font-size: 13px; padding: 4px; }
 .seg button.on { background: var(--gold); color: var(--wood-2); }
@@ -157,7 +167,11 @@ img { max-width: 100%; }
 /* no overflow clip here: Chrome clips 3D content wrongly under one (what stands beyond the board vanished in strips) */
 .table { position: relative; min-height: 0; }
 .stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; perspective: var(--persp, 1000px); perspective-origin: 50% 50%; }
-.panel { position: relative; z-index: 3; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 6px; padding: 2px 14px 6px; text-align: center; }
+.panel { position: relative; z-index: 3; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 6px; padding: 2px 14px 6px; text-align: center;
+  height: clamp(150px, 21vh, 182px); }          /* one height whatever it says, so the board above never changes size mid-game */
+.panel > * { flex-shrink: 0; }
+.panel .row { gap: 6px; }
+@media (max-width: 400px) { .panel { padding-left: 10px; padding-right: 10px; } }
 .panel > :first-child { margin-top: auto; }
 .panel > :last-child { margin-bottom: auto; }
 .panel .status { font: 900 18px/1.25 var(--f-display); color: var(--cream); text-wrap: balance; text-shadow: 0 2px 6px rgba(0, 0, 0, .9); }
@@ -185,16 +199,16 @@ img { max-width: 100%; }
 .dock button:active:not(:disabled) .rb { transform: translateY(1px); }
 .dock .burger { display: grid; gap: 4px; width: 22px; align-content: center; }
 .dock .burger i { height: 3px; border-radius: 2px; background: var(--gold); }
-@media (orientation: landscape) and (min-width: 720px) {
+@media (orientation: landscape) and (min-width: 640px) {
   .game { grid-template-columns: minmax(0, 1fr) clamp(270px, 30vw, 380px); grid-template-rows: auto minmax(0, 1fr) auto; }
   .scene { background-position: 50% 40%; }
   .hud { grid-column: 2; grid-row: 1; max-height: 52vh; overflow-y: auto; padding: 12px 12px 6px 4px; }
   .players { grid-template-columns: 1fr; }
   .table { grid-column: 1; grid-row: 1 / 4; }
-  .panel { grid-column: 2; grid-row: 2; padding: 8px 12px 8px 4px; }
+  .panel { grid-column: 2; grid-row: 2; padding: 8px 12px 8px 4px; height: auto; }
   .dock { grid-column: 2; grid-row: 3; margin: 0 12px 12px 4px; border-radius: 18px; border: 2px solid var(--gold-lo); }
 }
-@media (orientation: landscape) and (min-width: 720px) and (max-height: 540px) {
+@media (orientation: landscape) and (min-width: 640px) and (max-height: 540px) {
   .hud { padding-top: 8px; gap: 2px; }
   .players { gap: 4px; grid-template-columns: 1fr 1fr; }
   .pl { grid-template-columns: 28px minmax(0, 1fr); }
@@ -374,6 +388,7 @@ img { max-width: 100%; }
   .cardpop.go .card, .banner.go, .buycard.go .bc, .dicesum.go { animation-duration: .01s; }
   .btn.roll { animation: none !important; }
   .banner.go { animation: none; }
+  .seat.wait > i { animation: none; }
 }
 </style>
 </head>
@@ -393,7 +408,7 @@ img { max-width: 100%; }
         <label class="field" for="nameIn"><span class="lbl">სახელი</span><input id="nameIn" maxlength="16" autocomplete="nickname" spellcheck="false"></label>
         <div id="onlineBox" class="online">
           <button class="btn gold wide big" id="bHost">ოთახის შექმნა</button>
-          <div class="join"><input id="codeIn" maxlength="4" placeholder="კოდი" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="ოთახის კოდი"><button class="btn" id="bJoin">შესვლა</button></div>
+          <div class="join"><input id="codeIn" maxlength="120" placeholder="კოდი" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="ოთახის კოდი"><button class="btn" id="bJoin">შესვლა</button></div>
         </div>
         <p class="note" id="onlineNote" hidden>ონლაინ ოთახები თამაშის საიტზე მუშაობს: <b>qourum.github.io/mamuli</b>. აქ ბოტებთან ან ერთ ეკრანზე ითამაშებ.</p>
         <button class="btn wide" id="bLocal">ბოტებთან ან ერთ ეკრანზე</button>
@@ -407,10 +422,8 @@ img { max-width: 100%; }
     <div class="lobby-wrap">
       <header class="lobby-top"><button class="ib back" id="bLeave" aria-label="უკან">‹</button><h2 id="lobbyTitle">ოთახი</h2></header>
       <div class="code-box" id="codeBox">
-        <p class="lbl">ოთახის კოდი</p>
-        <div class="code" id="roomCode">····</div>
+        <div class="ccode"><span>ოთახი</span><b id="roomCode">····</b><button class="btn gold small" id="bInvite">მოწვევა</button></div>
         <p class="hint" id="roomState"></p>
-        <div class="row"><button class="btn" id="bShare">გაზიარება</button><button class="btn" id="bCopy">ბმულის კოპირება</button></div>
       </div>
       <ul class="seats" id="seats"></ul>
       <div id="lobbyHeroes"></div>
@@ -445,7 +458,7 @@ img { max-width: 100%; }
 </div>
 <script src="vendor/three.min.js"></script>
 <script>
-const BUILD = "7444b7494e";
+const BUILD = "17ff064276";
 const SITE = true;
 // ===== მამული: the board, the regions, the cards and the heroes =====
 // Everything here is plain data; the rules live in engine.js.
@@ -708,7 +721,7 @@ const Engine = (() => {
   // ----- small helpers -----
   function push(st, k, o) {
     st.evn++;
-    st.ev.push(Object.assign({ n: st.evn, k }, o));
+    st.ev.push(Object.assign({}, o, { n: st.evn, k }));
     if (st.ev.length > 90) st.ev.splice(0, st.ev.length - 90);
   }
   const activeSeats = st => st.players.map((p, i) => i).filter(i => !st.players[i].out);
@@ -787,13 +800,13 @@ const Engine = (() => {
   function step(st, seat, n) {
     const p = st.players[seat], from = p.pos;
     p.pos = ((from + n) % 40 + 40) % 40;
-    push(st, 'move', { s: seat, from, to: p.pos, n });
+    push(st, 'move', { s: seat, from, to: p.pos, steps: n });      // not 'n': that is the event's number
     if (n > 0 && from + n >= 40) salary(st, seat);
   }
   function goTo(st, seat, to) {
     const p = st.players[seat], from = p.pos, n = (to - from + 40) % 40;
     p.pos = to;
-    push(st, 'move', { s: seat, from, to, n, fly: true });
+    push(st, 'move', { s: seat, from, to, steps: n, fly: true });
     if (n > 0 && from + n >= 40) salary(st, seat);
   }
   function toJail(st, seat, why) {
@@ -1279,7 +1292,7 @@ if (typeof module !== 'undefined') module.exports = Engine;
 // is in the room. If the host disappears, the next player in seat order takes over with their copy of the state.
 // "local" is a game on this device only (people taking turns and computer players), without any network.
 
-const PROTO = 1;
+const PROTO = 2;                 // 2: a move's steps are in 'steps' (in 1 they hid the event's number)
 const ONLINE = {
   ws: 'wss://wnpqmcucnqcpcceqwega.supabase.co/realtime/v1',
   key: 'sb_publishable_DEGb_dkdj1s3QEJFrxc-Aw_apfCzfNx',
@@ -1432,6 +1445,7 @@ async function hostRoom() {
     Engine.lobbyJoin(st, ROOM.me, PROFILE.name, PROFILE.hero);
     ROOM.st = st;
     UI.go('lobby');
+    Lobby.connecting();
     try { await connect(); } catch (e) { return fail(e && e.message === 'rt' ? 'site' : 'net'); }
     await wait(900);                                       // someone else already hosts a room with this code: another code
     if (!ROOM) return;
@@ -1449,6 +1463,7 @@ async function joinRoom(code) {
   ROOM = newRoom('online', 'guest', code);
   setHash(code);
   UI.go('lobby');
+  Lobby.connecting();
   try { await connect(); } catch (e) { return fail(e && e.message === 'rt' ? 'site' : 'net'); }
   if (!ROOM) return;
   const t0 = now();
@@ -1507,9 +1522,11 @@ function fail(why) {
     started: 'ამ ოთახში თამაში უკვე დაიწყო.',
     version: 'თამაშის ვერსიები განსხვავდება. ყველამ განაახლეთ გვერდი.'
   }[why] || why;
+  const code = ROOM && ROOM.role === 'guest' ? ROOM.code : '';
   leaveRoom(true);
   setHash('');
   UI.go('menu');
+  if (code && (why === 'net' || why === 'notfound')) { const c = $('#codeIn'); if (c) c.value = code; }   // to try again with one tap
   UI.toast(msg, 4200);
 }
 function leaveRoom(quiet) {
@@ -1525,8 +1542,9 @@ function leaveRoom(quiet) {
   View.clear();
 }
 const wait = ms => new Promise(r => setTimeout(r, ms));
+// the room stays in the address (…#join=ABCD): a reload goes back into it, and the address itself is the invitation
 function setHash(code) {
-  try { history.replaceState(null, '', location.pathname + location.search + (code ? '#' + code : '')); } catch (e) { }
+  try { history.replaceState(null, '', location.pathname + location.search + (code ? '#join=' + code : '')); } catch (e) { }
 }
 
 // ----- messages -----
@@ -1697,6 +1715,9 @@ function takeOver(st) {
 }
 
 // ----- the computer players, and players who are away -----
+// A computer player waits until the screen has shown everything that happened, then a moment more (so one can see where it
+// landed before it buys, say), and only then makes its move. The others' phones play the same things at the same time.
+const BEAT = { roll: 550, buy: 700, skip: 700, end: 300, build: 450, sell: 450, mort: 450, unmort: 450, offer: 700, accept: 900, decline: 900, cancel: 500 };
 function drive() {
   if (!ROOM || !isHost()) return;
   clearTimeout(ROOM.driveT);
@@ -1706,19 +1727,23 @@ function drive() {
   if (!p) return;
   const key = st.trade ? st.tn + ':' + st.trade.from + '>' + st.trade.to : '';
   if (key !== ROOM.tradeKey) { ROOM.tradeKey = key; ROOM.tradeAt = now(); }
-  const away = !p.bot && p.away && ROOM.mode === 'online';
-  let delay;
-  if (p.bot) delay = 650 + View.pending();
-  else if (away) delay = Math.max(900, (ROOM.awayAt[p.pid] || 0) + ONLINE.awayWait - now()) + View.pending();
-  else if (st.trade) delay = Math.max(500, ROOM.tradeAt + ONLINE.tradeWait - now());    // a person who does not answer an offer
-  else return;                                                                         // a person's turn: wait for them
-  const room = ROOM;
-  ROOM.driveT = setTimeout(() => {
+  const away = !p.bot && p.away && ROOM.mode === 'online', computer = p.bot || away;
+  let until;                                                                      // not before this time
+  if (p.bot) until = now();
+  else if (away) until = Math.max(now() + 900, (ROOM.awayAt[p.pid] || 0) + ONLINE.awayWait);
+  else if (st.trade) until = Math.max(now() + 500, ROOM.tradeAt + ONLINE.tradeWait);   // a person who does not answer an offer
+  else return;                                                                    // a person's turn: wait for them
+  const room = ROOM, plan = computer ? Engine.botMove(st, seat, away) : null;
+  const beat = plan ? BEAT[plan.t] || 650 : 0;
+  const go = () => {
     if (ROOM !== room || ROOM.st !== st) return;
-    const a = p.bot || away ? Engine.botMove(st, seat, away) : (st.trade && st.trade.to === seat ? { t: 'decline' } : null);
+    const left = Math.max(until - now(), computer ? beat - View.idleFor() : 0);
+    if (left > 0) { ROOM.driveT = setTimeout(go, computer ? Math.min(left, 300) : left); return; }   // the screen is checked often
+    const a = computer ? Engine.botMove(st, seat, away) : (st.trade && st.trade.to === seat ? { t: 'decline' } : null);
     if (!a) return;
     if (!Engine.act(st, seat, a, rndHost)) commit();
-  }, delay);
+  };
+  ROOM.driveT = setTimeout(go, 40);
 }
 
 // the page went to the background and came back: make sure we are still in the room
@@ -2378,9 +2403,17 @@ const Board3D = (() => {
 
   // ----- small animations, run by the frame loop -----
   const tweens = [];
+  let speedK = 1, epoch = 0;
   function tween(dur, fn, ez = ease.inOut) {
     if (!ok || dur <= 0 || document.visibilityState === 'hidden') { fn(1); return Promise.resolve(); }
     return new Promise(res => tweens.push({ t: 0, dur, fn, ez, res }));
+  }
+  // everything that is moving jumps to its end (the screen skips ahead to the present)
+  function halt() {
+    epoch++;
+    const all = tweens.splice(0);
+    for (const w of all) { try { w.fn(1); } catch (e) { } w.res(); }
+    if (Dice3D.busy) Dice3D.skip();
   }
   function stepTweens(dt) {
     for (let k = tweens.length - 1; k >= 0; k--) {
@@ -2872,25 +2905,28 @@ const Board3D = (() => {
   }
   async function walk(seat, from, to, n) {
     if (!ok || !toks[seat]) { pos[seat] = to; return; }
-    const dir = n > 0 ? 1 : -1;
+    const dir = n > 0 ? 1 : -1, my = epoch;
     let at = from;
     for (let k = 0; k < Math.abs(n); k++) {
       const next = (at + dir + 40) % 40;
       pos[seat] = next;
       await hop(seat, at, next, REDUCED ? 0.05 : 0.19);
       at = next;
+      if (epoch !== my) return;                   // halted: the board has been set to the present meanwhile
       bounceTile(at);
       Sound.step();
     }
+    if (epoch !== my) return;
     pos[seat] = to;
     placeTokens(true);
   }
   async function fly(seat, to) {
     if (!ok || !toks[seat]) { pos[seat] = to; return; }
-    const tk = toks[seat], p0 = tk.g.position.clone();
+    const tk = toks[seat], p0 = tk.g.position.clone(), my = epoch;
     pos[seat] = to;
     const p1 = spot(seat, to);
     await tween(REDUCED ? 0.1 : 0.75, e => { tk.g.position.lerpVectors(p0, p1, e); tk.g.position.y += Math.sin(Math.PI * e) * 2.2; }, ease.inOut);
+    if (epoch !== my) return;
     bounceTile(to);
     placeTokens(true);
   }
@@ -2964,6 +3000,7 @@ const Board3D = (() => {
     cam.aspect = W / H; cam.updateProjectionMatrix();
     distances();
     Dice3D.layout(W, H);
+    if (running) draw(0);                          // a resized canvas is blank until drawn: draw it now, not a frame later
   }
 
   // ===== tapping a square =====
@@ -3015,8 +3052,8 @@ const Board3D = (() => {
     frame++;
     adapt(real);
     if (riseAt && frame >= riseAt) riseGo();
-    stepTweens(dt);
-    moveCamera(dt);
+    stepTweens(dt * speedK);
+    moveCamera(dt * speedK);
     const t = now / 1000;
     // the figures face the camera; the one whose turn it is glows
     for (const tk of toks) {
@@ -3037,10 +3074,13 @@ const Board3D = (() => {
     for (const c of clouds) { const u = c.userData; u.a += dt * u.sp; c.position.set(Math.cos(u.a) * u.r, u.h, Math.sin(u.a) * u.r); }
     const still = !tweens.length && !BLD.busy && !Dice3D.busy && Math.abs(camT.yaw - camS.yaw) < 0.002 && Math.abs(camT.d - camS.d) < 0.01 && Math.abs(camT.x - camS.x) < 0.005 && Math.abs(camT.z - camS.z) < 0.005;
     if (still && frame % 2) return;          // nothing but flags and glows moving: half the frames are enough
+    draw((still ? dt * 2 : dt) * speedK);
+  }
+  function draw(diceDt) {
     R.setViewport(0, 0, W, H); R.setScissorTest(false);
     R.clear();
     R.render(scene, cam);
-    Dice3D.frame(R, still ? dt * 2 : dt);
+    Dice3D.frame(R, diceDt);
   }
   function start() {
     if (running || !ok) return;
@@ -3156,7 +3196,8 @@ const Board3D = (() => {
   function leave() { built = false; stop(); }
 
   return {
-    init, show, sync, walk, fly, setOwner, setLevel, setMort, pop, celebrate, coins, focus, snap, setMode, setTurn, leave, resize,
+    init, show, sync, walk, fly, setOwner, setLevel, setMort, pop, celebrate, coins, focus, snap, setMode, setTurn, leave, resize, halt,
+    speed(k) { speedK = k > 0 ? k : 1; },
     get ok() { return ok; }, get mode() { return mode; },
     onPick(cb) { pickCb = cb; },
     setPos(seat, at) { pos[seat] = at; },
@@ -3514,7 +3555,10 @@ const nextSell = (st, s, g) => GROUP_TILES[g].filter(i => Engine.canSell(st, s, 
 // ----- the view -----
 const View = (() => {
   let target = null, shown = null, lastEv = 0, q = [], playing = false, busy = false, pos = [], endsAt = 0;
-  let built = false, cash = [], autoT = 0, gl = true, current = null;
+  let built = false, cash = [], autoT = 0, gl = true, current = null, idleAt = 0, rate = 1, gen = 0, batch = 0;
+  // a move's steps (games saved before the field had its own name kept them in 'n')
+  const stepsOf = e => e.steps != null ? e.steps : ((e.to - e.from) % 40 + 40) % 40;
+  const wait = ms => sleep(ms / rate);
 
   const controls = s => {
     const p = shown && shown.players[s];
@@ -3543,16 +3587,23 @@ const View = (() => {
     busy = false;
     if (st.phase === 'lobby') { target = st; shown = clone(st); lastEv = st.evn; q = []; leaveBoard(); UI.go('lobby'); Lobby.render(shown); return; }
     UI.go('game');
-    if (!built || !shown || shown.phase === 'lobby' || st.evn < lastEv || (st.ev.length && st.ev[0].n > lastEv + 1)) { reset(st); return; }
+    // the log holds the last events, numbered one by one: what this screen has not shown yet is at its end
+    const first = st.evn - st.ev.length + 1;
+    if (!built || !shown || shown.phase === 'lobby' || st.evn < lastEv || first > lastEv + 1) { reset(st); return; }
     target = clone(st);
-    for (const e of target.ev) if (e.n > lastEv) q.push(e);
+    const fresh = target.ev.slice(Math.max(0, lastEv + 1 - first));
+    if (fresh.length) batch++;
+    for (const e of fresh) { e._b = batch; q.push(e); }     // which change of the state it came with
     lastEv = target.evn;
-    if (q.length > 30 || document.visibilityState === 'hidden') { q = []; finishPlay(); return; }
-    endsAt = Math.max(endsAt, Date.now()) + estimate(q);
+    // far behind (a slow phone, a lost connection): jump to the present instead of playing it all
+    if (q.length > 60 || document.visibilityState === 'hidden') { q = []; if (gl && Board3D.ok) Board3D.halt(); finishPlay(); return; }
+    endsAt = Math.max(endsAt, Date.now()) + estimate(fresh);
     if (!playing) play();
   }
   function reset(st) {
-    target = clone(st); shown = clone(st); lastEv = st.evn; q = []; playing = false;
+    target = clone(st); shown = clone(st); lastEv = st.evn; q = []; playing = false; idleAt = Date.now(); speed(1);
+    gen++;
+    if (gl && Board3D.ok) Board3D.halt();
     if (Dice3D.busy) Dice3D.skip();
     pos = shown.players.map(p => p.pos);
     cash = shown.players.map(p => p.cash);
@@ -3571,35 +3622,53 @@ const View = (() => {
     Board3D.onPick(i => Sheet.open('deed', i));
   }
   function leaveBoard() { built = false; if (Board3D.ok) Board3D.leave(); if (Dice3D.busy) Dice3D.skip(); }
-  function clear() { target = shown = null; q = []; playing = false; lastEv = 0; leaveBoard(); Sheet.close(); hideBuy(); }
+  function clear() { target = shown = null; q = []; playing = false; lastEv = 0; gen++; leaveBoard(); Sheet.close(); hideBuy(); }
+  // roughly how long events take on screen (only a hint for tests and the like: the computer players wait for the screen itself)
   function estimate(list) {
     let t = 0;
     for (const e of list) {
-      if (e.k === 'roll') t += REDUCED ? 300 : 1900;
-      else if (e.k === 'move') t += e.fly || Math.abs(e.n) > 12 ? 800 : Math.abs(e.n) * 200 + 200;
-      else if (e.k === 'jail') t += 900;
+      if (e.k === 'roll') t += REDUCED ? 300 : 2300;
+      else if (e.k === 'move') t += e.fly || stepsOf(e) > 12 ? 1000 : stepsOf(e) * 190 + 300;
+      else if (e.k === 'jail') t += 1000;
       else if (e.k === 'card') t += 2600;
       else if (e.k === 'turn') t += 300;
-      else t += 250;
+      else t += 450;
     }
     return t;
   }
-  const pending = () => Math.max(0, endsAt - Date.now());
+  const pending = () => playing ? Math.max(1, endsAt - Date.now()) : 0;
+  // how long the screen has had nothing left to show (0 while it is showing something)
+  const idleFor = () => playing || !built ? 0 : Date.now() - idleAt;
+  // a long queue (this phone is slower than the others, or the connection stalled) plays faster until it has caught up
+  function speed(k) { rate = k; if (gl && Board3D.ok) Board3D.speed(k); }
 
+  // one player of the queue at a time: a newer one (after a jump to the present) makes an older one stop
   async function play() {
+    const my = ++gen;
     playing = true;
     clearTimeout(autoT);
     hideBuy();
-    while (q.length && playing) {
+    while (q.length && gen === my) {
       const e = q.shift();
       current = e;
-      try { await animate(e); } catch (err) { console.warn(err); }
-      current = null;
+      // several moves behind the present (this phone is slower than the host's, or the connection stalled): faster
+      const behind = q.length ? q[q.length - 1]._b - e._b : 0;
+      speed(behind >= 4 ? 2.4 : behind >= 2 ? 1.6 : 1);
+      // an animation that never ends (the 3D board lost its graphics, say) must not hold up the game
+      let late = 0;
+      const guard = new Promise(r => { late = setTimeout(() => r('late'), 9000); });
+      try { if (await Promise.race([animate(e), guard]) === 'late' && gen === my && gl && Board3D.ok) Board3D.halt(); } catch (err) { console.warn(err); }
+      clearTimeout(late);
+      if (gen === my) current = null;
     }
-    if (playing) finishPlay();
+    if (gen === my) finishPlay();
   }
   function finishPlay() {
+    gen++;
+    current = null;
     playing = false;
+    idleAt = Date.now();
+    speed(1);
     shown = target;
     pos = shown.players.map(p => p.pos);
     cash = shown.players.map(p => p.cash);
@@ -3611,24 +3680,26 @@ const View = (() => {
     const st = target;
     switch (e.k) {
       case 'roll': if (gl) { Board3D.focus(e.s); Sound.dice(); await Dice3D.roll(e.d); } break;
-      case 'move':
+      case 'move': {
+        const n = stepsOf(e), g0 = gen;
         Board3D.focus(e.s);
-        if (e.fly || Math.abs(e.n) > 12 || REDUCED) await Board3D.fly(e.s, e.to); else await Board3D.walk(e.s, e.from, e.to, e.n);
-        pos[e.s] = e.to;
+        if (e.fly || Math.abs(n) > 12 || REDUCED) await Board3D.fly(e.s, e.to); else await Board3D.walk(e.s, e.from, e.to, n);
+        if (gen === g0) pos[e.s] = e.to;
         break;
-      case 'jail': Board3D.focus(e.s); await Board3D.fly(e.s, JAIL); pos[e.s] = JAIL; Sound.bad(); await sleep(200); break;
-      case 'salary': case 'gain': money(e.s, e.a); Sound.coin(); await sleep(260); break;
+      }
+      case 'jail': { const g0 = gen; Board3D.focus(e.s); await Board3D.fly(e.s, JAIL); if (gen === g0) pos[e.s] = JAIL; Sound.bad(); await wait(200); break; }
+      case 'salary': case 'gain': money(e.s, e.a); Sound.coin(); await wait(260); break;
       case 'pay': {
         money(e.s, -e.a); if (e.to >= 0) money(e.to, e.a);
         if (gl) Board3D.coins(e.s, e.to, e.a);
         if (e.why === 'rent') toastEv(`${esc(pName(st, e.s))} → ${esc(pName(st, e.to))}: ქირა ${coin(e.a)}`, controls(e.to) ? 'good' : controls(e.s) ? 'bad' : '');
         else if (e.why === 'tax' && controls(e.s)) toastEv(`${esc(tName(e.i))}: ${coin(e.a)}`, 'bad');
-        Sound.pay(); await sleep(450); break;
+        Sound.pay(); await wait(450); break;
       }
-      case 'buy': Board3D.setOwner(e.i, e.s, true); money(e.s, -e.a); Sound.coin(); await sleep(450); whole(st, e.s, [e.i]); break;
-      case 'build': case 'sell': Board3D.setLevel(e.i, e.lv, true); money(e.s, e.k === 'build' ? -Engine.buildCost(e.i) : Engine.buildCost(e.i) / 2); Sound.build(); await sleep(380); break;
-      case 'mort': Board3D.setMort(e.i, true, true); money(e.s, Engine.mortValue(e.i)); await sleep(240); break;
-      case 'unmort': Board3D.setMort(e.i, false, true); money(e.s, -Engine.unmortCost(e.i)); await sleep(240); break;
+      case 'buy': Board3D.setOwner(e.i, e.s, true); money(e.s, -e.a); Sound.coin(); await wait(450); whole(st, e.s, [e.i]); break;
+      case 'build': case 'sell': Board3D.setLevel(e.i, e.lv, true); money(e.s, e.k === 'build' ? -Engine.buildCost(e.i) : Engine.buildCost(e.i) / 2); Sound.build(); await wait(380); break;
+      case 'mort': Board3D.setMort(e.i, true, true); money(e.s, Engine.mortValue(e.i)); await wait(240); break;
+      case 'unmort': Board3D.setMort(e.i, false, true); money(e.s, -Engine.unmortCost(e.i)); await wait(240); break;
       case 'card': await showCard(e); break;
       case 'turn': {
         Board3D.focus(e.s); Board3D.setTurn(e.s);
@@ -3637,8 +3708,8 @@ const View = (() => {
           banner(mine ? 'შენი სვლაა' : `${pName(st, e.s)}, შენი სვლაა`, e.s);
           Sound.turn();
           try { if (mine && navigator.vibrate) navigator.vibrate(60); } catch (err) { }
-          await sleep(700);
-        } else await sleep(250);
+          await wait(700);
+        } else await wait(250);
         break;
       }
       case 'decline': if (controls(e.from)) toastEv(`${esc(pName(st, e.to))}: უარი შენს შეთავაზებაზე`, 'bad'); break;
@@ -3646,9 +3717,9 @@ const View = (() => {
         for (const i of e.give.p) Board3D.setOwner(i, e.to, true);
         for (const i of e.get.p) Board3D.setOwner(i, e.from, true);
         whole(st, e.to, e.give.p); whole(st, e.from, e.get.p);
-        toastEv(`${esc(pName(st, e.from))} ⇄ ${esc(pName(st, e.to))}: გარიგება შედგა`, 'good'); Sound.coin(); await sleep(500); break;
+        toastEv(`${esc(pName(st, e.from))} ⇄ ${esc(pName(st, e.to))}: გარიგება შედგა`, 'good'); Sound.coin(); await wait(500); break;
       }
-      case 'bankrupt': toastEv(`${esc(pName(st, e.s))} გაკოტრდა`, 'bad'); Sound.bad(); await sleep(700); break;
+      case 'bankrupt': toastEv(`${esc(pName(st, e.s))} გაკოტრდა`, 'bad'); Sound.bad(); await wait(700); break;
     }
   }
 
@@ -3693,7 +3764,7 @@ const View = (() => {
     Sound.card();
     let closed = false;
     box.onclick = () => { closed = true; };
-    const until = Date.now() + 2600;
+    const until = Date.now() + 2600 / rate;
     while (!closed && Date.now() < until) await sleep(80);
     box.hidden = true;
   }
@@ -3752,7 +3823,7 @@ const View = (() => {
     if (L.roll) {
       if (p.jail) {
         extra = `<p class="hint">ზინდანში ხარ. გამოსასვლელად დუბლი გააგორე (${3 - p.jt} ცდა დარჩა), ან გადაიხადე ${JAIL_FINE}.</p>`;
-        acts = `<div class="row"><button class="btn gold" data-a="roll">${DICE_SVG}გააგორე</button>${L.jailpay ? `<button class="btn" data-a="jailpay">გადაიხადე ${JAIL_FINE}</button>` : ''}${L.feather ? '<button class="btn" data-a="feather">ბუმბული</button>' : ''}</div>`;
+        acts = `<div class="row"><button class="btn gold" data-a="roll">${DICE_SVG}გააგორე</button>${L.jailpay ? `<button class="btn${L.feather ? ' small' : ''}" data-a="jailpay">გადაიხადე ${JAIL_FINE}</button>` : ''}${L.feather ? '<button class="btn small" data-a="feather">ბუმბული</button>' : ''}</div>`;
       } else {
         acts = `<button class="btn gold roll" data-a="roll">${DICE_SVG}გააგორე</button>${build ? `<div class="row">${build}</div>` : ''}`;
         if (p.dbl > 0) extra = `<p class="hint">დუბლი! კიდევ ერთხელ აგორებ.</p>`;
@@ -3788,6 +3859,10 @@ const View = (() => {
     const lines = [];
     for (let k = st.ev.length - 1; k >= 0 && lines.length < 3; k--) { const t = evText(st, st.ev[k]); if (t) lines.push(t); }
     c.innerHTML = `<div class="status">${status}</div>${extra}<div class="acts">${acts}</div>${lines.length ? `<ul class="last">${lines.map(l => `<li>${l}</li>`).join('')}</ul>` : ''}`;
+    // the panel does not grow (the board would shrink): the oldest lines of the log give way when there is more to say
+    const ul = c.querySelector('.last');
+    while (ul && ul.children.length && c.scrollHeight > c.clientHeight + 1) ul.lastElementChild.remove();
+    if (ul && !ul.children.length) ul.remove();
     if (busy) $$('[data-a]', c).forEach(b => { b.disabled = true; });
   }
   // the town one may buy, as a card over the board
@@ -3834,8 +3909,16 @@ const View = (() => {
     b.setAttribute('aria-label', b.title);
   }
 
+  // the page went to the background: what is left to show is skipped (the game goes on without waiting for this screen)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'hidden' || !playing) return;
+    q = [];
+    if (gl && Board3D.ok) Board3D.halt();
+    finishPlay();
+  });
+
   return {
-    show, reset, clear, pending, render, fit, acting, mySeat, controls,
+    show, reset, clear, pending, idleFor, render, fit, acting, mySeat, controls,
     get st() { return shown; },
     get playing() { return current ? current.k : playing ? 'queue' : ''; },
     busy(b) { busy = b; if (b) $$('#panel [data-a], #buycard [data-a], #sheet [data-a]').forEach(x => { x.disabled = true; }); },
@@ -4076,7 +4159,8 @@ const Sheet = (() => {
   }
   function menu(st) {
     const host = ROOM && (ROOM.role === 'local' || (st && st.host === ROOM.me));
-    const code = ROOM && ROOM.mode === 'online' ? `<p class="facts"><span>ოთახი <b class="code">${esc(ROOM.code)}</b></span><span>${ROOM.up ? 'კავშირი წესრიგშია' : '<b class="bad">კავშირი გაწყდა, ვცდილობ აღდგენას</b>'}</span></p>` : '';
+    const code = ROOM && ROOM.mode === 'online' ? `<p class="facts"><span>ოთახი <b class="code">${esc(ROOM.code)}</b></span><span>${ROOM.up ? 'კავშირი წესრიგშია' : '<b class="bad">კავშირი გაწყდა, ვცდილობ აღდგენას</b>'}</span><button class="btn small" data-invite>მოწვევა</button></p>
+      <p class="hint">ვინც თამაშიდან გავარდა, ამ ბმულით იმავე ტელეფონიდან თავის ადგილს დაუბრუნდება.</p>` : '';
     return `<div class="sheet-h"><h2>მენიუ</h2><button class="x" data-close aria-label="დახურვა">×</button></div>${code}
       <div class="menu-list">
         <button class="btn wide" data-sheet="rules">წესები</button>
@@ -4138,6 +4222,7 @@ const Sheet = (() => {
     const sh = ev.target.closest('[data-sheet]');
     if (sh) return open(sh.dataset.sheet);
     if (ev.target.closest('[data-sound]')) { Sound.on = !Sound.on; Sound.unlock(); return draw(); }
+    if (ev.target.closest('[data-invite]')) return Lobby.invite();
     const c = ev.target.closest('[data-confirm]');
     if (c) {
       const what = c.dataset.confirm;
@@ -4250,14 +4335,17 @@ const Lobby = (() => {
     if (online) {
       $('#roomCode').textContent = ROOM.code || '····';
       const here = Object.keys(ROOM.peers || {}).length;
-      $('#roomState').textContent = !ROOM.up ? 'ვუკავშირდები…' : st.players.length ? `ოთახში ${here || 1} ადამიანია` : 'ვუკავშირდები…';
+      $('#roomState').textContent = !ROOM.up || !st.players.length ? 'ვუკავშირდები…' : here > 1 ? `ოთახში ${here} ადამიანია` : '';
     }
     $('#seats').innerHTML = st.players.map((p, s) => {
       const tags = [p.pid === st.host && online ? '<span class="tag">მასპინძელი</span>' : '', p.bot ? '<span class="tag">ბოტი</span>' : '',
         online && p.pid === ROOM.me ? '<span class="tag me">შენ</span>' : '', online && !p.bot && p.pid !== ROOM.me && ROOM.peers && !ROOM.peers[p.pid] ? '<span class="tag warn">კავშირს ელოდება</span>' : ''].join('');
       const canKick = host ? p.pid !== st.host : p.pid === (ROOM && ROOM.me);
       return `<li class="seat${s === sel ? ' sel' : ''}" data-seat="${s}" style="--c:${SEAT_COLORS[s]}"><img src="${por(p.hero)}" alt=""><div><b>${esc(p.name)}</b><small>${esc(HEROES[p.hero].n)}</small><span class="tags">${tags}</span></div>${canKick && st.players.length > 1 ? `<button class="ib" data-kick="${s}" aria-label="მოშორება">×</button>` : ''}</li>`;
-    }).join('') + (st.players.length < MAX_PLAYERS ? `<li class="seat empty">${MAX_PLAYERS - st.players.length} ადგილი თავისუფალია</li>` : '');
+    }).join('') + (st.players.length >= MAX_PLAYERS ? '' : online
+      // a free place in a room: someone is expected (a tap on it invites, like the button)
+      ? `<li class="seat wait" data-invite><i></i><div><b>მეგობარს ელოდები…</b><small>გაუგზავნე კოდი ან ბმული · ${MAX_PLAYERS - st.players.length} ადგილი თავისუფალია</small></div></li>`
+      : `<li class="seat empty">${MAX_PLAYERS - st.players.length} ადგილი თავისუფალია</li>`);
     // the hero of the selected seat
     const me = st.players[sel];
     $('#lobbyHeroes').innerHTML = me ? `<p class="lbl">${online ? 'შენი გმირი' : esc(me.name) + ': გმირი'}</p><div class="hero-pick">${HERO_KEYS.map(h => {
@@ -4276,8 +4364,21 @@ const Lobby = (() => {
          <button class="btn gold wide big" data-lob="start" ${st.players.length < 2 ? 'disabled' : ''}>დაწყება</button>${st.players.length < 2 ? '<p class="hint">დაამატე ბოტი ან დაელოდე მეგობრებს.</p>' : ''}`
       : `<p class="waiting">მასპინძელი თამაშს დაიწყებს, როცა ყველა შემოვა.</p>`;
   }
+  // the room is being reached (or made): its code is known already, the rest is not
+  function connecting() {
+    if (!ROOM || UI.screen !== 'lobby') return;
+    $('#lobbyTitle').textContent = 'ოთახი';
+    $('#codeBox').hidden = false;
+    $('#roomCode').textContent = ROOM.code || '····';
+    $('#roomState').textContent = 'ვუკავშირდები…';
+    $('#seats').innerHTML = `<li class="seat wait"><i></i><div><b>ვუკავშირდები…</b><small>${ROOM.role === 'host' ? 'ოთახი იქმნება' : 'ოთახს ვეძებ'}</small></div></li>`;
+    $('#lobbyHeroes').innerHTML = $('#cfg').innerHTML = $('#lobbyActs').innerHTML = '';
+  }
   function onClick(ev) {
     Sound.unlock();
+    const bid = ev.target.closest('button') && ev.target.closest('button').id;
+    if (bid === 'bLeave') { leaveRoom(false); setHash(''); UI.go('menu'); return; }
+    if (ev.target.closest('#bInvite, [data-invite]')) { invite(); return; }
     const st = View.st || (ROOM && ROOM.st);
     if (!st || !ROOM) return;
     const seat = ev.target.closest('[data-seat]'), kick = ev.target.closest('[data-kick]'), hero = ev.target.closest('[data-lhero]');
@@ -4295,29 +4396,37 @@ const Lobby = (() => {
       move({ t: lob.dataset.lob });
       return;
     }
-    const id = ev.target.closest('button') && ev.target.closest('button').id;
-    if (id === 'bShare') share();
-    else if (id === 'bCopy') copyLink();
-    else if (id === 'bLeave') { leaveRoom(false); setHash(''); UI.go('menu'); }
   }
-  const link = () => location.origin + location.pathname + '#' + ROOM.code;
-  async function share() {
-    const url = link();
-    try { if (navigator.share) { await navigator.share({ title: 'მამული', text: `მამული: შემოდი ოთახში ${ROOM.code}`, url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
-    copyLink();
+  // the room's link, the way მეტეხი does it: the phone's share sheet, or (on a computer) copied for pasting anywhere
+  function invite() {
+    if (!ROOM || !ROOM.code) return;
+    const url = roomLink(ROOM.code), text = `ერთად ვითამაშოთ მამული! ოთახის კოდი: ${ROOM.code}`;
+    if (navigator.share && TOUCH) { navigator.share({ title: 'მამული', text, url }).catch(() => { }); return; }
+    const done = () => UI.toast(`ბმული დაკოპირდა · კოდი ${esc(ROOM.code)}`, 2400, 'good');
+    const show = () => UI.toast(esc(url), 5000);
+    try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(url).then(done, show); return; } } catch (e) { }
+    show();
   }
-  async function copyLink() {
-    try { await navigator.clipboard.writeText(link()); UI.toast('ბმული დაკოპირდა', 1800, 'good'); }
-    catch (e) { UI.toast(`ბმული: ${esc(link())}`, 5000); }
-  }
-  return { render, onClick };
+  return { render, onClick, invite, connecting };
 })();
+const TOUCH = (() => { try { return matchMedia('(pointer: coarse)').matches; } catch (e) { return 'ontouchstart' in window; } })();
+// the invitation link: this page's address with the room in it (a forced test identity is not passed on)
+function roomLink(code) {
+  try { const u = new URL(location.href); u.hash = ''; u.searchParams.delete('pid'); return u.href.replace(/#$/, '') + '#join=' + code; }
+  catch (e) { return location.href.split('#')[0] + '#join=' + code; }
+}
+// a room code in a link (…#join=ABCD, or the older …#ABCD), or in pasted text
+function codeFrom(text) {
+  const m = /join=([A-Za-z0-9]{4})(?![A-Za-z0-9])/.exec(text || '') || /^#?([A-Za-z0-9]{4})$/.exec((text || '').trim());
+  return m ? m[1].toUpperCase() : '';
+}
 
 // ----- wiring -----
 function boot() {
   $('#scr-menu').addEventListener('click', Menu.onClick);
   $('#nameIn').addEventListener('change', e => { PROFILE.name = Engine.cleanName(e.target.value); saveProfile(); });
-  $('#codeIn').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4); });
+  // the code, or a whole invitation link pasted in
+  $('#codeIn').addEventListener('input', e => { const v = e.target.value; e.target.value = (codeFrom(v) || v).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4); });
   $('#codeIn').addEventListener('keydown', e => { if (e.key === 'Enter') $('#bJoin').click(); });
   $('#scr-lobby').addEventListener('click', Lobby.onClick);
   $('#sheet').addEventListener('click', Sheet.onClick);
@@ -4335,9 +4444,16 @@ function boot() {
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') Sheet.close(); });
   document.addEventListener('pointerdown', () => Sound.unlock(), { once: true });
-  const code = (location.hash || '').replace('#', '').toUpperCase();
   UI.go('menu');
-  if (SITE && /^[A-Z0-9]{4}$/.test(code)) joinRoom(code);
+  // a friend's link: straight into their room (also when the link is opened while the game is already open)
+  const fromLink = () => {
+    const code = codeFrom(location.hash);
+    if (!SITE || !code || (ROOM && ROOM.mode === 'online' && ROOM.code === code)) return;
+    if (ROOM && ROOM.st && ROOM.st.phase !== 'lobby' && ROOM.mode === 'online') return;    // not out of a game in progress
+    joinRoom(code);
+  };
+  fromLink();
+  window.addEventListener('hashchange', fromLink);
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 </script>

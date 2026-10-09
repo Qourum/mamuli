@@ -52,14 +52,17 @@ const Lobby = (() => {
     if (online) {
       $('#roomCode').textContent = ROOM.code || '····';
       const here = Object.keys(ROOM.peers || {}).length;
-      $('#roomState').textContent = !ROOM.up ? 'ვუკავშირდები…' : st.players.length ? `ოთახში ${here || 1} ადამიანია` : 'ვუკავშირდები…';
+      $('#roomState').textContent = !ROOM.up || !st.players.length ? 'ვუკავშირდები…' : here > 1 ? `ოთახში ${here} ადამიანია` : '';
     }
     $('#seats').innerHTML = st.players.map((p, s) => {
       const tags = [p.pid === st.host && online ? '<span class="tag">მასპინძელი</span>' : '', p.bot ? '<span class="tag">ბოტი</span>' : '',
         online && p.pid === ROOM.me ? '<span class="tag me">შენ</span>' : '', online && !p.bot && p.pid !== ROOM.me && ROOM.peers && !ROOM.peers[p.pid] ? '<span class="tag warn">კავშირს ელოდება</span>' : ''].join('');
       const canKick = host ? p.pid !== st.host : p.pid === (ROOM && ROOM.me);
       return `<li class="seat${s === sel ? ' sel' : ''}" data-seat="${s}" style="--c:${SEAT_COLORS[s]}"><img src="${por(p.hero)}" alt=""><div><b>${esc(p.name)}</b><small>${esc(HEROES[p.hero].n)}</small><span class="tags">${tags}</span></div>${canKick && st.players.length > 1 ? `<button class="ib" data-kick="${s}" aria-label="მოშორება">×</button>` : ''}</li>`;
-    }).join('') + (st.players.length < MAX_PLAYERS ? `<li class="seat empty">${MAX_PLAYERS - st.players.length} ადგილი თავისუფალია</li>` : '');
+    }).join('') + (st.players.length >= MAX_PLAYERS ? '' : online
+      // a free place in a room: someone is expected (a tap on it invites, like the button)
+      ? `<li class="seat wait" data-invite><i></i><div><b>მეგობარს ელოდები…</b><small>გაუგზავნე კოდი ან ბმული · ${MAX_PLAYERS - st.players.length} ადგილი თავისუფალია</small></div></li>`
+      : `<li class="seat empty">${MAX_PLAYERS - st.players.length} ადგილი თავისუფალია</li>`);
     // the hero of the selected seat
     const me = st.players[sel];
     $('#lobbyHeroes').innerHTML = me ? `<p class="lbl">${online ? 'შენი გმირი' : esc(me.name) + ': გმირი'}</p><div class="hero-pick">${HERO_KEYS.map(h => {
@@ -78,8 +81,21 @@ const Lobby = (() => {
          <button class="btn gold wide big" data-lob="start" ${st.players.length < 2 ? 'disabled' : ''}>დაწყება</button>${st.players.length < 2 ? '<p class="hint">დაამატე ბოტი ან დაელოდე მეგობრებს.</p>' : ''}`
       : `<p class="waiting">მასპინძელი თამაშს დაიწყებს, როცა ყველა შემოვა.</p>`;
   }
+  // the room is being reached (or made): its code is known already, the rest is not
+  function connecting() {
+    if (!ROOM || UI.screen !== 'lobby') return;
+    $('#lobbyTitle').textContent = 'ოთახი';
+    $('#codeBox').hidden = false;
+    $('#roomCode').textContent = ROOM.code || '····';
+    $('#roomState').textContent = 'ვუკავშირდები…';
+    $('#seats').innerHTML = `<li class="seat wait"><i></i><div><b>ვუკავშირდები…</b><small>${ROOM.role === 'host' ? 'ოთახი იქმნება' : 'ოთახს ვეძებ'}</small></div></li>`;
+    $('#lobbyHeroes').innerHTML = $('#cfg').innerHTML = $('#lobbyActs').innerHTML = '';
+  }
   function onClick(ev) {
     Sound.unlock();
+    const bid = ev.target.closest('button') && ev.target.closest('button').id;
+    if (bid === 'bLeave') { leaveRoom(false); setHash(''); UI.go('menu'); return; }
+    if (ev.target.closest('#bInvite, [data-invite]')) { invite(); return; }
     const st = View.st || (ROOM && ROOM.st);
     if (!st || !ROOM) return;
     const seat = ev.target.closest('[data-seat]'), kick = ev.target.closest('[data-kick]'), hero = ev.target.closest('[data-lhero]');
@@ -97,29 +113,37 @@ const Lobby = (() => {
       move({ t: lob.dataset.lob });
       return;
     }
-    const id = ev.target.closest('button') && ev.target.closest('button').id;
-    if (id === 'bShare') share();
-    else if (id === 'bCopy') copyLink();
-    else if (id === 'bLeave') { leaveRoom(false); setHash(''); UI.go('menu'); }
   }
-  const link = () => location.origin + location.pathname + '#' + ROOM.code;
-  async function share() {
-    const url = link();
-    try { if (navigator.share) { await navigator.share({ title: 'მამული', text: `მამული: შემოდი ოთახში ${ROOM.code}`, url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
-    copyLink();
+  // the room's link, the way მეტეხი does it: the phone's share sheet, or (on a computer) copied for pasting anywhere
+  function invite() {
+    if (!ROOM || !ROOM.code) return;
+    const url = roomLink(ROOM.code), text = `ერთად ვითამაშოთ მამული! ოთახის კოდი: ${ROOM.code}`;
+    if (navigator.share && TOUCH) { navigator.share({ title: 'მამული', text, url }).catch(() => { }); return; }
+    const done = () => UI.toast(`ბმული დაკოპირდა · კოდი ${esc(ROOM.code)}`, 2400, 'good');
+    const show = () => UI.toast(esc(url), 5000);
+    try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(url).then(done, show); return; } } catch (e) { }
+    show();
   }
-  async function copyLink() {
-    try { await navigator.clipboard.writeText(link()); UI.toast('ბმული დაკოპირდა', 1800, 'good'); }
-    catch (e) { UI.toast(`ბმული: ${esc(link())}`, 5000); }
-  }
-  return { render, onClick };
+  return { render, onClick, invite, connecting };
 })();
+const TOUCH = (() => { try { return matchMedia('(pointer: coarse)').matches; } catch (e) { return 'ontouchstart' in window; } })();
+// the invitation link: this page's address with the room in it (a forced test identity is not passed on)
+function roomLink(code) {
+  try { const u = new URL(location.href); u.hash = ''; u.searchParams.delete('pid'); return u.href.replace(/#$/, '') + '#join=' + code; }
+  catch (e) { return location.href.split('#')[0] + '#join=' + code; }
+}
+// a room code in a link (…#join=ABCD, or the older …#ABCD), or in pasted text
+function codeFrom(text) {
+  const m = /join=([A-Za-z0-9]{4})(?![A-Za-z0-9])/.exec(text || '') || /^#?([A-Za-z0-9]{4})$/.exec((text || '').trim());
+  return m ? m[1].toUpperCase() : '';
+}
 
 // ----- wiring -----
 function boot() {
   $('#scr-menu').addEventListener('click', Menu.onClick);
   $('#nameIn').addEventListener('change', e => { PROFILE.name = Engine.cleanName(e.target.value); saveProfile(); });
-  $('#codeIn').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4); });
+  // the code, or a whole invitation link pasted in
+  $('#codeIn').addEventListener('input', e => { const v = e.target.value; e.target.value = (codeFrom(v) || v).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4); });
   $('#codeIn').addEventListener('keydown', e => { if (e.key === 'Enter') $('#bJoin').click(); });
   $('#scr-lobby').addEventListener('click', Lobby.onClick);
   $('#sheet').addEventListener('click', Sheet.onClick);
@@ -137,8 +161,15 @@ function boot() {
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') Sheet.close(); });
   document.addEventListener('pointerdown', () => Sound.unlock(), { once: true });
-  const code = (location.hash || '').replace('#', '').toUpperCase();
   UI.go('menu');
-  if (SITE && /^[A-Z0-9]{4}$/.test(code)) joinRoom(code);
+  // a friend's link: straight into their room (also when the link is opened while the game is already open)
+  const fromLink = () => {
+    const code = codeFrom(location.hash);
+    if (!SITE || !code || (ROOM && ROOM.mode === 'online' && ROOM.code === code)) return;
+    if (ROOM && ROOM.st && ROOM.st.phase !== 'lobby' && ROOM.mode === 'online') return;    // not out of a game in progress
+    joinRoom(code);
+  };
+  fromLink();
+  window.addEventListener('hashchange', fromLink);
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();

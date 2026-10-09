@@ -35,9 +35,17 @@ const Board3D = (() => {
 
   // ----- small animations, run by the frame loop -----
   const tweens = [];
+  let speedK = 1, epoch = 0;
   function tween(dur, fn, ez = ease.inOut) {
     if (!ok || dur <= 0 || document.visibilityState === 'hidden') { fn(1); return Promise.resolve(); }
     return new Promise(res => tweens.push({ t: 0, dur, fn, ez, res }));
+  }
+  // everything that is moving jumps to its end (the screen skips ahead to the present)
+  function halt() {
+    epoch++;
+    const all = tweens.splice(0);
+    for (const w of all) { try { w.fn(1); } catch (e) { } w.res(); }
+    if (Dice3D.busy) Dice3D.skip();
   }
   function stepTweens(dt) {
     for (let k = tweens.length - 1; k >= 0; k--) {
@@ -529,25 +537,28 @@ const Board3D = (() => {
   }
   async function walk(seat, from, to, n) {
     if (!ok || !toks[seat]) { pos[seat] = to; return; }
-    const dir = n > 0 ? 1 : -1;
+    const dir = n > 0 ? 1 : -1, my = epoch;
     let at = from;
     for (let k = 0; k < Math.abs(n); k++) {
       const next = (at + dir + 40) % 40;
       pos[seat] = next;
       await hop(seat, at, next, REDUCED ? 0.05 : 0.19);
       at = next;
+      if (epoch !== my) return;                   // halted: the board has been set to the present meanwhile
       bounceTile(at);
       Sound.step();
     }
+    if (epoch !== my) return;
     pos[seat] = to;
     placeTokens(true);
   }
   async function fly(seat, to) {
     if (!ok || !toks[seat]) { pos[seat] = to; return; }
-    const tk = toks[seat], p0 = tk.g.position.clone();
+    const tk = toks[seat], p0 = tk.g.position.clone(), my = epoch;
     pos[seat] = to;
     const p1 = spot(seat, to);
     await tween(REDUCED ? 0.1 : 0.75, e => { tk.g.position.lerpVectors(p0, p1, e); tk.g.position.y += Math.sin(Math.PI * e) * 2.2; }, ease.inOut);
+    if (epoch !== my) return;
     bounceTile(to);
     placeTokens(true);
   }
@@ -621,6 +632,7 @@ const Board3D = (() => {
     cam.aspect = W / H; cam.updateProjectionMatrix();
     distances();
     Dice3D.layout(W, H);
+    if (running) draw(0);                          // a resized canvas is blank until drawn: draw it now, not a frame later
   }
 
   // ===== tapping a square =====
@@ -672,8 +684,8 @@ const Board3D = (() => {
     frame++;
     adapt(real);
     if (riseAt && frame >= riseAt) riseGo();
-    stepTweens(dt);
-    moveCamera(dt);
+    stepTweens(dt * speedK);
+    moveCamera(dt * speedK);
     const t = now / 1000;
     // the figures face the camera; the one whose turn it is glows
     for (const tk of toks) {
@@ -694,10 +706,13 @@ const Board3D = (() => {
     for (const c of clouds) { const u = c.userData; u.a += dt * u.sp; c.position.set(Math.cos(u.a) * u.r, u.h, Math.sin(u.a) * u.r); }
     const still = !tweens.length && !BLD.busy && !Dice3D.busy && Math.abs(camT.yaw - camS.yaw) < 0.002 && Math.abs(camT.d - camS.d) < 0.01 && Math.abs(camT.x - camS.x) < 0.005 && Math.abs(camT.z - camS.z) < 0.005;
     if (still && frame % 2) return;          // nothing but flags and glows moving: half the frames are enough
+    draw((still ? dt * 2 : dt) * speedK);
+  }
+  function draw(diceDt) {
     R.setViewport(0, 0, W, H); R.setScissorTest(false);
     R.clear();
     R.render(scene, cam);
-    Dice3D.frame(R, still ? dt * 2 : dt);
+    Dice3D.frame(R, diceDt);
   }
   function start() {
     if (running || !ok) return;
@@ -813,7 +828,8 @@ const Board3D = (() => {
   function leave() { built = false; stop(); }
 
   return {
-    init, show, sync, walk, fly, setOwner, setLevel, setMort, pop, celebrate, coins, focus, snap, setMode, setTurn, leave, resize,
+    init, show, sync, walk, fly, setOwner, setLevel, setMort, pop, celebrate, coins, focus, snap, setMode, setTurn, leave, resize, halt,
+    speed(k) { speedK = k > 0 ? k : 1; },
     get ok() { return ok; }, get mode() { return mode; },
     onPick(cb) { pickCb = cb; },
     setPos(seat, at) { pos[seat] = at; },

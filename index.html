@@ -19,7 +19,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" href="icon-192.png">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;600;700;800&family=Noto+Serif+Georgian:wght@700;900&family=Lilita+One&display=swap">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" crossorigin href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;600;700;800&family=Noto+Serif+Georgian:wght@700;900&family=Lilita+One&display=swap">
 <style>:root{padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}</style>
 <style>
 /* მამული: a board of Georgian regions, in მეტეხი's colours. Dark wood and gold around the board, parchment squares
@@ -103,6 +103,11 @@ img { max-width: 100%; }
 .join input { font: 400 22px var(--f-num); letter-spacing: .3em; text-transform: uppercase; text-align: center; }
 .note { margin: 0; font-size: 13px; color: var(--muted); }
 .note b { color: var(--gold-hi); }
+.install { display: flex; flex-direction: column; gap: 6px; }
+.install .btn svg { width: 22px; height: 22px; color: var(--gold-hi); }
+.install .note { text-align: center; font-size: 12.5px; }
+.prose .ic { width: 18px; height: 18px; vertical-align: -3px; color: #8fc6ff; }
+.prose .en { color: var(--gold-hi); }
 
 /* ----- the lobby ----- */
 #scr-lobby { overflow-y: auto; background: radial-gradient(120% 70% at 50% 0%, #2a1c12, var(--ink) 70%); }
@@ -413,6 +418,10 @@ img { max-width: 100%; }
         <p class="note" id="onlineNote" hidden>ონლაინ ოთახები თამაშის საიტზე მუშაობს: <b>qourum.github.io/mamuli</b>. აქ ბოტებთან ან ერთ ეკრანზე ითამაშებ.</p>
         <button class="btn wide" id="bLocal">ბოტებთან ან ერთ ეკრანზე</button>
         <button class="btn ghost wide" id="bResume" hidden>შენახული თამაშის გაგრძელება</button>
+        <div class="install" id="installBox" hidden>
+          <button class="btn wide" id="bInstall"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 6.5v7M9 10.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.5 18h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>დააინსტალირე</button>
+          <p class="note" id="installNote">მთავარ ეკრანზე დაჯდება და აპივით გაიხსნება, ბრაუზერის ზოლების გარეშე.</p>
+        </div>
         <button class="link" id="bRules">წესები</button>
       </div>
     </div>
@@ -458,7 +467,7 @@ img { max-width: 100%; }
 </div>
 <script src="vendor/three.min.js"></script>
 <script>
-const BUILD = "17ff064276";
+const BUILD = "53aff3e1f2";
 const SITE = true;
 // ===== მამული: the board, the regions, the cards and the heroes =====
 // Everything here is plain data; the rules live in engine.js.
@@ -3507,6 +3516,8 @@ const ERR = {
 
 // the roll button's picture
 const DICE_SVG = '<svg viewBox="0 0 44 40" aria-hidden="true"><g transform="rotate(-14 13 23)"><rect x="3" y="13" width="20" height="20" rx="4.5" fill="#fffaf0" stroke="#2c1b10" stroke-width="2.2"/><g fill="#2c1b10"><circle cx="8.5" cy="18.5" r="2"/><circle cx="13" cy="23" r="2"/><circle cx="17.5" cy="27.5" r="2"/></g></g><g transform="rotate(12 30 17)"><rect x="20" y="7" width="20" height="20" rx="4.5" fill="#fffaf0" stroke="#2c1b10" stroke-width="2.2"/><g fill="#2c1b10"><circle cx="25.5" cy="12.5" r="2"/><circle cx="34.5" cy="12.5" r="2"/><circle cx="30" cy="17" r="2.2" fill="#a32a1e"/><circle cx="25.5" cy="21.5" r="2"/><circle cx="34.5" cy="21.5" r="2"/></g></g></svg>';
+// Safari's share button, as it looks
+const SHARE_SVG = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 10H5v11h14V10h-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
 const TOWER_SVG = '<svg viewBox="0 0 20 28" aria-hidden="true"><path d="M4 27V9h12v18z" fill="#d9cfbc" stroke="#5a4636" stroke-width="1.5"/><path d="M3 9h14l-7-8z" fill="currentColor" stroke="#5a4636" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 27v-6h4v6" fill="#3b2c22"/></svg>';
 const VIEW_SVG = { all: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="7.5" y="7.5" width="9" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
   me: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/><path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' };
@@ -3985,8 +3996,8 @@ const Sheet = (() => {
   function refresh() { if (kind) draw(); }
   function draw() {
     const st = View.st;
-    if (!st && kind !== 'rules') return close();
-    const fn = { deed, player, estate, build, trade, offer, log, menu, over, bankrupt: bankruptSheet, rules }[kind];
+    if (!st && kind !== 'rules' && kind !== 'install') return close();
+    const fn = { deed, player, estate, build, trade, offer, log, menu, over, bankrupt: bankruptSheet, rules, install }[kind];
     if (!fn) return close();
     const html = fn(st);
     if (html == null) return close();
@@ -4198,6 +4209,23 @@ const Sheet = (() => {
       <p><b>ვალი:</b> ფული თუ არ გყოფნის, „ვალის დაფარვა" კოშკებს გაყიდის და ქალაქებს დააგირავებს. <b>ვაჭრობა:</b> შენს სვლაზე შესთავაზე ნებისმიერ მოთამაშეს ქალაქების და ფულის გაცვლა.</p></div>`;
   }
 
+  // how to put the game on the home screen where the browser does not ask by itself
+  function install() {
+    const ua = navigator.userAgent, where = /CriOS|FxiOS|EdgiOS/.test(ua) ? 'მისამართის ზოლშია, მარჯვნივ' : /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? 'ზედა ზოლშია' : 'ქვედა ზოლშია';
+    const steps = {
+      ios: [`დააჭირე <b>„გაზიარება"</b> ღილაკს ${SHARE_SVG} (${where})`,
+        'ჩამოსქროლე და აირჩიე <b class="en">Add to Home Screen</b> („მთავარ ეკრანზე დამატება")',
+        'გახსენი „მამული" მთავარი ეკრანიდან: აპივით გაიხსნება, ბრაუზერის ზოლების გარეშე.'],
+      mac: ['Safari-ს ზედა მენიუში აირჩიე <b class="en">File → Add to Dock…</b>',
+        '„მამული" Dock-ში გამოჩნდება და ცალკე ფანჯარაში გაიხსნება.'],
+      firefox: ['გახსენი ბრაუზერის მენიუ <b>⋮</b>', 'აირჩიე <b class="en">Install</b> ან <b class="en">Add to Home screen</b>', 'გახსენი „მამული" მთავარი ეკრანიდან.']
+    }[arg] || [];
+    return `<div class="sheet-h"><h2>დაინსტალირება</h2><button class="x" data-close aria-label="დახურვა">×</button></div>
+      <div class="prose"><ol class="steps">${steps.map(t => `<li>${t}</li>`).join('')}</ol>
+      <p>ცალკე ჩამოტვირთვა არ სჭირდება: ახალი ვერსია თავისით მოვა, ბოტებთან კი ინტერნეტის გარეშეც ითამაშებ.</p></div>
+      <button class="btn gold wide" data-close>გასაგებია</button>`;
+  }
+
   function onClick(ev) {
     const st = View.st;
     if (ev.target === box()) return close();
@@ -4306,6 +4334,7 @@ const Menu = (() => {
     $('#onlineNote').hidden = SITE;
     $('#bLocal').classList.toggle('gold', !SITE);          // without online rooms this is the way to play
     $('#bLocal').classList.toggle('big', !SITE);
+    Install.render();
   }
   function onClick(ev) {
     Sound.unlock();
@@ -4316,10 +4345,55 @@ const Menu = (() => {
     else if (id === 'bJoin') { PROFILE.name = Engine.cleanName($('#nameIn').value); saveProfile(); joinRoom($('#codeIn').value); }
     else if (id === 'bLocal') { PROFILE.name = Engine.cleanName($('#nameIn').value); saveProfile(); playLocal(false); }
     else if (id === 'bResume') playLocal(true);
+    else if (id === 'bInstall') Install.go();
     else if (id === 'bRules') { Sheet.open('rules'); }
   }
   return { render, onClick };
 })();
+
+// ----- putting the game on the home screen, like an app (as მეტეხი does) -----
+// Chrome, Edge and Samsung's browser ask the question themselves when the button is pressed; an iPhone or iPad, Safari on
+// a Mac and Firefox on Android have no such question, so the button shows the few taps it takes there.
+const Install = (() => {
+  let ask = null;
+  const ua = navigator.userAgent;
+  const standalone = () => { try { return matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true; } catch (e) { return false; } };
+  const top = () => { try { return window.top === window; } catch (e) { return false; } };
+  const ios = () => /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  const macSafari = () => /Macintosh/.test(ua) && !(navigator.maxTouchPoints > 1) && /Version\/\d+.*Safari\//.test(ua) && !/Chrome|Chromium|Edg|OPR|Firefox/.test(ua);
+  const firefoxAndroid = () => /Android/.test(ua) && /Firefox\//.test(ua);
+  // how this browser installs the game ('' = it cannot, or it already is installed)
+  function how() {
+    if (!SITE || !top() || standalone()) return '';
+    if (ask) return 'ask';
+    if (ios()) return 'ios';
+    if (macSafari()) return 'mac';
+    if (firefoxAndroid()) return 'firefox';
+    return '';
+  }
+  function render() { const b = $('#installBox'); if (b) b.hidden = !how(); }
+  function go() {
+    const h = how();
+    if (h === 'ask') {
+      const a = ask; ask = null;
+      try { a.prompt(); a.userChoice.then(c => { if (c && c.outcome !== 'accepted') ask = null; render(); }, render); } catch (e) { render(); }
+      return;
+    }
+    if (h) Sheet.open('install', h);
+  }
+  addEventListener('beforeinstallprompt', e => { e.preventDefault(); ask = e; render(); });
+  addEventListener('appinstalled', () => { ask = null; render(); UI.toast('მამული დაინსტალირდა: გახსენი მთავარი ეკრანიდან', 3200, 'good'); });
+  return { render, go, how };
+})();
+// the offline helper: the game opens without a connection too (and the browser offers to install it)
+function offlineHelper() {
+  if (!SITE || !('serviceWorker' in navigator) || !(location.protocol === 'https:' || location.hostname === 'localhost')) return;
+  const go = () => navigator.serviceWorker.register('sw.js').then(r => setTimeout(() => {
+    const w = r.active || r.waiting || r.installing;
+    if (w) w.postMessage('keep-all');                     // all the pictures, once the page has what it needs
+  }, 12000)).catch(() => { });
+  if (document.readyState === 'complete') go(); else addEventListener('load', go);
+}
 
 // ----- the lobby: who is in, which hero, how long, start -----
 const Lobby = (() => {
@@ -4454,6 +4528,7 @@ function boot() {
   };
   fromLink();
   window.addEventListener('hashchange', fromLink);
+  offlineHelper();
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 </script>

@@ -23,6 +23,7 @@ const Menu = (() => {
     $('#onlineNote').hidden = SITE;
     $('#bLocal').classList.toggle('gold', !SITE);          // without online rooms this is the way to play
     $('#bLocal').classList.toggle('big', !SITE);
+    Install.render();
   }
   function onClick(ev) {
     Sound.unlock();
@@ -33,10 +34,55 @@ const Menu = (() => {
     else if (id === 'bJoin') { PROFILE.name = Engine.cleanName($('#nameIn').value); saveProfile(); joinRoom($('#codeIn').value); }
     else if (id === 'bLocal') { PROFILE.name = Engine.cleanName($('#nameIn').value); saveProfile(); playLocal(false); }
     else if (id === 'bResume') playLocal(true);
+    else if (id === 'bInstall') Install.go();
     else if (id === 'bRules') { Sheet.open('rules'); }
   }
   return { render, onClick };
 })();
+
+// ----- putting the game on the home screen, like an app (as მეტეხი does) -----
+// Chrome, Edge and Samsung's browser ask the question themselves when the button is pressed; an iPhone or iPad, Safari on
+// a Mac and Firefox on Android have no such question, so the button shows the few taps it takes there.
+const Install = (() => {
+  let ask = null;
+  const ua = navigator.userAgent;
+  const standalone = () => { try { return matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true; } catch (e) { return false; } };
+  const top = () => { try { return window.top === window; } catch (e) { return false; } };
+  const ios = () => /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  const macSafari = () => /Macintosh/.test(ua) && !(navigator.maxTouchPoints > 1) && /Version\/\d+.*Safari\//.test(ua) && !/Chrome|Chromium|Edg|OPR|Firefox/.test(ua);
+  const firefoxAndroid = () => /Android/.test(ua) && /Firefox\//.test(ua);
+  // how this browser installs the game ('' = it cannot, or it already is installed)
+  function how() {
+    if (!SITE || !top() || standalone()) return '';
+    if (ask) return 'ask';
+    if (ios()) return 'ios';
+    if (macSafari()) return 'mac';
+    if (firefoxAndroid()) return 'firefox';
+    return '';
+  }
+  function render() { const b = $('#installBox'); if (b) b.hidden = !how(); }
+  function go() {
+    const h = how();
+    if (h === 'ask') {
+      const a = ask; ask = null;
+      try { a.prompt(); a.userChoice.then(c => { if (c && c.outcome !== 'accepted') ask = null; render(); }, render); } catch (e) { render(); }
+      return;
+    }
+    if (h) Sheet.open('install', h);
+  }
+  addEventListener('beforeinstallprompt', e => { e.preventDefault(); ask = e; render(); });
+  addEventListener('appinstalled', () => { ask = null; render(); UI.toast('მამული დაინსტალირდა: გახსენი მთავარი ეკრანიდან', 3200, 'good'); });
+  return { render, go, how };
+})();
+// the offline helper: the game opens without a connection too (and the browser offers to install it)
+function offlineHelper() {
+  if (!SITE || !('serviceWorker' in navigator) || !(location.protocol === 'https:' || location.hostname === 'localhost')) return;
+  const go = () => navigator.serviceWorker.register('sw.js').then(r => setTimeout(() => {
+    const w = r.active || r.waiting || r.installing;
+    if (w) w.postMessage('keep-all');                     // all the pictures, once the page has what it needs
+  }, 12000)).catch(() => { });
+  if (document.readyState === 'complete') go(); else addEventListener('load', go);
+}
 
 // ----- the lobby: who is in, which hero, how long, start -----
 const Lobby = (() => {
@@ -171,5 +217,6 @@ function boot() {
   };
   fromLink();
   window.addEventListener('hashchange', fromLink);
+  offlineHelper();
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();

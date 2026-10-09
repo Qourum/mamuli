@@ -29,6 +29,8 @@ const ERR = {
 
 // the roll button's picture
 const DICE_SVG = '<svg viewBox="0 0 44 40" aria-hidden="true"><g transform="rotate(-14 13 23)"><rect x="3" y="13" width="20" height="20" rx="4.5" fill="#fffaf0" stroke="#2c1b10" stroke-width="2.2"/><g fill="#2c1b10"><circle cx="8.5" cy="18.5" r="2"/><circle cx="13" cy="23" r="2"/><circle cx="17.5" cy="27.5" r="2"/></g></g><g transform="rotate(12 30 17)"><rect x="20" y="7" width="20" height="20" rx="4.5" fill="#fffaf0" stroke="#2c1b10" stroke-width="2.2"/><g fill="#2c1b10"><circle cx="25.5" cy="12.5" r="2"/><circle cx="34.5" cy="12.5" r="2"/><circle cx="30" cy="17" r="2.2" fill="#a32a1e"/><circle cx="25.5" cy="21.5" r="2"/><circle cx="34.5" cy="21.5" r="2"/></g></g></svg>';
+// Safari's share button, as it looks
+const SHARE_SVG = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 10H5v11h14V10h-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
 const TOWER_SVG = '<svg viewBox="0 0 20 28" aria-hidden="true"><path d="M4 27V9h12v18z" fill="#d9cfbc" stroke="#5a4636" stroke-width="1.5"/><path d="M3 9h14l-7-8z" fill="currentColor" stroke="#5a4636" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 27v-6h4v6" fill="#3b2c22"/></svg>';
 const VIEW_SVG = { all: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="7.5" y="7.5" width="9" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
   me: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/><path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' };
@@ -507,8 +509,8 @@ const Sheet = (() => {
   function refresh() { if (kind) draw(); }
   function draw() {
     const st = View.st;
-    if (!st && kind !== 'rules') return close();
-    const fn = { deed, player, estate, build, trade, offer, log, menu, over, bankrupt: bankruptSheet, rules }[kind];
+    if (!st && kind !== 'rules' && kind !== 'install') return close();
+    const fn = { deed, player, estate, build, trade, offer, log, menu, over, bankrupt: bankruptSheet, rules, install }[kind];
     if (!fn) return close();
     const html = fn(st);
     if (html == null) return close();
@@ -718,6 +720,23 @@ const Sheet = (() => {
       <p><b>ზინდანი:</b> „ზინდანში!" უჯრა, ბარათი ან სამი დუბლი ზედიზედ. გამოსვლა: დუბლი სამ ცდაში, ${JAIL_FINE}-ის გადახდა ან ბუმბული.</p>
       <p><b>ქარვასლები</b> ქირას იღებენ იმის მიხედვით, რამდენი გაქვს (25, 50, 100, 200). <b>წისქვილი და მარანი:</b> კამათლის ჯამი ×4, ორივე თუ გაქვს ×10.</p>
       <p><b>ვალი:</b> ფული თუ არ გყოფნის, „ვალის დაფარვა" კოშკებს გაყიდის და ქალაქებს დააგირავებს. <b>ვაჭრობა:</b> შენს სვლაზე შესთავაზე ნებისმიერ მოთამაშეს ქალაქების და ფულის გაცვლა.</p></div>`;
+  }
+
+  // how to put the game on the home screen where the browser does not ask by itself
+  function install() {
+    const ua = navigator.userAgent, where = /CriOS|FxiOS|EdgiOS/.test(ua) ? 'მისამართის ზოლშია, მარჯვნივ' : /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? 'ზედა ზოლშია' : 'ქვედა ზოლშია';
+    const steps = {
+      ios: [`დააჭირე <b>„გაზიარება"</b> ღილაკს ${SHARE_SVG} (${where})`,
+        'ჩამოსქროლე და აირჩიე <b class="en">Add to Home Screen</b> („მთავარ ეკრანზე დამატება")',
+        'გახსენი „მამული" მთავარი ეკრანიდან: აპივით გაიხსნება, ბრაუზერის ზოლების გარეშე.'],
+      mac: ['Safari-ს ზედა მენიუში აირჩიე <b class="en">File → Add to Dock…</b>',
+        '„მამული" Dock-ში გამოჩნდება და ცალკე ფანჯარაში გაიხსნება.'],
+      firefox: ['გახსენი ბრაუზერის მენიუ <b>⋮</b>', 'აირჩიე <b class="en">Install</b> ან <b class="en">Add to Home screen</b>', 'გახსენი „მამული" მთავარი ეკრანიდან.']
+    }[arg] || [];
+    return `<div class="sheet-h"><h2>დაინსტალირება</h2><button class="x" data-close aria-label="დახურვა">×</button></div>
+      <div class="prose"><ol class="steps">${steps.map(t => `<li>${t}</li>`).join('')}</ol>
+      <p>ცალკე ჩამოტვირთვა არ სჭირდება: ახალი ვერსია თავისით მოვა, ბოტებთან კი ინტერნეტის გარეშეც ითამაშებ.</p></div>
+      <button class="btn gold wide" data-close>გასაგებია</button>`;
   }
 
   function onClick(ev) {

@@ -11,9 +11,48 @@
  "background_color": "#0d1016",
  "theme_color": "#0d1016",
  "icons": [
-  { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
-  { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
-  { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  {
+   "src": "icon-192.png",
+   "sizes": "192x192",
+   "type": "image/png"
+  },
+  {
+   "src": "icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png"
+  },
+  {
+   "src": "icon-512-maskable.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "maskable"
+  }
  ],
- "categories": ["games", "entertainment"]
+ "categories": [
+  "games",
+  "entertainment"
+ ],
+ "screenshots": [
+  {
+   "src": "screens/s1.jpg",
+   "sizes": "780x1688",
+   "type": "image/jpeg",
+   "form_factor": "narrow",
+   "label": "შენი სვლაა: სვანეთი შენია, კოშკებს აშენებ"
+  },
+  {
+   "src": "screens/s2.jpg",
+   "sizes": "780x1688",
+   "type": "image/jpeg",
+   "form_factor": "narrow",
+   "label": "იყიდი რუხს?"
+  },
+  {
+   "src": "screens/s3.jpg",
+   "sizes": "1280x800",
+   "type": "image/jpeg",
+   "form_factor": "wide",
+   "label": "მთელი დაფა: ციხე-ქალაქები საქართველოს კუთხეებში"
+  }
+ ]
 }

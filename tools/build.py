@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Builds მამული from src/.
 
-  python3 tools/build.py            the website: index.html at the repository root (for GitHub Pages), next to art/ and rt.js
+  python3 tools/build.py            the website: index.html at the repository root (for GitHub Pages), next to art/ and rt.js,
+                                    and sw.js, the offline helper that also makes the game installable
   python3 tools/build.py --preview DIR
                                     a preview page for Claude's artifact viewer in DIR: the page without its outer
                                     html/head/body tags, plus the pictures; online rooms are switched off there
@@ -10,7 +11,7 @@
 The pictures in art/ come from მეტეხი (github.com/qourum/metekhi); missing ones are copied from a checkout of it
 (METEKHI=/path/to/metekhi, default ../qourum/metekhi), and so is rt.js, the bundled Supabase Realtime client.
 """
-import hashlib, os, shutil, sys
+import hashlib, json, os, shutil, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'src')
@@ -24,6 +25,8 @@ ART = ([f'por_h_{h}' for h in HEROES] + [f'h_{h}' for h in HEROES if h != 'david
 FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
          '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;600;700;800'
          '&family=Noto+Serif+Georgian:wght@700;900&family=Lilita+One&display=swap">')
+# the website asks for the fonts with CORS, so that the offline helper can keep them (the preview does not need to)
+SITE_FONTS = FONTS.replace('<link rel="stylesheet" href=', '<link rel="stylesheet" crossorigin href=')
 DESC = 'ქართული სამაგიდო თამაში მეგობრებთან ონლაინ: იყიდე ციხე-ქალაქები, ააშენე კოშკები, ივაჭრე და გააკოტრე მეტოქეები.'
 SITE_HEAD = f'''<!doctype html>
 <html lang="ka">
@@ -46,7 +49,7 @@ SITE_HEAD = f'''<!doctype html>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" type="image/png" href="icon-192.png">
-{FONTS}
+{SITE_FONTS}
 <style>:root{{padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}}</style>
 '''
 
@@ -95,7 +98,11 @@ def main():
     build, html = page(True)
     with open(os.path.join(ROOT, 'index.html'), 'w', encoding='utf-8') as f:
         f.write(html)
-    print(f'site {build}: index.html {len(html) // 1024} KB, {len(ART)} pictures')
+    # the offline helper: a new version with every new page, so the old page's copy is replaced
+    sw = read('sw.js').replace("'__VERSION__'", json.dumps(build)).replace('__ARTS__', json.dumps([n + '.webp' for n in ART]))
+    with open(os.path.join(ROOT, 'sw.js'), 'w', encoding='utf-8') as f:
+        f.write(sw)
+    print(f'site {build}: index.html {len(html) // 1024} KB, sw.js, {len(ART)} pictures')
 
 
 if __name__ == '__main__':

@@ -125,11 +125,12 @@ function boot() {
   $('#sheet').addEventListener('click', Sheet.onClick);
   $('#scr-game').addEventListener('click', ev => {
     Sound.unlock();
-    const a = ev.target.closest('#panel [data-a]');
+    const a = ev.target.closest('#panel [data-a], #buycard [data-a]');
     if (a && !a.disabled) { const m = { t: a.dataset.a }; if (a.dataset.seat != null) m.seat = +a.dataset.seat; move(m); return; }
+    if (ev.target.closest('#bView')) return View.view();
     const d = ev.target.closest('#panel [data-deed]');
     if (d) return Sheet.open('deed', +d.dataset.deed);
-    const sh = ev.target.closest('#panel [data-sheet]');
+    const sh = ev.target.closest('#panel [data-sheet], #buycard [data-sheet]');
     if (sh) return Sheet.open(sh.dataset.sheet);
     const b = ev.target.closest('.dock button');
     if (b && !b.disabled) Sheet.open(b.dataset.open);

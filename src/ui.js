@@ -10,11 +10,13 @@ const fmt = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 const coin = n => `<b class="amt"><i class="ci"></i>${fmt(n)}</b>`;
 const por = h => ART('por_h_' + h);
 const pName = (st, s) => st && st.players[s] ? st.players[s].name : '?';
-const tName = i => BOARD[i].n;
+const tName = i => BOARD[i].n.replace(/\u00ad/g, '');
+// a level as pictures: one to four little towers, or the fortress
+const lvIcons = lv => lv >= 5 ? `<img class="fort" src="${ART('s_fort')}" alt="">` : `<span class="tws">${TOWER_SVG.repeat(lv)}</span>`;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const REDUCED = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } })();
 
-const LEVEL_NAMES = ['ცარიელი', 'ხის კოშკი', 'ქვის კოშკი', 'სამეფო კოშკი', 'გუშაგიანი კოშკი', 'ციხე-სიმაგრე'];
+const LEVEL_NAMES = ['ცარიელი', '1 კოშკი', '2 კოშკი', '3 კოშკი', '4 კოშკი', 'ციხე-სიმაგრე'];
 const SCENES = ['g_pass', 'g_svan', 'g_elbrus', 'g_elbrus', 'g_stone', 'g_stone', 'g_svan', 'g_tbilisi'];
 const SCENE_POS = ['50% 70%', '50% 35%', '30% 60%', '70% 40%', '40% 30%', '75% 55%', '20% 70%', '50% 50%'];
 const ERR = {
@@ -25,39 +27,11 @@ const ERR = {
   full: 'ოთახი სავსეა', watch: 'ამ თამაშს მხოლოდ უყურებ', started: 'თამაში უკვე დაიწყო', out: 'შენ გაკოტრდი', over: 'თამაში დასრულდა'
 };
 
-// ----- the board's geometry: square i sits on an 11 × 11 grid, start in the bottom right corner -----
-function cellOf(i) {
-  if (i <= 10) return { r: 11, c: 11 - i, side: i === 0 || i === 10 ? 'c' : 'b' };
-  if (i <= 20) return { r: 11 - (i - 10), c: 1, side: i === 20 ? 'c' : 'l' };
-  if (i <= 30) return { r: 1, c: 1 + (i - 20), side: i === 30 ? 'c' : 't' };
-  return { r: 1 + (i - 30), c: 11, side: 'r' };
-}
-const QVEVRI = '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M13 6h14l-1 4c5 3 8 9 8 14 0 7-6 12-14 12S6 31 6 24c0-5 3-11 8-14z" fill="#b86a3c" stroke="#3a2010" stroke-width="2.2" stroke-linejoin="round"/><path d="M12 15c4 2 12 2 16 0" fill="none" stroke="#3a2010" stroke-width="1.8" stroke-linecap="round"/><ellipse cx="20" cy="6" rx="7" ry="2" fill="#7a3f1f" stroke="#3a2010" stroke-width="2"/></svg>';
+// the roll button's picture
 const DICE_SVG = '<svg viewBox="0 0 44 40" aria-hidden="true"><g transform="rotate(-14 13 23)"><rect x="3" y="13" width="20" height="20" rx="4.5" fill="#fffaf0" stroke="#2c1b10" stroke-width="2.2"/><g fill="#2c1b10"><circle cx="8.5" cy="18.5" r="2"/><circle cx="13" cy="23" r="2"/><circle cx="17.5" cy="27.5" r="2"/></g></g><g transform="rotate(12 30 17)"><rect x="20" y="7" width="20" height="20" rx="4.5" fill="#fffaf0" stroke="#2c1b10" stroke-width="2.2"/><g fill="#2c1b10"><circle cx="25.5" cy="12.5" r="2"/><circle cx="34.5" cy="12.5" r="2"/><circle cx="30" cy="17" r="2.2" fill="#a32a1e"/><circle cx="25.5" cy="21.5" r="2"/><circle cx="34.5" cy="21.5" r="2"/></g></g></svg>';
-const FLAG = '<svg class="fl" viewBox="0 0 30 44" aria-hidden="true"><path d="M5 4v38" stroke="#3a2414" stroke-width="3.2" stroke-linecap="round"/><path class="pen" d="M6.5 5h20l-5.5 7 5.5 7h-20z" stroke="#2c1b10" stroke-width="1.8" stroke-linejoin="round"/><circle cx="5" cy="3.5" r="2.6" fill="#e8b44c" stroke="#5c3c0e" stroke-width="1"/></svg>';
-const MILL = '<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="14" fill="#8a5a32" stroke="#3a2010" stroke-width="2.2"/><circle cx="20" cy="20" r="4" fill="#d9a85c" stroke="#3a2010" stroke-width="2"/><g stroke="#3a2010" stroke-width="2.2" stroke-linecap="round"><path d="M20 6v8M20 26v8M6 20h8M26 20h8M10 10l6 6M24 24l6 6M30 10l-6 6M16 24l-6 6"/></g></svg>';
-
-// what is painted on a square (flat), per region and per kind of square
-const EMBLEM = ['n_snowpine', 'n_pine', 'n_walnut', 'n_autumn', 'n_boulder', 'n_shrub', 'n_poplar', 's_ruin'];
-// what stands on a corner
-const CORNER_PROP = { 0: 'ui_chest_gold_o', 10: 't_palisade', 20: 'wp_horn', 30: 'a_brother' };
-function tileHTML(i) {
-  const t = BOARD[i], c = cellOf(i);
-  const pos = `grid-row:${c.r};grid-column:${c.c}`;
-  const cls = `tile s-${c.side} k-${t.k}`;
-  const name = t.k === 'scroll' || t.k === 'chest' ? '' : `<span class="tn">${esc(t.k === 'road' ? t.s : t.n)}</span>`;
-  if (t.k === 'p') {
-    return `<button class="${cls}" data-i="${i}" style="${pos};--g:${GROUPS[t.g].c}" aria-label="${esc(t.n.replace(/­/g, ''))}, ${t.p}">
-      <span class="band"></span><span class="ico" style="background-image:url(${ART(EMBLEM[t.g])})"></span>${name}<span class="tp">${t.p}</span><span class="own"></span><span class="hatch"></span></button>`;
-  }
-  const icon = {
-    road: `<span class="ico" style="background-image:url(${ART('s_camp')})"></span>`, util: `<span class="ico svg">${t.ic === 'mill' ? MILL : QVEVRI}</span>`,
-    scroll: `<span class="ico" style="background-image:url(${ART('ui_page')})"></span>`, chest: `<span class="ico" style="background-image:url(${ART('ui_chest_wood')})"></span>`,
-    tax: `<span class="ico" style="background-image:url(${ART(t.a > 150 ? 'ui_coinbag' : 'ui_coin')})"></span>`
-  }[t.k] || '';
-  const sub = t.k === 'road' || t.k === 'util' ? `<span class="tp">${t.p}</span>` : t.k === 'tax' ? `<span class="tp">−${t.a}</span>` : '';
-  return `<button class="${cls}" data-i="${i}" style="${pos}" aria-label="${esc(t.n.replace(/­/g, ''))}">${icon}${c.side === 'c' ? `<span class="cn">${esc(t.n.replace(/­/g, ''))}</span>` : name}${sub}<span class="own"></span><span class="hatch"></span></button>`;
-}
+const TOWER_SVG = '<svg viewBox="0 0 20 28" aria-hidden="true"><path d="M4 27V9h12v18z" fill="#d9cfbc" stroke="#5a4636" stroke-width="1.5"/><path d="M3 9h14l-7-8z" fill="currentColor" stroke="#5a4636" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 27v-6h4v6" fill="#3b2c22"/></svg>';
+const VIEW_SVG = { all: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="7.5" y="7.5" width="9" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+  me: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/><path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' };
 
 // ----- sounds: a few tiny synthesized ones, after the first touch -----
 const Sound = (() => {
@@ -70,22 +44,20 @@ const Sound = (() => {
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol || 0.12, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
     o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + d + 0.02);
   }
-  function rattle() {
+  function noise(len, freq, vol, at) {
     const a = ctx(); if (!a) return;
-    for (let k = 0; k < 6; k++) {
-      const t = a.currentTime + k * 0.07 + Math.random() * 0.03, len = 0.03;
-      const b = a.createBuffer(1, Math.floor(a.sampleRate * len), a.sampleRate), d = b.getChannelData(0);
-      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
-      const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
-      f.type = 'bandpass'; f.frequency.value = 1800 + Math.random() * 1500; g.gain.value = 0.35;
-      s.buffer = b; s.connect(f); f.connect(g); g.connect(a.destination); s.start(t);
-    }
+    const t = a.currentTime + (at || 0), b = a.createBuffer(1, Math.floor(a.sampleRate * len), a.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
+    const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+    f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = 1.6; g.gain.value = vol;
+    s.buffer = b; s.connect(f); f.connect(g); g.connect(a.destination); s.start(t);
   }
   return {
     get on() { return on; },
     set on(v) { on = !!v; store.set('sound', on); },
     unlock() { ctx(); },
-    dice: rattle,
+    dice() { for (let k = 0; k < 5; k++) noise(0.03, 1800 + Math.random() * 1500, 0.3, k * 0.06 + Math.random() * 0.02); },
+    tick(v) { noise(0.03, 1300 + Math.random() * 1700, 0.12 + (v || 0.5) * 0.5); },
     coin() { tone(1320, 0.12, 'triangle', 0.08); tone(1760, 0.18, 'triangle', 0.07, 0.07); },
     pay() { tone(520, 0.16, 'triangle', 0.08); tone(390, 0.22, 'triangle', 0.07, 0.08); },
     step() { tone(300 + Math.random() * 60, 0.05, 'square', 0.02); },
@@ -96,10 +68,16 @@ const Sound = (() => {
   };
 })();
 
+// can this player put up a tower anywhere now?
+const canBuild = (st, s) => s >= 0 && Engine.legal(st, s).build && BOARD.some((t, i) => !Engine.buildBlock(st, s, i));
+// the town where the next tower of region g goes (towers go up evenly), and where one comes down
+const nextBuild = (st, s, g) => GROUP_TILES[g].filter(i => !Engine.buildBlock(st, s, i)).sort((a, b) => st.own[a].lv - st.own[b].lv)[0];
+const nextSell = (st, s, g) => GROUP_TILES[g].filter(i => Engine.canSell(st, s, i)).sort((a, b) => st.own[b].lv - st.own[a].lv)[0];
+
 // ----- the view -----
 const View = (() => {
   let target = null, shown = null, lastEv = 0, q = [], playing = false, busy = false, pos = [], endsAt = 0;
-  let built = false, cash = [], rolling = false;
+  let built = false, cash = [], autoT = 0, gl = true, current = null;
 
   const controls = s => {
     const p = shown && shown.players[s];
@@ -126,7 +104,7 @@ const View = (() => {
 
   function show(st) {
     busy = false;
-    if (st.phase === 'lobby') { target = st; shown = clone(st); lastEv = st.evn; q = []; UI.go('lobby'); Lobby.render(shown); return; }
+    if (st.phase === 'lobby') { target = st; shown = clone(st); lastEv = st.evn; q = []; leaveBoard(); UI.go('lobby'); Lobby.render(shown); return; }
     UI.go('game');
     if (!built || !shown || shown.phase === 'lobby' || st.evn < lastEv || (st.ev.length && st.ev[0].n > lastEv + 1)) { reset(st); return; }
     target = clone(st);
@@ -138,20 +116,33 @@ const View = (() => {
   }
   function reset(st) {
     target = clone(st); shown = clone(st); lastEv = st.evn; q = []; playing = false;
-    buildBoard();
+    if (Dice3D.busy) Dice3D.skip();
     pos = shown.players.map(p => p.pos);
     cash = shown.players.map(p => p.cash);
+    board();
+    const fresh = !built;
+    built = true;
+    if (gl) Board3D.show(shown, pos, fresh);
     render();
   }
-  function clear() { target = shown = null; q = []; playing = false; lastEv = 0; Sheet.close(); }
+  // the 3D board, made once per page
+  function board() {
+    const stage = $('#stage');
+    if (!stage || Board3D.ok) return;
+    gl = Board3D.init(stage);
+    if (!gl) { stage.innerHTML = '<p class="nogl">ამ ბრაუზერში 3D დაფა ვერ ჩაირთო. სცადე სხვა ბრაუზერი (Chrome, Safari) ან განაახლე ეს.</p>'; return; }
+    Board3D.onPick(i => Sheet.open('deed', i));
+  }
+  function leaveBoard() { built = false; if (Board3D.ok) Board3D.leave(); if (Dice3D.busy) Dice3D.skip(); }
+  function clear() { target = shown = null; q = []; playing = false; lastEv = 0; leaveBoard(); Sheet.close(); hideBuy(); }
   function estimate(list) {
     let t = 0;
     for (const e of list) {
-      if (e.k === 'roll') t += 900;
-      else if (e.k === 'move') t += e.fly || Math.abs(e.n) > 12 ? 700 : Math.abs(e.n) * 170 + 120;
-      else if (e.k === 'jail') t += 800;
+      if (e.k === 'roll') t += REDUCED ? 300 : 1900;
+      else if (e.k === 'move') t += e.fly || Math.abs(e.n) > 12 ? 800 : Math.abs(e.n) * 200 + 200;
+      else if (e.k === 'jail') t += 900;
       else if (e.k === 'card') t += 2600;
-      else if (e.k === 'turn') t += 250;
+      else if (e.k === 'turn') t += 300;
       else t += 250;
     }
     return t;
@@ -160,9 +151,13 @@ const View = (() => {
 
   async function play() {
     playing = true;
+    clearTimeout(autoT);
+    hideBuy();
     while (q.length && playing) {
       const e = q.shift();
+      current = e;
       try { await animate(e); } catch (err) { console.warn(err); }
+      current = null;
     }
     if (playing) finishPlay();
   }
@@ -178,121 +173,58 @@ const View = (() => {
   async function animate(e) {
     const st = target;
     switch (e.k) {
-      case 'roll': await rollDice(e.d); break;
-      case 'move': await walk(e.s, e.from, e.to, e.n, e.fly); break;
-      case 'jail': await fly(e.s, JAIL); Sound.bad(); await sleep(250); break;
+      case 'roll': if (gl) { Board3D.focus(e.s); Sound.dice(); await Dice3D.roll(e.d); } break;
+      case 'move':
+        Board3D.focus(e.s);
+        if (e.fly || Math.abs(e.n) > 12 || REDUCED) await Board3D.fly(e.s, e.to); else await Board3D.walk(e.s, e.from, e.to, e.n);
+        pos[e.s] = e.to;
+        break;
+      case 'jail': Board3D.focus(e.s); await Board3D.fly(e.s, JAIL); pos[e.s] = JAIL; Sound.bad(); await sleep(200); break;
       case 'salary': case 'gain': money(e.s, e.a); Sound.coin(); await sleep(260); break;
       case 'pay': {
         money(e.s, -e.a); if (e.to >= 0) money(e.to, e.a);
-        if (e.why === 'rent' && (controls(e.s) || controls(e.to))) toastEv(`${esc(pName(st, e.s))} → ${esc(pName(st, e.to))}: ქირა ${coin(e.a)}`, controls(e.to) ? 'good' : 'bad');
-        Sound.pay(); await sleep(420); break;
+        if (gl) Board3D.coins(e.s, e.to, e.a);
+        if (e.why === 'rent') toastEv(`${esc(pName(st, e.s))} → ${esc(pName(st, e.to))}: ქირა ${coin(e.a)}`, controls(e.to) ? 'good' : controls(e.s) ? 'bad' : '');
+        else if (e.why === 'tax' && controls(e.s)) toastEv(`${esc(tName(e.i))}: ${coin(e.a)}`, 'bad');
+        Sound.pay(); await sleep(450); break;
       }
-      case 'buy': setOwner(e.i, e.s); money(e.s, -e.a); Sound.coin(); pulse(e.i); await sleep(350); break;
-      case 'build': case 'sell': setLevel(e.i, e.lv); money(e.s, e.k === 'build' ? -Engine.buildCost(e.i) : Engine.buildCost(e.i) / 2); Sound.build(); pulse(e.i); await sleep(320); break;
-      case 'mort': setMort(e.i, true); money(e.s, Engine.mortValue(e.i)); await sleep(220); break;
-      case 'unmort': setMort(e.i, false); money(e.s, -Engine.unmortCost(e.i)); await sleep(220); break;
+      case 'buy': Board3D.setOwner(e.i, e.s, true); money(e.s, -e.a); Sound.coin(); await sleep(450); whole(st, e.s, [e.i]); break;
+      case 'build': case 'sell': Board3D.setLevel(e.i, e.lv, true); money(e.s, e.k === 'build' ? -Engine.buildCost(e.i) : Engine.buildCost(e.i) / 2); Sound.build(); await sleep(380); break;
+      case 'mort': Board3D.setMort(e.i, true, true); money(e.s, Engine.mortValue(e.i)); await sleep(240); break;
+      case 'unmort': Board3D.setMort(e.i, false, true); money(e.s, -Engine.unmortCost(e.i)); await sleep(240); break;
       case 'card': await showCard(e); break;
       case 'turn': {
+        Board3D.focus(e.s); Board3D.setTurn(e.s);
         const mine = controls(e.s) && ROOM && ROOM.role !== 'local';
         if (mine || (ROOM && ROOM.role === 'local' && controls(e.s) && st.players.filter(p => !p.bot).length > 1)) {
           banner(mine ? 'შენი სვლაა' : `${pName(st, e.s)}, შენი სვლაა`, e.s);
           Sound.turn();
           try { if (mine && navigator.vibrate) navigator.vibrate(60); } catch (err) { }
-          await sleep(650);
-        } else await sleep(120);
+          await sleep(700);
+        } else await sleep(250);
         break;
       }
       case 'decline': if (controls(e.from)) toastEv(`${esc(pName(st, e.to))}: უარი შენს შეთავაზებაზე`, 'bad'); break;
       case 'trade': {
-        for (const i of e.give.p) setOwner(i, e.to);
-        for (const i of e.get.p) setOwner(i, e.from);
-        toastEv(`${esc(pName(st, e.from))} ⇄ ${esc(pName(st, e.to))}: გარიგება შედგა`, 'good'); Sound.coin(); await sleep(400); break;
+        for (const i of e.give.p) Board3D.setOwner(i, e.to, true);
+        for (const i of e.get.p) Board3D.setOwner(i, e.from, true);
+        whole(st, e.to, e.give.p); whole(st, e.from, e.get.p);
+        toastEv(`${esc(pName(st, e.from))} ⇄ ${esc(pName(st, e.to))}: გარიგება შედგა`, 'good'); Sound.coin(); await sleep(500); break;
       }
       case 'bankrupt': toastEv(`${esc(pName(st, e.s))} გაკოტრდა`, 'bad'); Sound.bad(); await sleep(700); break;
     }
   }
-  // the dice fly up spinning and fall back onto the board with the numbers rolled on top
-  async function rollDice(d) {
-    const cubes = $$('#dice .cube');
-    if (!cubes.length) return;
-    rolling = true;
-    Sound.dice();
-    cubes.forEach((c, k) => {
-      spin[k] += 2;
-      c.classList.remove('dbl', 'down'); c.classList.add('up');
-      c.style.transform = cubeTf(k, d[k], 3.4, (k ? 40 : -40) + Math.random() * 30 - 15, -280);
-    });
-    await sleep(REDUCED ? 40 : 430);
-    cubes.forEach((c, k) => {
-      c.classList.replace('up', 'down');
-      c.style.transform = cubeTf(k, d[k], .5, (k ? 14 : -12) + Math.random() * 16 - 8, 0);
-      c.dataset.shown = d[k];
-    });
-    await sleep(REDUCED ? 40 : 470);
-    cubes.forEach(c => { c.classList.remove('down'); c.classList.toggle('dbl', d[0] === d[1]); });
-    rolling = false;
-    await sleep(120);
-  }
-  
-  // ----- the figures -----
-  function tokenXY(seat, at) {
-    const c = tileCenter(at), corner = at % 10 === 0;
-    const caught = s => at === JAIL && !!shown.players[s].jail;
-    const here = shown.players.map((p, s) => s).filter(s => !shown.players[s].out && pos[s] === at && caught(s) === caught(seat));
-    const k = Math.max(0, here.indexOf(seat)), n = Math.max(1, here.length);
-    const cols = n <= 2 ? n : n <= 4 ? 2 : 3, rows = Math.ceil(n / cols);
-    const gx = (k % cols) - (cols - 1) / 2, gy = Math.floor(k / cols) - (rows - 1) / 2;
-    const sp = n > 1 ? Math.min(c.w, c.h) * (corner ? .36 : .42) : 0;
-    if (corner) return { x: c.x + gx * sp, y: c.y + c.h * (caught(seat) ? -.3 : .2) + gy * sp * .5 };
-    return { x: c.x + gx * sp, y: c.y + c.h * (n > 1 ? .06 : .12) + gy * sp * .5 };
-  }
-  function placeTokens(animate) {
-    const layer = $('#tokens');
-    if (!layer || !shown) return;
-    shown.players.forEach((p, s) => {
-      let el = layer.querySelector(`.tok[data-s="${s}"]`);
-      if (!el) {
-        el = document.createElement('div');
-        el.className = 'bb tok'; el.dataset.s = s;
-        el.innerHTML = `<span class="ped"></span><div class="up"><i><img src="${por(p.hero)}" alt=""></i></div>`;
-        layer.appendChild(el);
-      }
-      el.style.setProperty('--c', SEAT_COLORS[s]);
-      el.querySelector('img').src = por(p.hero);
-      el.hidden = p.out;
-      el.classList.toggle('now', shown.turn === s && shown.phase !== 'over');
-      el.classList.toggle('jailed', p.jail && pos[s] === JAIL);
-      el.classList.toggle('instant', !animate);
-      const { x, y } = tokenXY(s, pos[s]);
-      el.style.transform = `translate(${x}px,${y}px)`;
-    });
-  }
-  async function walk(s, from, to, n, flyIt) {
-    if (flyIt || Math.abs(n) > 12 || REDUCED) return fly(s, to);
-    const dir = n > 0 ? 1 : -1, el = $(`#tokens .tok[data-s="${s}"]`);
-    let at = from;
-    for (let k = 0; k < Math.abs(n); k++) {
-      at = (at + dir + 40) % 40;
-      pos[s] = at;
-      if (el) { el.classList.remove('hop'); void el.offsetWidth; el.classList.add('hop'); }
-      placeTokens(true);
-      Sound.step();
-      await sleep(165);
-    }
-    if (el) el.classList.remove('hop');
-    pos[s] = to;
-    placeTokens(true);
-  }
-  async function fly(s, to) {
-    const el = $(`#tokens .tok[data-s="${s}"]`);
-    pos[s] = to;
-    if (el) el.classList.add('flying');
-    placeTokens(true);
-    await sleep(REDUCED ? 60 : 620);
-    if (el) el.classList.remove('flying');
-  }
 
-  // ----- small things that happen on the board -----
+  // a region that has just become one player's
+  function whole(st, s, got) {
+    for (const g of new Set(got.filter(i => BOARD[i].k === 'p').map(i => BOARD[i].g))) {
+      if (!GROUP_TILES[g].every(i => st.own[i] && st.own[i].o === s)) continue;
+      if (gl) Board3D.celebrate(g, s);
+      Sound.turn();
+      toastEv(controls(s) && ROOM && ROOM.role !== 'local' ? `მთელი ${esc(GROUPS[g].n)} შენია! ახლა კოშკებს ააშენებ.` : `მთელი ${esc(GROUPS[g].n)}: ${esc(pName(st, s))}`, controls(s) ? 'good' : '');
+    }
+  }
+  // ----- small things that happen around the board -----
   function money(s, d) {
     if (!d || !shown || !shown.players[s]) return;
     cash[s] = (cash[s] || 0) + d;
@@ -307,24 +239,6 @@ const View = (() => {
       setTimeout(() => f.remove(), 1300);
     }
   }
-  const tileEl = i => $(`#board .tile[data-i="${i}"]`);
-  // what stands on an owned square: the owner's flag, or the tower built there with the flag on top
-  const marks = [];
-  const mark = i => marks[i] || (marks[i] = { o: -1, lv: 0, m: false });
-  function setOwner(i, s) { const t = tileEl(i); if (t) { t.classList.toggle('owned', s >= 0); t.style.setProperty('--o', s >= 0 ? SEAT_COLORS[s] : 'transparent'); } mark(i).o = s; paintMark(i); }
-  function setLevel(i, lv) { const t = tileEl(i); if (t) t.classList.toggle('built', !!lv); mark(i).lv = lv; paintMark(i); }
-  function setMort(i, m) { const t = tileEl(i); if (t) t.classList.toggle('mort', m); mark(i).m = m; paintMark(i); }
-  function paintMark(i) {
-    const b = $(`#things .bld[data-i="${i}"]`); if (!b) return;
-    const k = mark(i), key = `${k.o}|${k.lv}|${k.m}`;
-    if (b.dataset.key === key) return;
-    b.dataset.key = key;
-    b.classList.toggle('mort', k.m);
-    b.classList.toggle('lv', k.lv > 0);
-    b.style.setProperty('--o', k.o >= 0 ? SEAT_COLORS[k.o] : 'transparent');
-    b.querySelector('.up').innerHTML = k.o < 0 ? '' : (k.lv ? `<span class="tw"><img src="${ART(LEVELS[k.lv].a)}" alt="">${k.lv < 5 ? `<em>${k.lv}</em>` : ''}</span>` : '') + FLAG;
-  }
-  function pulse(i) { const t = tileEl(i); if (!t) return; t.classList.remove('pulse'); void t.offsetWidth; t.classList.add('pulse'); }
   function banner(text, s) {
     const b = $('#banner'); if (!b) return;
     b.innerHTML = `<img src="${por(target.players[s].hero)}" alt=""><span>${esc(text)}</span>`;
@@ -341,110 +255,38 @@ const View = (() => {
     box.classList.remove('go'); void box.offsetWidth; box.classList.add('go');
     Sound.card();
     let closed = false;
-    const done = () => { closed = true; };
-    box.onclick = done;
-    const until = Date.now() + 2500;
+    box.onclick = () => { closed = true; };
+    const until = Date.now() + 2600;
     while (!closed && Date.now() < until) await sleep(80);
     box.hidden = true;
   }
-
-  // ----- the board, built once per game screen -----
-  function buildBoard() {
-    const board = $('#board');
-    if (!board) return;
-    let html = '';
-    for (let i = 0; i < 40; i++) html += tileHTML(i);
-    html += `<div class="center" id="center"><div class="c-art"></div></div>
-      <div class="rim rim-f"></div><div class="rim rim-l"></div><div class="rim rim-r"></div>
-      <div class="cube-wrap" id="dice">${cubeHTML(0)}${cubeHTML(1)}</div>
-      <div class="things" id="things"></div><div class="tokens" id="tokens"></div>`;
-    board.innerHTML = html;
-    board.onclick = ev => { const t = ev.target.closest('.tile'); if (t) Sheet.open('deed', +t.dataset.i); };
-    built = true;
-    fit();
-    placeScenery();
-  }
-  // a billboard: something that stands up on the tilted board, its foot at (x, y) of the board
-  const stand = (cls, img, x, y, w) => `<div class="bb ${cls}" style="transform:translate(${x}px,${y}px)"><div class="up" style="width:${w}px;margin-left:${-w / 2}px"><img src="${ART(img)}" alt=""></div></div>`;
-  function tileCenter(i) {
-    const t = $(`#board .tile[data-i="${i}"]`);
-    return t ? { x: t.offsetLeft + t.offsetWidth / 2, y: t.offsetTop + t.offsetHeight / 2, w: t.offsetWidth, h: t.offsetHeight } : { x: 0, y: 0, w: 0, h: 0 };
-  }
-  // the corner pieces, the towers people built, and a castle and trees around the board
-  function placeScenery() {
-    const box = $('#things'), board = $('#board');
-    if (!box || !board) return;
-    const bs = board.clientWidth, tw = bs / 11.75;
-    let html = '';
-    for (const i in CORNER_PROP) {
-      const c = tileCenter(+i);
-      html += stand('prop c' + i, CORNER_PROP[i], c.x, c.y - c.h * (i == JAIL ? -.02 : .14), tw * ({ 0: 1.1, 10: 1.2, 20: 1, 30: .8 })[i]);
-    }
-    const deco = [['s_fort', -0.02, -0.035, 0.24], ['t_archer_3', 1.045, 0.08, 0.1], ['n_pine', -0.05, 0.3, 0.1], ['n_pine', -0.06, 0.52, 0.09],
-      ['n_poplar', 1.05, 0.42, 0.07], ['t_bell_3', 1.05, 0.7, 0.1], ['n_snowpine', 0.3, -0.04, 0.08], ['n_snowpine', 0.72, -0.045, 0.085], ['s_camp', -0.06, 0.86, 0.14]];
-    for (const [a, x, y, w] of deco) html += stand('deco', a, x * bs, y * bs, w * bs);
-    for (let i = 0; i < 40; i++) if (OWNABLE(BOARD[i])) { const c = tileCenter(i); html += `<div class="bb bld" data-i="${i}" style="transform:translate(${c.x}px,${c.y - c.h * .2}px)"><div class="up" style="width:${tw * 1.05}px;margin-left:${-tw * .525}px"></div></div>`; }
-    box.innerHTML = html;
-    for (let i = 0; i < 40; i++) if (OWNABLE(BOARD[i])) paintMark(i);
-  }
-  function cubeHTML(k) {
-    const pips = n => `<i></i>`.repeat(9);
-    return `<div class="cube" data-k="${k}">${[1, 2, 3, 4, 5, 6].map(f => `<div class="fc f${f}" data-f="${f}">${pips(f)}</div>`).join('')}</div>`;
-  }
-  // the turn of a cube that shows face f on top (towards the board's normal); whole turns (spin) make it tumble
-  const FACE_ROT = { 1: [0, 0], 2: [0, -90], 3: [-90, 0], 4: [90, 0], 5: [0, 90], 6: [0, 180] };
-  const spin = [0, 0];
-  function cubeTf(k, f, lift, rz, extra) {
-    const [ax, ay] = FACE_ROT[f] || [0, 0];
-    return `translateZ(calc(var(--d) * ${lift})) rotateZ(${rz.toFixed(1)}deg) rotateX(${ax + spin[k] * 360 + extra}deg) rotateY(${ay + spin[k] * 360 + extra}deg)`;
-  }
-  function setCube(el, f) { const k = +el.dataset.k; el.style.transform = cubeTf(k, f, .5, k ? 12 : -10, 0); }
-
-  // the board as big as it can be. It is tilted back (rotateX) and seen in perspective: the near edge comes out wider
-  // than the board, the whole thing flatter. The size is chosen so that the picture of the board fits the free space.
-  function fit() {
-    const scr = $('#scr-game'), table = $('#table'), board = $('#board'), stage = $('#stage');
-    if (!table || !board || !stage || scr.hidden) return;
-    const wide = matchMedia('(orientation: landscape) and (min-width: 720px)').matches;
-    const r = table.getBoundingClientRect();
-    const tilt = (wide ? 30 : 34) * Math.PI / 180, k = 2.6;
-    const sn = Math.sin(tilt), cs = Math.cos(tilt), near = k / (k - .5 * sn), far = k / (k + .5 * sn);
-    const W = near * 1.02, H = .5 * cs * (near + far) + .1;          // + room for what stands on the far edge
-    const bs = Math.max(220, Math.floor(Math.min((r.width - 12) / W, (r.height - 8) / H)));
-    const prev = board.style.getPropertyValue('--bs');
-    board.style.setProperty('--bs', bs + 'px');
-    board.style.setProperty('--tilt', (tilt * 180 / Math.PI) + 'deg');
-    stage.style.setProperty('--persp', Math.round(k * bs) + 'px');
-    // the projected board is not centred on the board's middle: move it so that it is, with the extra room above;
-    // when there is height to spare (a phone held upright) the board sits lower, nearer the buttons, under more sky
-    const spare = Math.max(0, r.height - 8 - bs * H);
-    const shift = Math.round(bs * .25 * cs * (near - far) - bs * .04 - spare * .3);
-    board.style.setProperty('--shift', -shift + 'px');
-    board.classList.toggle('roomy', bs >= 600);
-    if (prev !== bs + 'px') placeScenery();
-    placeTokens(false);
-  }
-  window.addEventListener('resize', () => { if (built) fit(); });
+  function fit() { board(); if (gl) Board3D.resize(); }
 
   // ----- everything, from the shown state -----
   function render() {
     if (!shown || shown.phase === 'lobby') return;
-    if (!built) buildBoard();
+    if (!built) { reset(shown); return; }
     const st = shown;
-    for (let i = 0; i < 40; i++) {
-      const o = st.own[i];
-      if (!OWNABLE(BOARD[i])) continue;
-      setOwner(i, o ? o.o : -1);
-      if (BOARD[i].k === 'p') setLevel(i, o ? o.lv : 0);
-      setMort(i, !!(o && o.m));
-    }
-    placeTokens(false);
+    if (gl) Board3D.sync(st, pos);
     renderPlayers();
-    renderCenter();
+    renderPanel();
+    renderBuy();
+    viewBtn();
     $('#bTrade').disabled = !Engine.legal(st, mySeat()).trade;
     Sheet.refresh();
     if (st.trade && acting() === st.trade.to && controls(st.trade.to) && Sheet.kind() !== 'offer') Sheet.open('offer');
     if (st.phase === 'over' && Sheet.kind() !== 'over') Sheet.open('over');
+    autoEnd();
+  }
+  // nothing left to decide after the move: the turn passes by itself
+  function autoEnd() {
+    clearTimeout(autoT);
+    const st = shown, me = acting();
+    if (!st || playing || me < 0 || me !== st.turn || !controls(me) || Sheet.kind() || st.trade) return;
+    const L = Engine.legal(st, me);
+    if (!L.end || canBuild(st, me)) return;
+    const seq = st.seq;
+    autoT = setTimeout(() => { if (shown && shown.seq === seq && !playing && !Sheet.kind()) move({ t: 'end' }); }, 1300);
   }
   function renderPlayers() {
     const st = shown, box = $('#players');
@@ -460,38 +302,40 @@ const View = (() => {
     const r = $('#round');
     if (r) r.textContent = st.cfg.mode === 'rounds' ? `რაუნდი ${st.round} / ${st.cfg.rounds}` : `რაუნდი ${st.round}`;
   }
-  function renderCenter() {
-    const st = shown;
-    if (!rolling) $$('#dice .cube').forEach((c, k) => { if (c.dataset.shown !== String(st.dice[k])) { c.dataset.shown = st.dice[k]; setCube(c, st.dice[k]); } });
-    renderPanel();
-  }
   function renderPanel() {
     const st = shown, c = $('#panel');
     if (!c) return;
     const me = acting(), L = me >= 0 ? Engine.legal(st, me) : {}, cur = st.players[st.turn], p = st.players[me];
+    const many = ROOM && ROOM.role === 'local' && st.players.filter(x => !x.bot).length > 1;
     let status = '', acts = '', extra = '';
     if (st.phase === 'over') status = 'თამაში დასრულდა';
-    else if (me === st.turn && controls(st.turn)) status = ROOM.role === 'local' && st.players.filter(x => !x.bot).length > 1 ? `${esc(cur.name)}, შენი სვლაა` : 'შენი სვლაა';
+    else if (me === st.turn && controls(st.turn)) status = many ? `${esc(cur.name)}, შენი სვლაა` : 'შენი სვლაა';
     else status = `სვლა: <b>${esc(cur.name)}</b>${cur.bot ? ' <small>ბოტი</small>' : cur.away ? ' <small>არ არის, მის მაგივრად ბოტი თამაშობს</small>' : ''}`;
+    const build = canBuild(st, me) ? `<button class="btn" data-sheet="build"><span class="tw-i">${TOWER_SVG}</span>ააშენე</button>` : '';
     if (L.roll) {
       if (p.jail) {
         extra = `<p class="hint">ზინდანში ხარ. გამოსასვლელად დუბლი გააგორე (${3 - p.jt} ცდა დარჩა), ან გადაიხადე ${JAIL_FINE}.</p>`;
         acts = `<div class="row"><button class="btn gold" data-a="roll">${DICE_SVG}გააგორე</button>${L.jailpay ? `<button class="btn" data-a="jailpay">გადაიხადე ${JAIL_FINE}</button>` : ''}${L.feather ? '<button class="btn" data-a="feather">ბუმბული</button>' : ''}</div>`;
-      } else acts = `<button class="btn gold roll" data-a="roll">${DICE_SVG}გააგორე</button>`;
-      if (p.dbl > 0 && !p.jail) extra += `<p class="hint">დუბლი! კიდევ ერთხელ აგორებ.</p>`;
+      } else {
+        acts = `<button class="btn gold roll" data-a="roll">${DICE_SVG}გააგორე</button>${build ? `<div class="row">${build}</div>` : ''}`;
+        if (p.dbl > 0) extra = `<p class="hint">დუბლი! კიდევ ერთხელ აგორებ.</p>`;
+      }
     } else if (L.skip) {
-      const t = BOARD[st.pend.i];
-      extra = `<button class="mini-deed" data-deed="${t.i}" style="--g:${t.k === 'p' ? GROUPS[t.g].c : '#8a6a4f'}"><b>${esc(t.n)}</b><span>${t.k === 'p' ? esc(GROUPS[t.g].n) : t.k === 'road' ? 'ქარვასლა' : 'მეურნეობა'} · ქირა ${t.k === 'p' ? t.rent[0] : t.k === 'road' ? ROAD_RENT[1] : 'კამათელი ×4'} · ნახე ბარათი</span></button>`;
-      acts = `<div class="row"><button class="btn gold" data-a="buy" ${L.buy ? '' : 'disabled'}>იყიდე ${coin(t.p)}</button><button class="btn" data-a="skip">არ ვყიდულობ</button></div>`;
-      if (!L.buy) extra += `<p class="hint">ფული არ გყოფნის.</p>`;
+      status = 'იყიდი?';
     } else if (L.end) {
-      acts = `<button class="btn gold big" data-a="end">სვლის დასრულება</button>`;
-      extra = `<p class="hint">სვლის დასრულებამდე შეგიძლია ააშენო ან ივაჭრო.</p>`;
-    } else if (L.bankrupt) {
-      const d = st.pend, max = p.cash + Engine.raiseMax(st, me);
+      if (build) {
+        acts = `<div class="row">${build.replace('class="btn"', 'class="btn gold"')}<button class="btn" data-a="end">სვლის დასრულება</button></div>`;
+        extra = `<p class="hint">მთელი კუთხე გაქვს: ააშენე კოშკები და ქირა გაიზრდება.</p>`;
+      } else {
+        acts = `<button class="btn ghost" data-a="end">სვლის დასრულება</button>`;
+        extra = `<p class="hint">სვლა გადადის…</p>`;
+      }
+    } else if (L.cover) {
+      const d = st.pend, can = p.cash + Engine.raiseMax(st, me) >= d.a;
+      status = 'ვალი გაქვს';
       extra = `<p class="debt">გადასახდელია ${coin(d.a)}${d.to >= 0 ? ` · ${esc(pName(st, d.to))}` : ''} <small>· გაქვს ${coin(p.cash)}</small></p>
-        <p class="hint">${max >= d.a ? 'გაყიდე კოშკები ან დააგირავე ქალაქები მამულში.' : 'მთელი ქონებითაც ვერ ფარავ ვალს.'}</p>`;
-      acts = `<div class="row"><button class="btn gold" data-a="pay" ${L.pay ? '' : 'disabled'}>გადაიხადე</button><button class="btn" data-sheet="estate">მამული</button><button class="btn danger" data-sheet="bankrupt">გაკოტრება</button></div>`;
+        <p class="hint">${can ? 'თამაში გაყიდის კოშკებს და დააგირავებს ქალაქებს, რომლებიც ნაკლებად გჭირდება.' : 'მთელი ქონებითაც ვერ ფარავ ვალს.'}</p>`;
+      acts = `<div class="row">${can ? `<button class="btn gold" data-a="${L.pay ? 'pay' : 'cover'}">${L.pay ? 'გადაიხადე' : 'ვალის დაფარვა'}</button><button class="btn" data-sheet="estate">მე ავირჩევ</button>` : '<button class="btn danger" data-sheet="bankrupt">გაკოტრება</button>'}</div>`;
     } else if (L.cancel) {
       extra = `<p class="hint">ელოდები პასუხს: ${esc(pName(st, st.trade.to))}</p>`;
       acts = `<button class="btn" data-a="cancel">შეთავაზების გაუქმება</button>`;
@@ -499,20 +343,68 @@ const View = (() => {
       acts = `<button class="btn gold" data-sheet="offer">შეთავაზების ნახვა</button>`;
     } else if (st.trade && st.phase !== 'over') {
       extra = `<p class="hint">${esc(pName(st, st.trade.from))} ვაჭრობას სთავაზობს: ${esc(pName(st, st.trade.to))}</p>`;
+    } else if (st.phase === 'buy') {
+      extra = `<p class="hint">ფიქრობს, იყიდოს თუ არა: ${esc(tName(st.pend.i))}</p>`;
     } else if (st.phase === 'over') {
       acts = `<button class="btn gold" data-sheet="over">შედეგები</button>`;
     }
     const lines = [];
-    for (let k = st.ev.length - 1; k >= 0 && lines.length < 4; k--) { const t = evText(st, st.ev[k]); if (t) lines.push(t); }
+    for (let k = st.ev.length - 1; k >= 0 && lines.length < 3; k--) { const t = evText(st, st.ev[k]); if (t) lines.push(t); }
     c.innerHTML = `<div class="status">${status}</div>${extra}<div class="acts">${acts}</div>${lines.length ? `<ul class="last">${lines.map(l => `<li>${l}</li>`).join('')}</ul>` : ''}`;
     if (busy) $$('[data-a]', c).forEach(b => { b.disabled = true; });
+  }
+  // the town one may buy, as a card over the board
+  function renderBuy() {
+    const st = shown, box = $('#buycard');
+    if (!box) return;
+    const me = acting();
+    if (!st || st.phase !== 'buy' || me !== st.turn || !controls(me) || playing) { hideBuy(); return; }
+    const t = BOARD[st.pend.i], p = st.players[me], L = Engine.legal(st, me);
+    const col = t.k === 'p' ? GROUPS[t.g].c : '#7b5532';
+    const head = t.k === 'p' ? `<span class="chip" style="--g:${col}">${esc(GROUPS[t.g].n)}</span>` : `<span class="chip" style="--g:${col}">${t.k === 'road' ? 'ქარვასლა' : 'მეურნეობა'}</span>`;
+    let rows = '', hint = '';
+    if (t.k === 'p') {
+      const mine = GROUP_TILES[t.g].filter(i => st.own[i] && st.own[i].o === me).length, all = GROUP_TILES[t.g].length;
+      rows = `<li><span>ქირა</span>${coin(t.rent[0])}</li><li><span>მთელი ${esc(GROUPS[t.g].n)}</span>${coin(t.rent[1])}</li><li><span>კოშკებით</span><b class="amt">${coin(t.rent[2])} – ${fmt(t.rent[6])}</b></li>`;
+      hint = mine + 1 === all ? `ეს ბოლოა: იყიდე და მთელი ${esc(GROUPS[t.g].n)} შენი იქნება!` : `${esc(GROUPS[t.g].n)}: ${all} ქალაქი. ყველა თუ შეაგროვე, ქირა გაორმაგდება და კოშკებს ააშენებ.`;
+    } else if (t.k === 'road') {
+      rows = [1, 2, 3, 4].map(k => `<li><span>${k} ქარვასლა</span>${coin(ROAD_RENT[k])}</li>`).join('');
+      hint = 'რაც მეტი ქარვასლა გაქვს, მით მეტ ქირას იღებ.';
+    } else {
+      rows = `<li><span>ერთი გაქვს</span><b>კამათელი ×4</b></li><li><span>ორივე გაქვს</span><b>კამათელი ×10</b></li>`;
+      hint = 'ქირა კამათლის ჯამზეა დამოკიდებული.';
+    }
+    const scene = t.k === 'p' ? SCENES[t.g] : t.k === 'road' ? 'g_pass' : 'g_elbrus', at = t.k === 'p' ? SCENE_POS[t.g] : '50% 50%';
+    box.innerHTML = `<div class="bc">
+      <div class="bc-h" style="--g:${col};background-image:linear-gradient(180deg,rgba(13,16,22,0),rgba(13,16,22,.8)),url(${ART(scene)});background-position:${at}">${head}<h3>${esc(t.n.replace(/­/g, ''))}</h3></div>
+      <div class="bc-b"><ul class="bc-rent">${rows}</ul><p class="hint">${hint}</p>
+      <div class="row"><button class="btn gold big" data-a="buy" ${L.buy ? '' : 'disabled'}>იყიდე ${coin(t.p)}</button><button class="btn" data-a="skip">არა</button></div>
+      ${L.buy ? '' : `<p class="hint bad">ფული არ გყოფნის: გაქვს ${coin(p.cash)}</p>`}</div></div>`;
+    if (box.hidden) { box.hidden = false; box.classList.remove('go'); void box.offsetWidth; box.classList.add('go'); }
+    if (busy) $$('[data-a]', box).forEach(b => { b.disabled = true; });
+  }
+  function hideBuy() { const b = $('#buycard'); if (b) b.hidden = true; }
+  // the button over the board: the whole board, or back to the figure
+  function viewBtn() {
+    const b = $('#bView');
+    if (!b) return;
+    b.hidden = !gl;
+    const m = gl ? Board3D.mode : 'follow';
+    if (b.dataset.m === m) return;
+    b.dataset.m = m;
+    b.innerHTML = m === 'follow' ? VIEW_SVG.all : VIEW_SVG.me;
+    b.title = m === 'follow' ? 'მთელი დაფა' : 'ფიგურასთან';
+    b.setAttribute('aria-label', b.title);
   }
 
   return {
     show, reset, clear, pending, render, fit, acting, mySeat, controls,
     get st() { return shown; },
-    busy(b) { busy = b; if (b) $$('#panel [data-a]').forEach(x => { x.disabled = true; }); },
-    peers() { if (shown && shown.phase === 'lobby') Lobby.render(shown); else if (shown) renderPlayers(); }
+    get playing() { return current ? current.k : playing ? 'queue' : ''; },
+    busy(b) { busy = b; if (b) $$('#panel [data-a], #buycard [data-a], #sheet [data-a]').forEach(x => { x.disabled = true; }); },
+    peers() { if (shown && shown.phase === 'lobby') Lobby.render(shown); else if (shown) renderPlayers(); },
+    idle() { if (shown && !playing) autoEnd(); },
+    view() { if (!gl) return; Board3D.setMode(Board3D.mode === 'follow' ? 'overview' : 'follow'); viewBtn(); }
   };
 })();
 
@@ -564,15 +456,17 @@ const Sheet = (() => {
     requestAnimationFrame(() => box().classList.add('on'));
   }
   function close() {
+    const was = kind;
     kind = ''; arg = null;
     const b = box(); if (!b) return;
     b.classList.remove('on'); b.hidden = true;
+    if (was) View.idle();
   }
   function refresh() { if (kind) draw(); }
   function draw() {
     const st = View.st;
     if (!st && kind !== 'rules') return close();
-    const fn = { deed, player, estate, trade, offer, log, menu, over, bankrupt: bankruptSheet, rules }[kind];
+    const fn = { deed, player, estate, build, trade, offer, log, menu, over, bankrupt: bankruptSheet, rules }[kind];
     if (!fn) return close();
     const html = fn(st);
     if (html == null) return close();
@@ -586,8 +480,8 @@ const Sheet = (() => {
     if (t.k === 'p') {
       const g = GROUPS[t.g], lv = o ? o.lv : 0, full = o && Engine.groupOwner(st, t.g) === o.o;
       head = `<div class="deed-h" style="--g:${g.c};background-image:linear-gradient(180deg,rgba(13,16,22,.1),rgba(13,16,22,.85)),url(${ART(SCENES[t.g])});background-position:${SCENE_POS[t.g]}"><span class="chip" style="--g:${g.c}">${esc(g.n)}</span><h2>${esc(t.n)}</h2></div>`;
-      const line = (label, v, on, img) => `<li class="${on ? 'on' : ''}">${img ? `<img src="${ART(img)}" alt="">` : '<span class="ph"></span>'}<span>${label}</span>${coin(v)}</li>`;
-      rows = `<ul class="rents">${line('ცალკე', t.rent[0], o && !lv && !full)}${line('მთელი კუთხე', t.rent[1], o && !lv && full)}${[1, 2, 3, 4, 5].map(k => line(LEVEL_NAMES[k], t.rent[k + 1], lv === k, LEVELS[k].a)).join('')}</ul>
+      const line = (label, v, on, icon) => `<li class="${on ? 'on' : ''}">${icon || '<span class="ph"></span>'}<span>${label}</span>${coin(v)}</li>`;
+      rows = `<ul class="rents">${line('ცალკე', t.rent[0], o && !lv && !full)}${line('მთელი ' + esc(g.n), t.rent[1], o && !lv && full)}${[1, 2, 3, 4, 5].map(k => line(LEVEL_NAMES[k], t.rent[k + 1], lv === k, lvIcons(k))).join('')}</ul>
         <p class="facts"><span>ფასი ${coin(t.p)}</span><span>კოშკი ${coin(g.b)}</span><span>დაგირავება ${coin(t.p / 2)}</span></p>`;
     } else if (t.k === 'road') {
       head = `<div class="deed-h road" style="background-image:linear-gradient(180deg,rgba(13,16,22,.1),rgba(13,16,22,.85)),url(${ART('g_pass')})"><span class="chip">ქარვასლა</span><h2>${esc(t.n)}</h2></div>`;
@@ -650,7 +544,7 @@ const Sheet = (() => {
   }
   function tileRow(st, i, actions) {
     const o = st.own[i], t = BOARD[i];
-    const lv = o && o.lv ? `<img class="lvi" src="${ART(LEVELS[o.lv].a)}" alt="" title="${esc(LEVEL_NAMES[o.lv])}">` : '';
+    const lv = o && o.lv ? `<span class="lvi" title="${esc(LEVEL_NAMES[o.lv])}">${lvIcons(o.lv)}</span>` : '';
     const rent = Engine.rentAt(st, i, 7);
     return `<div class="trow${o && o.m ? ' mort' : ''}"><button class="tlink" data-deed="${i}" style="--g:${t.k === 'p' ? GROUPS[t.g].c : '#8a6a4f'}">${esc(t.n)}</button>${lv}<span class="tr-r">${o && o.m ? '<b class="bad">დაგირავებული</b>' : t.k === 'util' ? '×' + UTIL_MULT[Engine.countOf(st, o.o, UTILS)] : 'ქირა ' + coin(rent)}</span>${actions || ''}</div>`;
   }
@@ -672,6 +566,28 @@ const Sheet = (() => {
     if (!o.m) b.push(`<button class="ib" data-a="mort" data-i="${i}" ${Engine.canMort(st, s, i) ? '' : 'disabled'} title="დაგირავება ${t.p / 2}">დაგირ.</button>`);
     else if (L.build) b.push(`<button class="ib" data-a="unmort" data-i="${i}" ${st.players[s].cash >= Engine.unmortCost(i) ? '' : 'disabled'} title="გამოსყიდვა ${Engine.unmortCost(i)}">გამოსყ.</button>`);
     return `<span class="ibs">${b.join('')}</span>`;
+  }
+
+  // putting up towers, region by region (they go up evenly; the game picks the town)
+  function build(st) {
+    const s = View.mySeat(), p = st.players[s];
+    if (!p) return null;
+    const L = Engine.legal(st, s);
+    const full = GROUPS.map((g, gi) => gi).filter(gi => Engine.groupOwner(st, gi) === s);
+    const head = `<div class="sheet-h"><h2>კოშკები</h2><span class="sh-cash">${coin(p.cash)}</span><button class="x" data-close aria-label="დახურვა">×</button></div>`;
+    if (!full.length) {
+      const near = GROUPS.map((g, gi) => ({ g, gi, have: GROUP_TILES[gi].filter(i => st.own[i] && st.own[i].o === s) })).filter(x => x.have.length).sort((a, b) => (b.have.length / GROUP_TILES[b.gi].length) - (a.have.length / GROUP_TILES[a.gi].length));
+      return `${head}<p class="prose">კოშკების ასაშენებლად ერთი კუთხის ყველა ქალაქი უნდა გქონდეს.</p>${near.map(x => `<div class="breg" style="--g:${x.g.c}"><h4>${esc(x.g.n)} <small>${x.have.length} / ${GROUP_TILES[x.gi].length}</small></h4><p class="hint">აკლია: ${GROUP_TILES[x.gi].filter(i => !x.have.includes(i)).map(i => esc(tName(i))).join(', ')}</p></div>`).join('') || '<p class="hint">ჯერ ქალაქი არ გაქვს.</p>'}`;
+    }
+    const rows = full.map(gi => {
+      const g = GROUPS[gi], up = nextBuild(st, s, gi), down = nextSell(st, s, gi), mort = GROUP_TILES[gi].some(i => st.own[i].m);
+      const towns = GROUP_TILES[gi].map(i => `<span class="btown"><b>${esc(tName(i))}</b><span class="lvi">${st.own[i].lv ? lvIcons(st.own[i].lv) : '<small>ცარიელი</small>'}</span><small>ქირა ${coin(Engine.rentAt(st, i, 7))}</small></span>`).join('');
+      const why = mort ? 'ჯერ დაგირავებული ქალაქი გამოისყიდე' : up == null && GROUP_TILES[gi].every(i => st.own[i].lv >= 5) ? 'ყველგან ციხე-სიმაგრეა' : up == null ? 'ფული არ გყოფნის' : '';
+      return `<div class="breg" style="--g:${g.c}"><h4>${esc(g.n)}</h4><div class="btowns">${towns}</div>
+        <div class="row">${L.build ? `<button class="btn gold" data-a="build" data-g="${gi}" ${up != null ? '' : 'disabled'}>+ კოშკი ${coin(g.b)}</button>${down != null ? `<button class="btn" data-a="sell" data-g="${gi}">− გაყიდვა ${coin(g.b / 2)}</button>` : ''}` : '<p class="hint">აშენება შენს სვლაზეა.</p>'}</div>
+        ${why && L.build ? `<p class="hint">${why}</p>` : ''}</div>`;
+    }).join('');
+    return `${head}<p class="hint">კოშკები კუთხის ქალაქებში თანაბრად დგება. ოთხი კოშკის მერე ციხე-სიმაგრე შენდება.</p>${rows}`;
   }
 
   // making an offer
@@ -749,15 +665,16 @@ const Sheet = (() => {
   }
   function rules() {
     return `<div class="sheet-h"><h2>წესები</h2><button class="x" data-close aria-label="დახურვა">×</button></div><div class="prose rules">
-      <p>ყველა იწყებს ${fmt(START_CASH)}-ით სტარტზე. სვლაზე ორ კამათელს აგორებ და იმდენ უჯრას გადიხარ. სტარტის გავლისას ${SALARY} გეძლევა.</p>
-      <p><b>ქალაქები.</b> თავისუფალ ქალაქზე, ქარვასლაზე, წისქვილზე ან მარანზე თუ დადექი, შეგიძლია იყიდო. სხვისაზე თუ დადექი, მფლობელს ქირას უხდი. მთელი კუთხე თუ შენია, ქირა ორმაგდება.</p>
-      <p><b>კოშკები.</b> მთელ კუთხეზე შენს სვლაზე აშენებ: ხის კოშკი, ქვის კოშკი, სამეფო, გუშაგიანი, ბოლოს ციხე-სიმაგრე. კოშკები კუთხის ქალაქებში თანაბრად შენდება, ყოველი მომდევნო ქირას ძლიერ ზრდის.</p>
-      <p><b>ქარვასლები</b> ქირას იღებენ იმის მიხედვით, რამდენი გაქვს: 25, 50, 100, 200. <b>წისქვილი და მარანი</b>: კამათლის ჯამი ×4, ორივე თუ გაქვს, ×10.</p>
-      <p><b>ბარათები.</b> ბედის გრაგნილი და საგანძური ფულს გაძლევს ან გართმევს, გზაზე გაგზავნის. ფასკუნჯის ბუმბული ზინდანიდან ერთხელ გამოგიყვანს.</p>
-      <p><b>ზინდანი.</b> იქ ხვდები „ზინდანში!" უჯრით, ბარათით ან სამი დუბლით ზედიზედ. გამოსვლა: დუბლი სამ ცდაში, ${JAIL_FINE}-ის გადახდა ან ბუმბული. ზინდანშიც იღებ ქირას.</p>
-      <p><b>ფული თუ არ გყოფნის,</b> კოშკებს ნახევარ ფასად ყიდი და ქალაქებს აგირავებ (ნახევარი ფასი; გამოსყიდვა 10%-ით მეტი ჯდება). თუ მაინც ვერ იხდი, კოტრდები.</p>
-      <p><b>ვაჭრობა.</b> შენს სვლაზე ნებისმიერ მოთამაშეს შესთავაზე ქალაქების, ფულის და ბუმბულის გაცვლა. კოშკებიანი კუთხე ვაჭრობაში არ შედის.</p>
-      <p><b>დასასრული.</b> ან სანამ ერთი არ დარჩება, ან რაუნდების ლიმიტამდე. ლიმიტზე იგებს ის, ვისი ფულიც და ქონებაც ერთად ყველაზე მეტია.</p></div>`;
+      <ol class="steps">
+        <li><b>გააგორე კამათელი</b> და ფიგურა თავისით წავა. სტარტის გავლაზე ${SALARY} გეძლევა.</li>
+        <li><b>იყიდე ქალაქი,</b> რომელზეც დადექი. სხვის ქალაქზე ქირას იხდი, თამაში თვითონ გადაიხდის.</li>
+        <li><b>შეაგროვე მთელი კუთხე</b> (ერთი ფერის ქალაქები): ქირა გაორმაგდება და შეგიძლია <b>კოშკები</b> ააშენო. ოთხი კოშკის მერე ციხე-სიმაგრე დგება, ქირა ყველაზე დიდია.</li>
+        <li><b>ვინც გაკოტრდება,</b> თამაშიდან გადის. იგებს ბოლო დარჩენილი ან, რაუნდების ლიმიტზე, ყველაზე მდიდარი.</li>
+      </ol>
+      <p><b>ბედის გრაგნილი და საგანძური:</b> ბარათი, რომელიც ფულს გაძლევს ან გართმევს, ან გზაზე გაგზავნის. <b>ფასკუნჯის ბუმბული</b> ზინდანიდან გამოგიყვანს.</p>
+      <p><b>ზინდანი:</b> „ზინდანში!" უჯრა, ბარათი ან სამი დუბლი ზედიზედ. გამოსვლა: დუბლი სამ ცდაში, ${JAIL_FINE}-ის გადახდა ან ბუმბული.</p>
+      <p><b>ქარვასლები</b> ქირას იღებენ იმის მიხედვით, რამდენი გაქვს (25, 50, 100, 200). <b>წისქვილი და მარანი:</b> კამათლის ჯამი ×4, ორივე თუ გაქვს ×10.</p>
+      <p><b>ვალი:</b> ფული თუ არ გყოფნის, „ვალის დაფარვა" კოშკებს გაყიდის და ქალაქებს დააგირავებს. <b>ვაჭრობა:</b> შენს სვლაზე შესთავაზე ნებისმიერ მოთამაშეს ქალაქების და ფულის გაცვლა.</p></div>`;
   }
 
   function onClick(ev) {
@@ -770,6 +687,11 @@ const Sheet = (() => {
       const m = { t: a.dataset.a };
       if (a.dataset.i != null) m.i = +a.dataset.i;
       if (a.dataset.seat != null) m.seat = +a.dataset.seat;
+      if (a.dataset.g != null) {
+        const now = (ROOM && ROOM.st) || View.st, s = View.mySeat(), g = +a.dataset.g;
+        m.i = m.t === 'build' ? nextBuild(now, s, g) : nextSell(now, s, g);
+        if (m.i == null) return;
+      }
       if (m.t === 'bankrupt' || m.t === 'accept' || m.t === 'decline') close();
       move(m);
       return;

@@ -15,13 +15,12 @@ import hashlib, os, shutil, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'src')
 METEKHI = os.environ.get('METEKHI', os.path.join(os.path.dirname(ROOT), 'qourum', 'metekhi'))
-JS = ['data.js', 'engine.js', 'net.js', 'ui.js', 'app.js']
+JS = ['data.js', 'engine.js', 'net.js', 'models.js', 'board3d.js', 'dice3d.js', 'ui.js', 'app.js']
+THREE_CDN = 'https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js'
 HEROES = ['david', 'tamar', 'gorgasali', 'erekle', 'kakutsa', 'tariel', 'avtandil', 'gurdjieff', 'abrag', 'amirani', 'mikha', 'prometheus']
 ART = ([f'por_h_{h}' for h in HEROES] + [f'h_{h}' for h in HEROES if h != 'david'] + ['h_davidride'] +
-       ['t_archer_1', 't_archer_2', 't_archer_3', 't_archerp_3', 's_fort', 's_camp', 't_palisade', 'wp_horn', 'a_brother',
-        'ui_page', 'ui_chest_wood', 'ui_chest_wood_o', 'ui_coin', 'ui_coinbag', 'ui_book', 'ui_feather',
-        'g_svan', 'g_elbrus', 'g_pass', 'g_stone', 'g_tbilisi', 'ui_chest_gold_o', 's_ruin', 't_bell_3',
-        'n_snowpine', 'n_pine', 'n_walnut', 'n_autumn', 'n_boulder', 'n_shrub', 'n_poplar'])
+       ['t_archer_2', 's_fort', 's_camp', 't_palisade', 'ui_page', 'ui_chest_wood', 'ui_chest_wood_o', 'ui_coin', 'ui_coinbag',
+        'ui_book', 'ui_feather', 'g_svan', 'g_elbrus', 'g_pass', 'g_stone', 'g_tbilisi'])
 FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
          '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;600;700;800'
          '&family=Noto+Serif+Georgian:wght@700;900&family=Lilita+One&display=swap">')
@@ -74,8 +73,8 @@ def page(site):
     build = hashlib.sha1((css + body + code).encode()).hexdigest()[:10]
     js = f'const BUILD = "{build}";\nconst SITE = {"true" if site else "false"};\n' + code
     if site:
-        return build, f'{SITE_HEAD}<style>\n{css}</style>\n</head>\n<body>\n{body}<script>\n{js}</script>\n</body>\n</html>\n'
-    return build, f'<title>მამული</title>\n{FONTS}\n<style>\n{css}</style>\n{body}<script>\n{js}</script>\n'
+        return build, f'{SITE_HEAD}<style>\n{css}</style>\n</head>\n<body>\n{body}<script src="vendor/three.min.js"></script>\n<script>\n{js}</script>\n</body>\n</html>\n'
+    return build, f'<title>მამული</title>\n{FONTS}\n<style>\n{css}</style>\n{body}<script src="{THREE_CDN}"></script>\n<script>\n{js}</script>\n'
 
 
 def main():

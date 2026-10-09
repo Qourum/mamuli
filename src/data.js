@@ -84,13 +84,13 @@ const ROADS = BOARD.filter(t => t.k === 'road').map(t => t.i);
 const UTILS = BOARD.filter(t => t.k === 'util').map(t => t.i);
 const OWNABLE = t => t.k === 'p' || t.k === 'road' || t.k === 'util';
 
-// what stands on a town, by level (art file and name)
+// what stands on a town, by level: one to four towers, then a fortress (art file and name)
 const LEVELS = [
   null,
-  { a: 't_archer_1', n: 'ხის კოშკი' },
-  { a: 't_archer_2', n: 'ქვის კოშკი' },
-  { a: 't_archer_3', n: 'სამეფო კოშკი' },
-  { a: 't_archerp_3', n: 'გუშაგიანი კოშკი' },
+  { a: 't_archer_2', n: '1 კოშკი' },
+  { a: 't_archer_2', n: '2 კოშკი' },
+  { a: 't_archer_2', n: '3 კოშკი' },
+  { a: 't_archer_2', n: '4 კოშკი' },
   { a: 's_fort', n: 'ციხე-სიმაგრე' }
 ];
 

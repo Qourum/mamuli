@@ -140,18 +140,14 @@ img { max-width: 100%; }
 .panel .status b { color: var(--gold-hi); }
 .panel .status small { display: block; font: 600 12.5px var(--f-ui); color: #c8ccd4; }
 .panel .hint { margin: 0; max-width: 30em; color: #c8ccd4; text-shadow: 0 1px 3px #000; }
-/* the square one may buy: a small parchment deed with the region's colour on top */
-.mini-deed { display: flex; flex-direction: column; align-items: center; gap: 1px; max-width: 100%; padding: 4px 18px 6px; border-radius: 10px;
-  border: 1px solid #8d5f17; border-top: 6px solid var(--g); background: linear-gradient(170deg, #fdf3da, #ead3a0); color: var(--paper-ink);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, .5); }
-.mini-deed b { font: 900 17px/1.2 var(--f-display); }
-.mini-deed span { font-size: 12px; font-weight: 600; color: var(--paper-dim); }
 .panel .acts { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
 .panel .acts:empty { display: none; }
 .panel .btn.big { min-width: min(100%, 300px); }
 .btn.roll { min-width: min(80%, 300px); min-height: 56px; border-radius: 99px; font: 900 20px var(--f-display); gap: 10px; padding: 6px 28px; }
 .btn svg { width: 1.7em; height: 1.7em; flex: none; }
 .btn.roll svg { width: 34px; height: 34px; }
+.btn.roll:not(:disabled) { animation: rollGlow 1.8s ease-in-out infinite; }
+@keyframes rollGlow { 50% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 2px 0 #5c3c0e, 0 0 0 7px rgba(232, 180, 76, .22), 0 0 26px rgba(255, 220, 140, .55); } }
 .panel .last { list-style: none; margin: 2px 0 0; padding: 0; font-size: 12.5px; color: #aab0bb; max-width: 100%; }
 .panel .last li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .panel .last li:first-child { color: #dfe3ea; }
@@ -189,115 +185,53 @@ img { max-width: 100%; }
   .dock button { font-size: 10px; }
 }
 
-/* ----- the board: a stone slab tilted back, parchment squares on it ----- */
-.board { --bs: 340px; --tilt: 34deg; --tw: calc(var(--bs) / 11.75); position: relative; flex: none; width: var(--bs); height: var(--bs);
-  display: grid; grid-template-columns: 1.33fr repeat(9, 1fr) 1.33fr; grid-template-rows: 1.33fr repeat(9, 1fr) 1.33fr; gap: 2px;
-  padding: calc(var(--tw) * .16); border-radius: calc(var(--tw) * .3);
-  background: linear-gradient(135deg, #9a8466, #78644b 40%, #5a4a37); box-shadow: inset 0 0 0 2px rgba(255, 240, 188, .3), inset 0 0 0 calc(var(--tw) * .12) rgba(44, 27, 16, .3);
-  transform: translateY(var(--shift, 0px)) rotateX(var(--tilt)); transform-style: preserve-3d; }
-.rim { position: absolute; pointer-events: none; background: linear-gradient(180deg, #5d4c39, #2f251b); }
-.rim-f { left: 0; right: 0; top: 100%; height: calc(var(--tw) * .5); transform-origin: 50% 0; transform: rotateX(-90deg); border-radius: 0 0 8px 8px; }
-.rim-l { top: 0; bottom: 0; right: 100%; width: calc(var(--tw) * .5); transform-origin: 100% 50%; transform: rotateY(90deg); }
-.rim-r { top: 0; bottom: 0; left: 100%; width: calc(var(--tw) * .5); transform-origin: 0 50%; transform: rotateY(-90deg); }
-.tile { position: relative; overflow: hidden; display: block; padding: 0; border: 0; border-radius: 3px; min-width: 0; min-height: 0; color: var(--paper-ink);
-  background: linear-gradient(150deg, #fdf3da, #ecd8a8); box-shadow: inset 0 0 0 1px rgba(44, 27, 16, .3), inset 0 -2px 0 rgba(120, 90, 50, .22); }
-.tile:active { filter: brightness(.93); }
-.tile .band { position: absolute; background: var(--g); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .16); }
-.tile .ico { position: absolute; background: center / contain no-repeat; }
-.tile .ico.svg svg { width: 100%; height: 100%; display: block; }
-.tile .tp { position: absolute; font: 400 clamp(6.5px, calc(var(--tw) * .26), 15px)/1 var(--f-num); color: #6b4a2c; white-space: nowrap; }
-.tile .tn { display: none; }
-.tile .own { position: absolute; display: none; background: var(--o); box-shadow: 0 0 0 1px rgba(0, 0, 0, .3); }
-.tile.owned .own { display: block; }
-.tile.owned { box-shadow: inset 0 0 0 1.5px var(--o), inset 0 -2px 0 rgba(120, 90, 50, .22); }
-.tile .hatch { position: absolute; inset: 0; display: none; background: repeating-linear-gradient(135deg, transparent 0 4px, rgba(44, 27, 16, .3) 4px 6px); pointer-events: none; }
-.tile.mort .hatch { display: block; }
-.tile.mort { background: #dcc493; }
-/* each side: the band towards the middle, the price and owner's strip at the outer edge */
-.tile.s-b .band { left: 0; right: 0; top: 0; height: 20%; }
-.tile.s-b .ico { left: 8%; right: 8%; top: 24%; bottom: 30%; }
-.tile.s-b .tp { left: 0; right: 0; bottom: 12%; text-align: center; }
-.tile.s-b .own { left: 0; right: 0; bottom: 0; height: 9%; }
-.tile.s-t .band { left: 0; right: 0; bottom: 0; height: 20%; }
-.tile.s-t .ico { left: 8%; right: 8%; top: 28%; bottom: 24%; }
-.tile.s-t .tp { left: 0; right: 0; top: 12%; text-align: center; }
-.tile.s-t .own { left: 0; right: 0; top: 0; height: 9%; }
-.tile.s-l .band { top: 0; bottom: 0; right: 0; width: 20%; }
-.tile.s-l .ico { top: 6%; bottom: 32%; left: 14%; right: 24%; }
-.tile.s-l .tp { left: 8%; right: 20%; bottom: 8%; text-align: center; }
-.tile.s-l .own { top: 0; bottom: 0; left: 0; width: 7%; }
-.tile.s-r .band { top: 0; bottom: 0; left: 0; width: 20%; }
-.tile.s-r .ico { top: 6%; bottom: 32%; left: 24%; right: 14%; }
-.tile.s-r .tp { left: 20%; right: 8%; bottom: 8%; text-align: center; }
-.tile.s-r .own { top: 0; bottom: 0; right: 0; width: 7%; }
-.tile.s-c { background: linear-gradient(150deg, #f1dfb3, #d9bf86); }
-.tile.s-c .cn { position: absolute; left: 0; right: 0; bottom: 6%; text-align: center; font: 900 clamp(6px, calc(var(--tw) * .2), 14px)/1 var(--f-display); color: #5a2a14; white-space: nowrap; letter-spacing: -.01em; }
-.board.roomy .tile .tn { display: block; position: absolute; left: 0; right: 0; font: 700 clamp(7px, calc(var(--tw) * .17), 12px)/1.05 var(--f-ui); text-align: center; color: var(--paper-ink); hyphens: manual; padding: 0 2px; }
-.board.roomy .tile.s-b .tn { top: 22%; } .board.roomy .tile.s-t .tn { bottom: 22%; }
-.board.roomy .tile.s-l .tn { top: 6%; right: 20%; } .board.roomy .tile.s-r .tn { top: 6%; left: 20%; }
-.board.roomy .tile.s-b .ico { top: 46%; bottom: 30%; } .board.roomy .tile.s-t .ico { top: 30%; bottom: 46%; }
-.board.roomy .tile.s-l .ico, .board.roomy .tile.s-r .ico { top: 40%; bottom: 30%; }
-.tile.k-scroll .ico, .tile.k-chest .ico, .board.roomy .tile.k-scroll .ico, .board.roomy .tile.k-chest .ico { inset: 12%; }
-.tile.pulse { animation: pulse .6s ease-out; }
-@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 240, 188, .9); } 100% { box-shadow: 0 0 0 calc(var(--tw) * .35) rgba(255, 240, 188, 0); } }
-.center { grid-row: 2 / 11; grid-column: 2 / 11; position: relative; overflow: hidden; border-radius: 6px; box-shadow: inset 0 0 0 2px rgba(44, 27, 16, .55); }
-.c-art { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(13, 16, 22, .05), rgba(13, 16, 22, .3)), url(art/g_svan.webp) 50% 45% / cover; box-shadow: inset 0 0 26px rgba(0, 0, 0, .55); }
-
-/* things that stand up on the board: towers, the corner pieces, the scenery, the players' coins */
-.things, .tokens { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-style: preserve-3d; pointer-events: none; }
-.bb { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-style: preserve-3d; }
-.bb .up { position: absolute; bottom: 0; transform-origin: 50% 100%; transform: rotateX(calc(-1 * var(--tilt))); }
-.bb .up img { display: block; width: 100%; height: auto; filter: drop-shadow(0 3px 2px rgba(0, 0, 0, .35)); }
-.bld .tw { position: relative; display: block; }
-.bld .tw em { position: absolute; right: -4%; top: -6%; display: grid; place-items: center; min-width: 1.4em; height: 1.4em; border-radius: 50%; font: 400 clamp(8px, calc(var(--tw) * .3), 15px)/1 var(--f-num);
-  font-style: normal; color: var(--wood-2); background: var(--gold); box-shadow: 0 0 0 1.5px var(--wood-2); }
-.deco .up img { filter: drop-shadow(0 4px 4px rgba(0, 0, 0, .4)) saturate(.95); }
-/* an owner's flag: on the square, or on top of the tower built there */
-.bld .fl { display: block; width: 52%; margin-left: 41%; filter: drop-shadow(0 2px 1px rgba(0, 0, 0, .35)); }
-.bld .fl .pen { fill: var(--o); }
-.bld.lv .up { display: flex; flex-direction: column-reverse; }
-.bld.lv .fl { width: 34%; margin: 0 0 -16% 44%; }
-.bld.mort .fl { opacity: .55; filter: grayscale(.7); }
-.bld.mort img { filter: grayscale(.6) brightness(.85); }
-.tok { --ts: calc(var(--bs) * .072); transition: transform .17s ease-out; }
-.tok.instant { transition: none; }
-.tok.flying { transition: transform .6s cubic-bezier(.45, .05, .25, 1); }
-.tok .ped { position: absolute; left: calc(var(--ts) * -.55); top: calc(var(--ts) * -.55); width: calc(var(--ts) * 1.1); height: calc(var(--ts) * 1.1); border-radius: 50%;
-  background: radial-gradient(circle, var(--c) 0 50%, rgba(0, 0, 0, .55) 52%, rgba(0, 0, 0, .25) 62%, transparent 72%); }
-.tok .up { width: var(--ts); margin-left: calc(var(--ts) * -.5); bottom: calc(var(--ts) * .12); }
-.tok i { position: relative; display: block; width: var(--ts); height: var(--ts); border-radius: 50%; overflow: hidden; background: var(--panel);
-  box-shadow: 0 0 0 2px var(--c), 0 0 0 3.5px var(--gold), 0 5px 6px rgba(0, 0, 0, .55); }
-.tok img { width: 100%; height: 100%; display: block; }
-.tok.now i { box-shadow: 0 0 0 2px var(--c), 0 0 0 4px var(--gold-hi), 0 0 14px rgba(255, 240, 188, .85); }
-.tok.hop i { animation: hop .17s ease-out; }
-.tok.flying i { animation: flyHop .6s ease-in-out; }
-.tok.jailed i::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: repeating-linear-gradient(90deg, transparent 0 22%, rgba(20, 14, 8, .85) 22% 30%); }
-@keyframes hop { 50% { transform: translateY(-48%); } }
-@keyframes flyHop { 50% { transform: translateY(-90%) scale(1.15); } }
-
-/* the dice: cubes thrown onto the board */
-.cube-wrap { position: absolute; left: 50%; top: 52%; width: 0; height: 0; transform-style: preserve-3d; pointer-events: none; }
-.cube { --d: calc(var(--bs) * .085); position: absolute; width: var(--d); height: var(--d); left: calc(var(--d) * -1.2); top: calc(var(--d) * -.55);
-  transform-style: preserve-3d; transition: transform .5s ease-out; }
-.cube[data-k="1"] { left: calc(var(--d) * .2); top: calc(var(--d) * -.35); }
-.cube.up { transition: transform .43s cubic-bezier(.2, .75, .45, 1); }
-.cube.down { transition: transform .47s cubic-bezier(.55, .05, .8, .55); }
-.fc { position: absolute; inset: 0; display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); padding: 13%; border-radius: 17%;
-  background: linear-gradient(145deg, #fffaf0, #eadcc0); box-shadow: inset 0 0 0 1px rgba(120, 90, 50, .4), inset 0 0 6px rgba(120, 90, 50, .25); backface-visibility: hidden; }
-.fc i { width: 74%; height: 74%; margin: auto; border-radius: 50%; background: var(--wood-2); visibility: hidden; }
-.f1 { transform: translateZ(calc(var(--d) / 2)); }
-.f2 { transform: rotateY(90deg) translateZ(calc(var(--d) / 2)); }
-.f3 { transform: rotateX(90deg) translateZ(calc(var(--d) / 2)); }
-.f4 { transform: rotateX(-90deg) translateZ(calc(var(--d) / 2)); }
-.f5 { transform: rotateY(-90deg) translateZ(calc(var(--d) / 2)); }
-.f6 { transform: rotateY(180deg) translateZ(calc(var(--d) / 2)); }
-.fc[data-f="1"] i:nth-child(5), .fc[data-f="3"] i:nth-child(5), .fc[data-f="5"] i:nth-child(5),
-.fc[data-f="2"] i:nth-child(1), .fc[data-f="2"] i:nth-child(9), .fc[data-f="3"] i:nth-child(1), .fc[data-f="3"] i:nth-child(9),
-.fc[data-f="4"] i:nth-child(1), .fc[data-f="4"] i:nth-child(3), .fc[data-f="4"] i:nth-child(7), .fc[data-f="4"] i:nth-child(9),
-.fc[data-f="5"] i:nth-child(1), .fc[data-f="5"] i:nth-child(3), .fc[data-f="5"] i:nth-child(7), .fc[data-f="5"] i:nth-child(9),
-.fc[data-f="6"] i:nth-child(1), .fc[data-f="6"] i:nth-child(3), .fc[data-f="6"] i:nth-child(4), .fc[data-f="6"] i:nth-child(6), .fc[data-f="6"] i:nth-child(7), .fc[data-f="6"] i:nth-child(9) { visibility: visible; }
-.fc[data-f="1"] i:nth-child(5) { background: #a32a1e; width: 88%; height: 88%; }
-.cube.dbl .fc { box-shadow: inset 0 0 0 2px var(--gold), inset 0 0 8px rgba(232, 180, 76, .6); }
+/* ----- the 3D board fills the table; a button, the dice's sum and cards float over it ----- */
+.stage { position: absolute; inset: 0; overflow: hidden; }
+.board3d { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: manipulation; }
+.nogl { position: absolute; left: 10%; right: 10%; top: 25%; margin: 0; padding: 16px; border-radius: 14px; background: rgba(23, 29, 42, .92); border: 1px solid var(--line); text-align: center; }
+.viewbtn { position: absolute; right: 10px; top: 6px; z-index: 4; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; color: var(--gold-hi);
+  background: radial-gradient(circle at 50% 30%, #3b4254, #181d28 72%); box-shadow: 0 0 0 2px var(--gold), 0 0 0 4px var(--wood-2), 0 3px 8px rgba(0, 0, 0, .55); }
+.viewbtn svg { width: 24px; height: 24px; }
+.viewbtn:active { transform: translateY(1px); }
+.dicesum { position: absolute; left: 50%; z-index: 3; transform: translate(-50%, 50%); display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+.dicesum b { font: 400 66px/1 var(--f-num); color: var(--gold-hi); -webkit-text-stroke: 3px var(--wood-2); paint-order: stroke fill; text-shadow: 0 4px 0 var(--wood-2), 0 8px 18px rgba(0, 0, 0, .55); }
+.dicesum span { margin-top: 4px; padding: 2px 14px; border-radius: 99px; background: var(--red); color: #fff; font: 900 16px var(--f-display); box-shadow: 0 3px 8px rgba(0, 0, 0, .4); }
+.dicesum.go { animation: sumIn .45s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes sumIn { from { transform: translate(-50%, 50%) scale(.3); opacity: 0; } to { transform: translate(-50%, 50%) scale(1); opacity: 1; } }
+/* the town one may buy */
+.buycard { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; padding: 12px; background: rgba(13, 16, 22, .3); }
+.bc { width: min(100%, 340px); max-height: 100%; overflow-y: auto; border-radius: 18px; background: var(--paper); color: var(--paper-ink); border: 3px solid var(--gold-lo);
+  box-shadow: 0 0 0 2px var(--paper-2) inset, 0 18px 44px rgba(0, 0, 0, .65); }
+.bc-h { padding: 44px 16px 12px; background-size: cover; border-bottom: 8px solid var(--g); border-radius: 15px 15px 0 0; }
+.bc-h h3 { margin: 4px 0 0; font: 900 30px/1.1 var(--f-display); color: var(--cream); text-shadow: 0 2px 8px #000; }
+.bc-b { padding: 10px 14px 14px; display: flex; flex-direction: column; gap: 9px; }
+.bc-rent { list-style: none; margin: 0; padding: 0; }
+.bc-rent li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 5px 2px; border-top: 1px solid rgba(122, 86, 44, .25); font-weight: 700; font-size: 14.5px; }
+.bc-rent li:first-child { border-top: 0; }
+.bc-rent .amt { color: #6b3a12; }
+.bc .hint { color: var(--paper-dim); margin: 0; text-align: center; text-wrap: balance; }
+.bc .hint.bad { color: #a3261c; font-weight: 700; }
+.bc .row { flex-wrap: nowrap; }
+.bc .btn.big { flex: 1; }
+.buycard.go .bc { animation: cardIn .38s cubic-bezier(.2, 1.4, .4, 1); }
+/* little towers drawn in the sheets and on the build button */
+.tws { display: inline-flex; gap: 1px; color: var(--gold); vertical-align: middle; }
+.tws svg { width: 12px; height: 17px; }
+.lvi { display: inline-flex; align-items: center; }
+.lvi .fort, .rents .fort { width: 30px; height: 30px; object-fit: contain; }
+.rents .tws svg { width: 9px; height: 14px; }
+.tw-i { display: inline-flex; color: var(--gold); }
+.btn.gold .tw-i { color: #8d2a1f; }
+.tw-i svg { width: 16px; height: 22px; }
+.breg { margin-top: 12px; padding: 10px 12px; border-radius: 14px; background: var(--ink-2); border: 1px solid var(--line-2); border-left: 6px solid var(--g); }
+.breg h4 { margin: 0 0 6px; font-size: 15px; color: var(--cream); }
+.breg h4 small { color: var(--muted); font-weight: 600; }
+.btowns { display: grid; grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); gap: 6px; margin-bottom: 8px; }
+.btown { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: 10px; background: var(--panel-2); font-size: 12.5px; min-width: 0; }
+.btown b { font-size: 13.5px; color: var(--cream); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.btown small { color: var(--muted); }
+.breg .row { justify-content: flex-start; }
+.steps { margin: 0 0 12px; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; }
 
 /* the card that was drawn, and whose turn it is: over the table, facing the player */
 .cardpop { position: absolute; inset: 0; display: grid; place-items: center; z-index: 5; background: rgba(13, 16, 22, .35); }
@@ -413,8 +347,7 @@ img { max-width: 100%; }
 @keyframes toastIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .tok, .tok.flying { transition-duration: .05s; }
-  .tok.hop i, .tok.flying i, .cardpop.go .card, .banner.go, .tile.pulse { animation-duration: .01s; }
-  .cube { transition-duration: .1s !important; }
+  .cardpop.go .card, .banner.go, .buycard.go .bc, .dicesum.go { animation-duration: .01s; }
+  .btn.roll { animation: none !important; }
   .banner.go { animation: none; }
 }

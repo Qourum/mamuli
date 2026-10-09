@@ -345,7 +345,7 @@ const Engine = (() => {
     }
     if (ph === 'buy') { L.buy = p.cash >= BOARD[st.pend.i].p; L.skip = true; }
     if (ph === 'end' && free) L.end = true;
-    if (ph === 'debt') { L.pay = p.cash >= st.pend.a; L.bankrupt = true; L.manage = true; }
+    if (ph === 'debt') { L.pay = p.cash >= st.pend.a; L.bankrupt = true; L.manage = true; L.cover = true; }
     if ((ph === 'roll' || ph === 'end') && free) { L.manage = true; L.build = true; L.trade = activeSeats(st).length > 1; }
     return L;
   }
@@ -458,6 +458,16 @@ const Engine = (() => {
       }
       case 'bankrupt': {
         if (!mine || ph !== 'debt') return 'turn';
+        bankrupt(st, seat, st.pend.to);
+        return '';
+      }
+      case 'cover': {   // a debt paid the easy way: towers sold and towns pawned, those that matter least first
+        if (!mine || ph !== 'debt') return 'turn';
+        for (let guard = 0; p.cash < st.pend.a && guard < 80; guard++) {
+          const m = botRaise(st, seat);
+          if (!m || act(st, seat, m, rnd)) break;
+        }
+        if (p.cash >= st.pend.a) return act(st, seat, { t: 'pay' }, rnd);
         bankrupt(st, seat, st.pend.to);
         return '';
       }

@@ -1,5 +1,6 @@
 // ===== themes: the same game in another world =====
-// A room plays in one theme, chosen by its host in the lobby: მამული (the towns of Georgia's regions) or არქიპელაგი
+// A room plays in one theme: the one chosen first on the menu, which its host may change in the lobby: მამული (the towns of
+// Georgia's regions) or არქიპელაგი
 // (famous pirate islands, with true stories). The rules are the same. A theme gives the squares' names, the regions,
 // the cards (in the archipelago the treasure chest asks a question), the heroes, the words on the screen and the 3D
 // world. useTheme() puts a theme's names into BOARD, GROUPS and the rest, which everything else reads.

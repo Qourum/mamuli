@@ -11,18 +11,29 @@ const saveProfile = () => store.set('profile', PROFILE);
 // both worlds are offered in the lobby (a world still being made could be held back here)
 const WORLDS_OPEN = true;
 const heroPrefs = () => ({ mamuli: PROFILE.hero, archipelago: PROFILE.pirate });
-const myName = () => PROFILE.name || HEROES[PROFILE.hero].s;
+const myName = () => PROFILE.name || HEROES[myHero()].s;
 
-// ----- the first screen -----
+// ----- the first screen: the world first (მამული's towns or the pirates' islands), then the hero, then the game -----
+// the two worlds as the first screen shows them: a picture, and what one does there
+const WORLD_CARDS = {
+  mamuli: { pic: 'g_svan', at: '50% 32%', pitch: 'იყიდე ციხე-ქალაქები, ააშენე კოშკები და ივაჭრე მეგობრებთან' },
+  archipelago: { pic: 'bg_sea', at: '50% 38%', pitch: 'იყიდე განძის კუნძულები, ააშენე ქოხები და გააკოტრე მეტოქე მეკობრეები' }
+};
+const myHero = () => PROFILE.theme === 'archipelago' ? PROFILE.pirate : PROFILE.hero;
 const Menu = (() => {
   function render() {
-    const pick = $('#heroPick');
-    pick.innerHTML = HERO_KEYS.map(h => `<button class="hero${h === PROFILE.hero ? ' on' : ''}" data-hero="${h}" aria-label="${esc(HEROES[h].n)}" aria-pressed="${h === PROFILE.hero}"><img src="${por(h)}" alt=""></button>`).join('');
-    $('#heroName').textContent = HEROES[PROFILE.hero].n;
-    $('#heroFig').src = ART(PROFILE.hero === 'david' ? 'h_davidride' : 'h_' + PROFILE.hero);
+    const th = THEMES[PROFILE.theme] ? PROFILE.theme : 'mamuli', sea = th === 'archipelago', mine = myHero();
+    $('#worldPick').innerHTML = Object.values(THEMES).map(t => { const c = WORLD_CARDS[t.key] || WORLD_CARDS.mamuli; return `<button class="wcard${t.key === th ? ' on' : ''}" data-mworld="${t.key}" aria-pressed="${t.key === th}" style="background-image:linear-gradient(180deg,rgba(13,16,22,0) 25%,rgba(13,16,22,.88)),url(${ART(c.pic)});background-position:${c.at}"><b>${esc(t.name)}</b><small>${esc(t.tag)}</small></button>`; }).join('');
+    $('#menuTag').textContent = (WORLD_CARDS[th] || WORLD_CARDS.mamuli).pitch;
+    $('#heroPick').innerHTML = heroKeys(th).map(h => `<button class="hero${h === mine ? ' on' : ''}" data-hero="${h}" aria-label="${esc(HEROES[h].n)}" aria-pressed="${h === mine}"><img src="${por(h)}" alt=""></button>`).join('');
+    $('#heroLbl').textContent = sea ? 'შენი მეკობრე' : 'შენი გმირი';
+    $('#heroName').textContent = HEROES[mine].n;
+    const fig = $('#heroFig');
+    fig.src = sea ? por(mine) : ART(mine === 'david' ? 'h_davidride' : 'h_' + mine);        // (a pirate has only a portrait)
+    fig.classList.toggle('por', sea);
     const nameIn = $('#nameIn');
     if (document.activeElement !== nameIn) nameIn.value = PROFILE.name;
-    nameIn.placeholder = HEROES[PROFILE.hero].s;
+    nameIn.placeholder = HEROES[mine].s;
     const saved = store.get('local');
     $('#bResume').hidden = !(saved && saved.st && saved.st.phase !== 'lobby' && saved.st.phase !== 'over');
     $('#onlineBox').hidden = !SITE;
@@ -33,8 +44,11 @@ const Menu = (() => {
   }
   function onClick(ev) {
     Sound.unlock();
+    // the world: the menu takes its look, and the 3D board is made in it while the menu is on the screen
+    const w = ev.target.closest('[data-mworld]');
+    if (w && THEMES[w.dataset.mworld]) { PROFILE.theme = w.dataset.mworld; saveProfile(); applyTheme({ theme: PROFILE.theme }); render(); return; }
     const h = ev.target.closest('[data-hero]');
-    if (h) { PROFILE.hero = h.dataset.hero; saveProfile(); render(); return; }
+    if (h && HEROES[h.dataset.hero]) { if (HEROES[h.dataset.hero].t === 'archipelago') PROFILE.pirate = h.dataset.hero; else PROFILE.hero = h.dataset.hero; saveProfile(); render(); return; }
     const id = ev.target.closest('button') && ev.target.closest('button').id;
     if (id === 'bHost') { PROFILE.name = Engine.cleanName($('#nameIn').value); saveProfile(); hostRoom(); }
     else if (id === 'bJoin') { PROFILE.name = Engine.cleanName($('#nameIn').value); saveProfile(); joinRoom($('#codeIn').value); }
@@ -77,7 +91,7 @@ const Install = (() => {
     if (h) Sheet.open('install', h);
   }
   addEventListener('beforeinstallprompt', e => { e.preventDefault(); ask = e; render(); });
-  addEventListener('appinstalled', () => { ask = null; render(); UI.toast('მამული დაინსტალირდა: გახსენი მთავარი ეკრანიდან', 3200, 'good'); });
+  addEventListener('appinstalled', () => { ask = null; render(); UI.toast('„შენი ჯერი“ დაინსტალირდა: გახსენი მთავარი ეკრანიდან', 3200, 'good'); });
   return { render, go, how };
 })();
 // the offline helper: the game opens without a connection too (and the browser offers to install it)
@@ -177,8 +191,8 @@ const Lobby = (() => {
   // the room's link, the way მეტეხი does it: the phone's share sheet, or (on a computer) copied for pasting anywhere
   function invite() {
     if (!ROOM || !ROOM.code) return;
-    const url = roomLink(ROOM.code), text = `ერთად ვითამაშოთ მამული! ოთახის კოდი: ${ROOM.code}`;
-    if (navigator.share && TOUCH) { navigator.share({ title: 'მამული', text, url }).catch(() => { }); return; }
+    const url = roomLink(ROOM.code), text = `მოდი, „შენი ჯერი“ ვითამაშოთ! ოთახის კოდი: ${ROOM.code}`;
+    if (navigator.share && TOUCH) { navigator.share({ title: 'შენი ჯერი', text, url }).catch(() => { }); return; }
     const done = () => UI.toast(`ბმული დაკოპირდა · კოდი ${esc(ROOM.code)}`, 2400, 'good');
     const show = () => UI.toast(esc(url), 5000);
     try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(url).then(done, show); return; } } catch (e) { }

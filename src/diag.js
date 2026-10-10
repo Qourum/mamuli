@@ -20,7 +20,7 @@ const Diag = (() => {
   const slow = ms => note('slow', `frame after ${Math.round(ms)} ms, showing ${doing()}${typeof Dice3D !== 'undefined' && Dice3D.busy ? ', dice rolling' : ''}`);
   function device() {
     const n = navigator, s = screen, out = [];
-    out.push(`მამული ${typeof BUILD !== 'undefined' ? BUILD : ''} · ${new Date().toISOString()}`);
+    out.push(`შენი ჯერი ${typeof BUILD !== 'undefined' ? BUILD : ''} · ${new Date().toISOString()}`);
     out.push(n.userAgent);
     const installed = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || n.standalone;
     out.push(`screen ${s.width}x${s.height} · window ${innerWidth}x${innerHeight} · dpr ${window.devicePixelRatio || 1} · ${installed ? 'installed' : 'in the browser'}${window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches ? ' · less motion' : ''}`);

@@ -231,16 +231,18 @@ const Board3D = (() => {
       vWP = wp4.xyz;
       vWater = anim.y;
       vShore = anim.x;
-      if ( anim.y > 3.5 && anim.y < 4.5 ) {
+      #ifdef SEA
         // the swell lifts the sea (less inside the ring of squares, and none at a shore)
         float open = smoothstep( 6.2, 7.2, max( abs( wp4.x ), abs( wp4.z ) ) );
         transformed.y += mix( 0.42, 1.0, open ) * ( 1.0 - anim.x ) * ( ${seaLift} );
-      } else if ( anim.x > 0.0 ) {
-        float ph = wp4.x * 1.9 + wp4.z * 1.3;
-        float gust = 0.65 + 0.35 * sin( uTime * 0.41 + wp4.x * 0.25 - wp4.z * 0.2 );
-        transformed.x += anim.x * gust * ( 0.009 * sin( uTime * 1.7 + ph ) + 0.0035 * sin( uTime * 3.3 + ph * 2.1 ) );
-        transformed.z += anim.x * gust * 0.0055 * sin( uTime * 1.25 + ph * 1.3 + 1.2 );
-      }`,
+      #else
+        if ( anim.x > 0.0 ) {
+          float ph = wp4.x * 1.9 + wp4.z * 1.3;
+          float gust = 0.65 + 0.35 * sin( uTime * 0.41 + wp4.x * 0.25 - wp4.z * 0.2 );
+          transformed.x += anim.x * gust * ( 0.009 * sin( uTime * 1.7 + ph ) + 0.0035 * sin( uTime * 3.3 + ph * 2.1 ) );
+          transformed.z += anim.x * gust * 0.0055 * sin( uTime * 1.25 + ph * 1.3 + 1.2 );
+        }
+      #endif`,
     fp: `#include <common>
 uniform float uTime;
 uniform sampler2D uDetail;
@@ -254,12 +256,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   g += amp * k * cos( ph ) * d;
 }`,
     f: `#include <emissivemap_fragment>
-      if ( vWater > 4.5 ) {
-        // lava: glowing, its dark crust drifting over it
-        float c = sin( vWP.x * 23.0 + uTime * 0.7 + sin( vWP.z * 17.0 - uTime * 0.5 ) * 2.0 ) * sin( vWP.z * 19.0 - uTime * 0.6 + vWP.x * 3.0 );
-        diffuseColor.rgb = mix( vec3( 0.32, 0.05, 0.02 ), vec3( 1.0, 0.56, 0.14 ), 0.5 + 0.5 * c );
-        totalEmissiveRadiance += vec3( 0.95, 0.34, 0.06 ) * ( 0.6 + 0.4 * c );
-      } else if ( vWater > 3.5 ) {
+      #ifdef SEA
+      {
         // the sea. Its waves (see SEA_WAVES) tilt it, so the sun and the sky light their slopes; the sky shows in those
         // turned away; out on the ocean the crests break white here and there; in the shallows the sun's light, bent by
         // the waves, dances on the sand; little waves glitter; foam laps each shore, coming and going
@@ -290,6 +288,13 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
         float lap = 0.5 + 0.5 * sin( vShore * 14.0 - uTime * 1.8 + ( vWP.x + vWP.z ) * 2.5 );
         float foam = smoothstep( 0.74, 0.97, vShore ) + smoothstep( 0.4, 0.76, vShore ) * smoothstep( 0.78, 0.97, lap ) * 0.75;
         diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.95, 0.98, 0.97 ), clamp( foam * ( 0.7 + 0.6 * m ), 0.0, 1.0 ) * 0.85 );
+      }
+      #else
+      if ( vWater > 4.5 ) {
+        // lava: glowing, its dark crust drifting over it
+        float c = sin( vWP.x * 23.0 + uTime * 0.7 + sin( vWP.z * 17.0 - uTime * 0.5 ) * 2.0 ) * sin( vWP.z * 19.0 - uTime * 0.6 + vWP.x * 3.0 );
+        diffuseColor.rgb = mix( vec3( 0.32, 0.05, 0.02 ), vec3( 1.0, 0.56, 0.14 ), 0.5 + 0.5 * c );
+        totalEmissiveRadiance += vec3( 0.95, 0.34, 0.06 ) * ( 0.6 + 0.4 * c );
       } else if ( vWater > 2.5 ) {
         // the land's grain: the same noise at two sizes; bright snow gets less of it
         float g1 = texture2D( uDetail, vWP.xz * 1.7 ).r, g2 = texture2D( uDetail, vWP.xz * 6.1 + 0.37 ).r;
@@ -306,23 +311,34 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
           diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.8, 0.88, 0.93 ), 0.3 );
           totalEmissiveRadiance += vec3( 0.35 ) * smoothstep( 0.55, 1.0, s );
         }
-      }`
+      }
+      #endif`
   };
-  function living(m) {
+  // (the sea has a shader of its own: the land's and the scenery's carries none of its work, nor the sea's theirs)
+  function living(m, sea) {
     m.onBeforeCompile = sh => {
       sh.uniforms.uTime = U.time; sh.uniforms.uDetail = U.detail;
       sh.vertexShader = sh.vertexShader.replace('#include <common>', LIVING.vp).replace('#include <begin_vertex>', LIVING.v);
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', LIVING.fp).replace('#include <emissivemap_fragment>', LIVING.f);
     };
-    m.customProgramCacheKey = () => 'living';
+    m.customProgramCacheKey = sea ? () => 'livingsea' : () => 'living';
+    if (sea) m.defines = Object.assign({}, m.defines, { SEA: '' });
     return m;
   }
   // a model from a file (glb.js) has no 'anim' numbers: its water is found by its colour (bluer than it is red, and not
   // greener than blue, as the pictures paint the sea, the pools and the falls), falling where its surface is steep, lying
   // still where it is flat; the same clock as the board's
   const MODEL_WATER = {
-    vp: '#include <common>\nvarying vec3 vWP;\nvarying vec3 vWN;',
+    vp: '#include <common>\nattribute float aLeaf;\nuniform float uTime;\nvarying vec3 vWP;\nvarying vec3 vWN;',
     v: `#include <begin_vertex>
+      if ( aLeaf > 0.0 ) {
+        // its leaves sway in the board's own wind (the same gusts as the scenery's), as far in the board's units
+        // whatever the model's size (glb.js says where the leaves are)
+        vec3 w0 = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;
+        float ph = w0.x * 1.9 + w0.z * 1.3, gust = 0.65 + 0.35 * sin( uTime * 0.41 + w0.x * 0.25 - w0.z * 0.2 );
+        vec3 wo = 1.6 * aLeaf * gust * vec3( 0.009 * sin( uTime * 1.7 + ph ) + 0.0035 * sin( uTime * 3.3 + ph * 2.1 ), 0.0, 0.0055 * sin( uTime * 1.25 + ph * 1.3 + 1.2 ) );
+        transformed += vec3( dot( modelMatrix[ 0 ].xyz, wo ), dot( modelMatrix[ 1 ].xyz, wo ), dot( modelMatrix[ 2 ].xyz, wo ) ) / dot( modelMatrix[ 0 ].xyz, modelMatrix[ 0 ].xyz );
+      }
       vWP = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;
       vWN = normalize( mat3( modelMatrix ) * objectNormal );`,
     fp: '#include <common>\nuniform float uTime;\nvarying vec3 vWP;\nvarying vec3 vWN;',
@@ -404,6 +420,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     U.detail.value = detailTexture();
     mats = {
       scenery: living(new T.MeshLambertMaterial({ vertexColors: true })),
+      sea: living(new T.MeshLambertMaterial({ vertexColors: true }), true),
       cloud: new T.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.86 }),
       wing: new T.MeshLambertMaterial({ vertexColors: true, side: T.DoubleSide }),
       plinthTop: new T.MeshLambertMaterial({ color: 0x4a2e1a }),
@@ -500,7 +517,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (wg) { const wm = new T.Mesh(wg, mats.scenery); wm.receiveShadow = true; landG.add(wm); }
     yield;
     // the archipelago's lagoon: not part of the land that grows (the islands rise out of it)
-    if (MOD.world === 'sea') { seaMesh = new T.Mesh(yield* Terrain.seaGeo(mobile ? 72 : 96), mats.scenery); seaMesh.receiveShadow = true; root.add(seaMesh); yield; }
+    if (MOD.world === 'sea') { seaMesh = new T.Mesh(yield* Terrain.seaGeo(mobile ? 72 : 96), mats.sea); seaMesh.receiveShadow = true; root.add(seaMesh); yield; }
     // what stands on the land: each lot's scenery, set on its own ground
     for (let i = 0; i < 40; i++) {
       if (!(i % 10)) continue;
@@ -535,7 +552,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     landG.add(cm);
     yield;
     // the country around the board: meadows, groves, hills, and the far mountains in the haze
-    const om = new T.Mesh(Terrain.outer(mobile ? 34 : 42, mobile ? 80 : 104), mats.scenery);
+    const om = new T.Mesh(Terrain.outer(mobile ? 34 : 42, mobile ? 80 : 104), MOD.world === 'sea' ? mats.sea : mats.scenery);
     om.receiveShadow = true;
     root.add(om);
     if (MOD.far) { const fm = new T.Mesh(MOD.far(), mats.scenery); root.add(fm); }       // the islands far off in the ocean

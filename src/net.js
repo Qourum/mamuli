@@ -144,7 +144,7 @@ function newRoom(mode, role, code) {
 }
 function meta() {
   const st = ROOM.st, s = st ? Engine.seatOf(st, ROOM.me) : -1, p = s >= 0 ? st.players[s] : null;
-  return { pid: ROOM.me, name: p ? p.name : PROFILE.name, hero: p ? p.hero : PROFILE.hero, h: isHost() ? 1 : 0, v: PROTO, vo: Voice.vo, vn: Voice.vn };
+  return { pid: ROOM.me, name: p ? p.name : PROFILE.name, hero: p ? p.hero : myHero(), h: isHost() ? 1 : 0, v: PROTO, vo: Voice.vo, vn: Voice.vn };
 }
 function send(t, d, to) {
   if (!ROOM || !ROOM.net) return;

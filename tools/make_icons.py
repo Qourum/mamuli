@@ -45,12 +45,22 @@ def icon(size, maskable=False):
     return im.convert('RGB')
 
 
-def og():
-    W, H = 1200, 630
-    bg = art('g_svan').convert('RGB')
+def cover(name, W, H):
+    bg = art(name).convert('RGB')
     s = max(W / bg.width, H / bg.height)
     bg = bg.resize((round(bg.width * s), round(bg.height * s)), Image.LANCZOS)
-    bg = bg.crop(((bg.width - W) // 2, 0, (bg.width - W) // 2 + W, H)).convert('RGBA')
+    return bg.crop(((bg.width - W) // 2, 0, (bg.width - W) // 2 + W, H)).convert('RGBA')
+
+
+def og():
+    # the game's two worlds side by side: Svaneti's towers on the left, the pirates' sea on the right
+    W, H = 1200, 630
+    bg, sea = cover('g_svan', W, H), cover('bg_sea', W, H)
+    mask = Image.new('L', (W, H))
+    md = ImageDraw.Draw(mask)
+    for x in range(W):
+        md.line([(x, 0), (x, H)], fill=max(0, min(255, int((x - W * .38) / (W * .24) * 255))))
+    bg = Image.composite(sea, bg, mask)
     shade = Image.new('RGBA', (W, H))
     sd = ImageDraw.Draw(shade)
     for y in range(H):
@@ -59,19 +69,19 @@ def og():
     im = Image.alpha_composite(bg, shade)
     d = ImageDraw.Draw(im)
     f = font(150)
-    text = 'მამული'
+    text = 'შენი ჯერი'
     tw = d.textlength(text, font=f)
     x, y = (W - tw) / 2, 120
     d.text((x, y + 8), text, font=f, fill=WOOD2)
     d.text((x, y), text, font=f, fill=GOLD, stroke_width=5, stroke_fill=WOOD2)
-    sub = font(40)
-    line = 'კუთხეები, ციხე-ქალაქები და ვაჭრობა'
+    sub = font(38)
+    line = 'საქართველოს ციხეები და მეკობრეების კუნძულები'   # (the title font has no hyphen)
     d.text(((W - d.textlength(line, font=sub)) / 2, 330), line, font=sub, fill=(255, 244, 218))
-    heroes = ['david', 'tamar', 'gorgasali', 'erekle', 'kakutsa', 'tariel']
+    heroes = ['por_h_david', 'por_h_tamar', 'por_h_erekle', 'por_p_blackbeard', 'por_p_chingshih', 'por_p_omalley']
     n, ps, gap = len(heroes), 96, 22
     x0 = (W - (n * ps + (n - 1) * gap)) // 2
     for k, h in enumerate(heroes):
-        p = art('por_h_' + h).resize((ps, ps), Image.LANCZOS)
+        p = art(h).resize((ps, ps), Image.LANCZOS)
         mask = Image.new('L', (ps, ps), 0)
         ImageDraw.Draw(mask).ellipse([0, 0, ps - 1, ps - 1], fill=255)
         cx = x0 + k * (ps + gap)

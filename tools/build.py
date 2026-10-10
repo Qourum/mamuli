@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds მამული from src/.
+"""Builds შენი ჯერი (the game once called მამული; its address and storage keep that name) from src/.
 
   python3 tools/build.py            the website: index.html at the repository root (for GitHub Pages), next to art/ and rt.js,
                                     and sw.js, the offline helper that also makes the game installable
@@ -35,22 +35,22 @@ FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="
          '&family=Noto+Serif+Georgian:wght@700;900&family=Lilita+One&display=swap">')
 # the website asks for the fonts with CORS, so that the offline helper can keep them (the preview does not need to)
 SITE_FONTS = FONTS.replace('<link rel="stylesheet" href=', '<link rel="stylesheet" crossorigin href=')
-DESC = 'ქართული სამაგიდო თამაში მეგობრებთან ონლაინ: იყიდე ციხე-ქალაქები, ააშენე კოშკები, ივაჭრე და გააკოტრე მეტოქეები.'
+DESC = 'ქართული სამაგიდო თამაში მეგობრებთან ონლაინ, ორ სამყაროში: საქართველოს ციხე-ქალაქები ან მეკობრეების განძის კუნძულები. იყიდე, ააშენე, ივაჭრე და გააკოტრე მეტოქეები.'
 SITE_HEAD = f'''<!doctype html>
 <html lang="ka">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
-<title>მამული</title>
+<title>შენი ჯერი</title>
 <meta name="description" content="{DESC}">
 <meta name="theme-color" content="#0d1016">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="მამული">
+<meta name="apple-mobile-web-app-title" content="შენი ჯერი">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://qourum.github.io/mamuli/">
-<meta property="og:title" content="მამული">
+<meta property="og:title" content="შენი ჯერი">
 <meta property="og:description" content="{DESC}">
 <meta property="og:image" content="https://qourum.github.io/mamuli/og.jpg">
 <meta name="twitter:card" content="summary_large_image">
@@ -91,7 +91,7 @@ def page(site):
     js = f'const BUILD = "{build}";\nconst SITE = {"true" if site else "false"};\n' + code
     if site:
         return build, f'{SITE_HEAD}<style>\n{css}</style>\n</head>\n<body>\n{body}<script src="vendor/three.min.js"></script>\n<script>\n{js}</script>\n</body>\n</html>\n'
-    return build, f'<title>მამული</title>\n{FONTS}\n<style>\n{css}</style>\n{body}<script src="{THREE_CDN}"></script>\n<script>\n{js}</script>\n'
+    return build, f'<title>შენი ჯერი</title>\n{FONTS}\n<style>\n{css}</style>\n{body}<script src="{THREE_CDN}"></script>\n<script>\n{js}</script>\n'
 
 
 def main():

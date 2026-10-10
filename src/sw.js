@@ -1,4 +1,4 @@
-// მამული's offline helper. Only the website registers it; tools/build.py fills in the version and the picture list.
+// შენი ჯერი's offline helper. Only the website registers it; tools/build.py fills in the version and the picture list.
 // The page comes from the network when it can, so an update arrives at once, and from the cache when it cannot.
 // Pictures, the 3D library and the fonts come from the cache and are refreshed in the background. Once the game has
 // loaded, the page asks the helper to keep every picture, so a game with the computer players works without a connection.

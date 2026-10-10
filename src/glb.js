@@ -95,8 +95,40 @@ const GLB = (() => {
     geometry.computeBoundingBox(); geometry.computeBoundingSphere();
     const pbr = (mat && mat.pbrMetallicRoughness) || {}, f = pbr.baseColorFactor || [1, 1, 1, 1];
     const map = pbr.baseColorTexture ? await picture(g, pbr.baseColorTexture) : null;
+    geometry.setAttribute('aLeaf', new T.BufferAttribute(leaves(geometry, map && map.image), 1));
     const material = new T.MeshLambertMaterial({ map, color: new T.Color(f[0], f[1], f[2]) });
     return { geometry, material };
+  }
+  // where the model has leaves, and how much they sway in the wind (the board's shader moves them): green in its
+  // picture, and standing above the ground round it (the treetops, the palms' fronds; not the grass, not the trunks)
+  const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  function leaves(geo, img) {
+    const pos = geo.attributes.position, uv = geo.attributes.uv, n = pos.count, out = new Float32Array(n);
+    if (!uv || !img) return out;
+    let px;
+    const S = 256;
+    try {
+      const cv = document.createElement('canvas'); cv.width = cv.height = S;
+      const x = cv.getContext('2d', { willReadFrequently: true });
+      x.drawImage(img, 0, 0, S, S);
+      px = x.getImageData(0, 0, S, S).data;
+    } catch (e) { return out; }
+    // the ground: the lowest point in each little square of the model's plan
+    const bb = geo.boundingBox, size = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) || 1, cell = size / 48, low = new Map();
+    const key = (cx, cz) => cx * 4096 + cz, at = i => [Math.floor((pos.getX(i) - bb.min.x) / cell), Math.floor((pos.getZ(i) - bb.min.z) / cell)];
+    for (let i = 0; i < n; i++) { const [cx, cz] = at(i), k = key(cx, cz), y = pos.getY(i); if (!(low.get(k) <= y)) low.set(k, y); }
+    for (let i = 0; i < n; i++) {
+      const u = uv.getX(i), v = uv.getY(i);
+      const ix = Math.min(S - 1, Math.floor((u - Math.floor(u)) * S)), iy = Math.min(S - 1, Math.floor((v - Math.floor(v)) * S));   // (a glTF picture's first row is the top)
+      const o = (iy * S + ix) * 4, r = px[o], gr = px[o + 1], b = px[o + 2];
+      const green = smooth(6, 30, gr - Math.max(r, b) * 0.95);
+      if (!green) continue;
+      const [cx, cz] = at(i);
+      let ground = Infinity;
+      for (let a = -2; a <= 2; a++) for (let c = -2; c <= 2; c++) { const y = low.get(key(cx + a, cz + c)); if (y !== undefined && y < ground) ground = y; }
+      out[i] = green * smooth(size * 0.012, size * 0.07, pos.getY(i) - ground);
+    }
+    return out;
   }
   // several pieces into one (they have the same numbers: the tool writes them so)
   function merge(list) {

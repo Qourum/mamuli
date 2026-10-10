@@ -968,10 +968,10 @@ const Sheet = (() => {
     const steps = {
       ios: [`დააჭირე <b>„გაზიარება"</b> ღილაკს ${SHARE_SVG} (${where})`,
         'ჩამოსქროლე და აირჩიე <b class="en">Add to Home Screen</b> („მთავარ ეკრანზე დამატება")',
-        'გახსენი „მამული" მთავარი ეკრანიდან: აპივით გაიხსნება, ბრაუზერის ზოლების გარეშე.'],
+        'გახსენი „შენი ჯერი" მთავარი ეკრანიდან: აპივით გაიხსნება, ბრაუზერის ზოლების გარეშე.'],
       mac: ['Safari-ს ზედა მენიუში აირჩიე <b class="en">File → Add to Dock…</b>',
-        '„მამული" Dock-ში გამოჩნდება და ცალკე ფანჯარაში გაიხსნება.'],
-      firefox: ['გახსენი ბრაუზერის მენიუ <b>⋮</b>', 'აირჩიე <b class="en">Install</b> ან <b class="en">Add to Home screen</b>', 'გახსენი „მამული" მთავარი ეკრანიდან.']
+        '„შენი ჯერი" Dock-ში გამოჩნდება და ცალკე ფანჯარაში გაიხსნება.'],
+      firefox: ['გახსენი ბრაუზერის მენიუ <b>⋮</b>', 'აირჩიე <b class="en">Install</b> ან <b class="en">Add to Home screen</b>', 'გახსენი „შენი ჯერი" მთავარი ეკრანიდან.']
     }[arg] || [];
     return `<div class="sheet-h"><h2>დაინსტალირება</h2><button class="x" data-close aria-label="დახურვა">×</button></div>
       <div class="prose"><ol class="steps">${steps.map(t => `<li>${t}</li>`).join('')}</ol>

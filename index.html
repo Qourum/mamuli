@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
-<title>მამული</title>
-<meta name="description" content="ქართული სამაგიდო თამაში მეგობრებთან ონლაინ: იყიდე ციხე-ქალაქები, ააშენე კოშკები, ივაჭრე და გააკოტრე მეტოქეები.">
+<title>შენი ჯერი</title>
+<meta name="description" content="ქართული სამაგიდო თამაში მეგობრებთან ონლაინ, ორ სამყაროში: საქართველოს ციხე-ქალაქები ან მეკობრეების განძის კუნძულები. იყიდე, ააშენე, ივაჭრე და გააკოტრე მეტოქეები.">
 <meta name="theme-color" content="#0d1016">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="მამული">
+<meta name="apple-mobile-web-app-title" content="შენი ჯერი">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://qourum.github.io/mamuli/">
-<meta property="og:title" content="მამული">
-<meta property="og:description" content="ქართული სამაგიდო თამაში მეგობრებთან ონლაინ: იყიდე ციხე-ქალაქები, ააშენე კოშკები, ივაჭრე და გააკოტრე მეტოქეები.">
+<meta property="og:title" content="შენი ჯერი">
+<meta property="og:description" content="ქართული სამაგიდო თამაში მეგობრებთან ონლაინ, ორ სამყაროში: საქართველოს ციხე-ქალაქები ან მეკობრეების განძის კუნძულები. იყიდე, ააშენე, ივაჭრე და გააკოტრე მეტოქეები.">
 <meta property="og:image" content="https://qourum.github.io/mamuli/og.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="manifest" href="manifest.webmanifest">
@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" crossorigin href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;600;700;800&family=Noto+Serif+Georgian:wght@700;900&family=Lilita+One&display=swap">
 <style>:root{padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}</style>
 <style>
-/* მამული: a board of Georgian regions, in მეტეხი's colours. Dark wood and gold around the board, parchment squares
+/* შენი ჯერი (once მამული): a board of Georgian regions or of pirate islands, in მეტეხი's colours. Dark wood and gold around the board, parchment squares
    on it, the regions' colours on their bands. One world: the game is always dark. */
 :root {
   color-scheme: dark;
@@ -82,13 +82,27 @@ img { max-width: 100%; }
 #scr-menu { position: relative; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .menu-bg { position: fixed; inset: 0; background: linear-gradient(180deg, rgba(13, 16, 22, .55), rgba(13, 16, 22, .82) 50%, var(--ink) 92%), url(art/g_svan.webp) center 30% / cover; }
 .menu-wrap { position: relative; max-width: 460px; margin: 0 auto; padding: 22px 16px 28px; display: flex; flex-direction: column; gap: 14px; min-height: 100%; }
-.logo { margin: 0; font: 900 clamp(48px, 15vw, 76px)/1 var(--f-display); color: var(--gold); text-align: center; letter-spacing: .01em;
+.logo { margin: 0; font: 900 clamp(40px, 11.5vw, 68px)/1 var(--f-display); color: var(--gold); text-align: center; letter-spacing: .01em;
   -webkit-text-stroke: 1.5px var(--wood-2); paint-order: stroke fill; text-shadow: 0 3px 0 var(--wood-2), 0 6px 18px rgba(0, 0, 0, .6); }
 .tagline { margin: 6px 0 0; text-align: center; color: var(--cream); font-size: 14.5px; text-wrap: balance; text-shadow: 0 1px 6px rgba(0, 0, 0, .8); }
 .menu-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 20px; border: 1px solid var(--line);
   background: linear-gradient(180deg, rgba(44, 27, 16, .92), rgba(23, 29, 42, .95)); box-shadow: 0 10px 40px rgba(0, 0, 0, .5); }
+/* the two worlds, first on the menu: a picture each, the chosen one in gold */
+.world-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.wcard { position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: 3px; min-height: 112px; min-width: 0;
+  padding: 10px 11px; border-radius: 16px; border: 2px solid rgba(255, 244, 218, .14); background-color: var(--ink-2); background-size: cover; color: var(--cream);
+  text-align: left; box-shadow: 0 4px 12px rgba(0, 0, 0, .45); transition: border-color .15s, box-shadow .15s, opacity .15s; }
+.wcard b { font: 900 19px/1.1 var(--f-display); text-shadow: 0 2px 6px #000; }
+.wcard small { font-size: 11.5px; line-height: 1.25; font-weight: 600; color: #e9dcbd; text-shadow: 0 1px 4px #000; text-wrap: balance; }
+.wcard:not(.on) { opacity: .72; }
+.wcard.on { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(232, 180, 76, .32), 0 4px 12px rgba(0, 0, 0, .45); }
+.wcard.on::after { content: ''; position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; border-radius: 50%; box-shadow: 0 0 0 2px var(--wood-2);
+  background: var(--gold) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='%232c1b10' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 15px no-repeat; }
+.wcard:active { transform: translateY(1px); }
+#app[data-world="archipelago"] .menu-bg { background: linear-gradient(180deg, rgba(13, 16, 22, .45), rgba(13, 16, 22, .8) 50%, var(--ink) 92%), url(art/bg_sea.webp) center 20% / cover; }
 .me-hero { display: flex; align-items: center; gap: 12px; }
 .me-hero img { width: 64px; height: 76px; object-fit: contain; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .5)); }
+.me-hero img.por { width: 58px; height: 58px; margin: 0 3px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 2.5px var(--gold), 0 0 0 4.5px var(--wood-2); filter: none; }
 .me-hero b { font: 700 18px/1.25 var(--f-display); color: var(--cream); }
 .hero-pick { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
 .hero { aspect-ratio: 1; padding: 0; border-radius: 50%; border: 2px solid transparent; background: var(--panel-2); overflow: hidden; }
@@ -596,11 +610,12 @@ pre.diag { margin: 10px 0 0; padding: 10px; max-height: 52vh; overflow: auto; bo
     <div class="menu-bg"></div>
     <div class="menu-wrap">
       <header>
-        <h1 class="logo">მამული</h1>
-        <p class="tagline">იყიდე ციხე-ქალაქები, ააშენე კოშკები და ივაჭრე მეგობრებთან</p>
+        <h1 class="logo">შენი ჯერი</h1>
+        <p class="tagline" id="menuTag">აირჩიე სამყარო, გმირი და ითამაშე მეგობრებთან</p>
       </header>
       <div class="menu-card">
-        <div class="me-hero"><img id="heroFig" src="art/h_davidride.webp" alt=""><div><p class="lbl">შენი გმირი</p><b id="heroName"></b></div></div>
+        <div><p class="lbl">სამყარო</p><div class="world-pick" id="worldPick"></div></div>
+        <div class="me-hero"><img id="heroFig" src="art/h_davidride.webp" alt=""><div><p class="lbl" id="heroLbl">შენი გმირი</p><b id="heroName"></b></div></div>
         <div class="hero-pick" id="heroPick"></div>
         <label class="field" for="nameIn"><span class="lbl">სახელი</span><input id="nameIn" maxlength="16" autocomplete="nickname" spellcheck="false"></label>
         <div id="onlineBox" class="online">
@@ -666,7 +681,7 @@ pre.diag { margin: 10px 0 0; padding: 10px; max-height: 52vh; overflow: auto; bo
 </div>
 <script src="vendor/three.min.js"></script>
 <script>
-const BUILD = "1afa9fdf80";
+const BUILD = "e1e697599f";
 const SITE = true;
 // ===== the technical log: what this phone went through, to copy and send when something goes wrong =====
 // Errors, the 3D board losing or getting back its graphics, slow frames (and what was on the screen then), shaders made
@@ -690,7 +705,7 @@ const Diag = (() => {
   const slow = ms => note('slow', `frame after ${Math.round(ms)} ms, showing ${doing()}${typeof Dice3D !== 'undefined' && Dice3D.busy ? ', dice rolling' : ''}`);
   function device() {
     const n = navigator, s = screen, out = [];
-    out.push(`მამული ${typeof BUILD !== 'undefined' ? BUILD : ''} · ${new Date().toISOString()}`);
+    out.push(`შენი ჯერი ${typeof BUILD !== 'undefined' ? BUILD : ''} · ${new Date().toISOString()}`);
     out.push(n.userAgent);
     const installed = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || n.standalone;
     out.push(`screen ${s.width}x${s.height} · window ${innerWidth}x${innerHeight} · dpr ${window.devicePixelRatio || 1} · ${installed ? 'installed' : 'in the browser'}${window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches ? ' · less motion' : ''}`);
@@ -866,7 +881,8 @@ const SEAT_COLORS = ['#e8574a', '#4ea4f0', '#7dd065', '#f2c443', '#b57be6', '#ff
 if (typeof module !== 'undefined') module.exports = { SALARY, START_CASH, JAIL_FINE, JAIL, MAX_PLAYERS, GROUPS, BOARD, ROAD_RENT, UTIL_MULT, GROUP_TILES, ROADS, UTILS, OWNABLE, LEVELS, CARDS, HEROES, HERO_KEYS, SEAT_COLORS };
 
 // ===== themes: the same game in another world =====
-// A room plays in one theme, chosen by its host in the lobby: მამული (the towns of Georgia's regions) or არქიპელაგი
+// A room plays in one theme: the one chosen first on the menu, which its host may change in the lobby: მამული (the towns of
+// Georgia's regions) or არქიპელაგი
 // (famous pirate islands, with true stories). The rules are the same. A theme gives the squares' names, the regions,
 // the cards (in the archipelago the treasure chest asks a question), the heroes, the words on the screen and the 3D
 // world. useTheme() puts a theme's names into BOARD, GROUPS and the rest, which everything else reads.
@@ -2118,7 +2134,7 @@ function newRoom(mode, role, code) {
 }
 function meta() {
   const st = ROOM.st, s = st ? Engine.seatOf(st, ROOM.me) : -1, p = s >= 0 ? st.players[s] : null;
-  return { pid: ROOM.me, name: p ? p.name : PROFILE.name, hero: p ? p.hero : PROFILE.hero, h: isHost() ? 1 : 0, v: PROTO, vo: Voice.vo, vn: Voice.vn };
+  return { pid: ROOM.me, name: p ? p.name : PROFILE.name, hero: p ? p.hero : myHero(), h: isHost() ? 1 : 0, v: PROTO, vo: Voice.vo, vn: Voice.vn };
 }
 function send(t, d, to) {
   if (!ROOM || !ROOM.net) return;
@@ -5088,8 +5104,40 @@ const GLB = (() => {
     geometry.computeBoundingBox(); geometry.computeBoundingSphere();
     const pbr = (mat && mat.pbrMetallicRoughness) || {}, f = pbr.baseColorFactor || [1, 1, 1, 1];
     const map = pbr.baseColorTexture ? await picture(g, pbr.baseColorTexture) : null;
+    geometry.setAttribute('aLeaf', new T.BufferAttribute(leaves(geometry, map && map.image), 1));
     const material = new T.MeshLambertMaterial({ map, color: new T.Color(f[0], f[1], f[2]) });
     return { geometry, material };
+  }
+  // where the model has leaves, and how much they sway in the wind (the board's shader moves them): green in its
+  // picture, and standing above the ground round it (the treetops, the palms' fronds; not the grass, not the trunks)
+  const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+  function leaves(geo, img) {
+    const pos = geo.attributes.position, uv = geo.attributes.uv, n = pos.count, out = new Float32Array(n);
+    if (!uv || !img) return out;
+    let px;
+    const S = 256;
+    try {
+      const cv = document.createElement('canvas'); cv.width = cv.height = S;
+      const x = cv.getContext('2d', { willReadFrequently: true });
+      x.drawImage(img, 0, 0, S, S);
+      px = x.getImageData(0, 0, S, S).data;
+    } catch (e) { return out; }
+    // the ground: the lowest point in each little square of the model's plan
+    const bb = geo.boundingBox, size = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z) || 1, cell = size / 48, low = new Map();
+    const key = (cx, cz) => cx * 4096 + cz, at = i => [Math.floor((pos.getX(i) - bb.min.x) / cell), Math.floor((pos.getZ(i) - bb.min.z) / cell)];
+    for (let i = 0; i < n; i++) { const [cx, cz] = at(i), k = key(cx, cz), y = pos.getY(i); if (!(low.get(k) <= y)) low.set(k, y); }
+    for (let i = 0; i < n; i++) {
+      const u = uv.getX(i), v = uv.getY(i);
+      const ix = Math.min(S - 1, Math.floor((u - Math.floor(u)) * S)), iy = Math.min(S - 1, Math.floor((v - Math.floor(v)) * S));   // (a glTF picture's first row is the top)
+      const o = (iy * S + ix) * 4, r = px[o], gr = px[o + 1], b = px[o + 2];
+      const green = smooth(6, 30, gr - Math.max(r, b) * 0.95);
+      if (!green) continue;
+      const [cx, cz] = at(i);
+      let ground = Infinity;
+      for (let a = -2; a <= 2; a++) for (let c = -2; c <= 2; c++) { const y = low.get(key(cx + a, cz + c)); if (y !== undefined && y < ground) ground = y; }
+      out[i] = green * smooth(size * 0.012, size * 0.07, pos.getY(i) - ground);
+    }
+    return out;
   }
   // several pieces into one (they have the same numbers: the tool writes them so)
   function merge(list) {
@@ -5361,16 +5409,18 @@ const Board3D = (() => {
       vWP = wp4.xyz;
       vWater = anim.y;
       vShore = anim.x;
-      if ( anim.y > 3.5 && anim.y < 4.5 ) {
+      #ifdef SEA
         // the swell lifts the sea (less inside the ring of squares, and none at a shore)
         float open = smoothstep( 6.2, 7.2, max( abs( wp4.x ), abs( wp4.z ) ) );
         transformed.y += mix( 0.42, 1.0, open ) * ( 1.0 - anim.x ) * ( ${seaLift} );
-      } else if ( anim.x > 0.0 ) {
-        float ph = wp4.x * 1.9 + wp4.z * 1.3;
-        float gust = 0.65 + 0.35 * sin( uTime * 0.41 + wp4.x * 0.25 - wp4.z * 0.2 );
-        transformed.x += anim.x * gust * ( 0.009 * sin( uTime * 1.7 + ph ) + 0.0035 * sin( uTime * 3.3 + ph * 2.1 ) );
-        transformed.z += anim.x * gust * 0.0055 * sin( uTime * 1.25 + ph * 1.3 + 1.2 );
-      }`,
+      #else
+        if ( anim.x > 0.0 ) {
+          float ph = wp4.x * 1.9 + wp4.z * 1.3;
+          float gust = 0.65 + 0.35 * sin( uTime * 0.41 + wp4.x * 0.25 - wp4.z * 0.2 );
+          transformed.x += anim.x * gust * ( 0.009 * sin( uTime * 1.7 + ph ) + 0.0035 * sin( uTime * 3.3 + ph * 2.1 ) );
+          transformed.z += anim.x * gust * 0.0055 * sin( uTime * 1.25 + ph * 1.3 + 1.2 );
+        }
+      #endif`,
     fp: `#include <common>
 uniform float uTime;
 uniform sampler2D uDetail;
@@ -5384,12 +5434,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   g += amp * k * cos( ph ) * d;
 }`,
     f: `#include <emissivemap_fragment>
-      if ( vWater > 4.5 ) {
-        // lava: glowing, its dark crust drifting over it
-        float c = sin( vWP.x * 23.0 + uTime * 0.7 + sin( vWP.z * 17.0 - uTime * 0.5 ) * 2.0 ) * sin( vWP.z * 19.0 - uTime * 0.6 + vWP.x * 3.0 );
-        diffuseColor.rgb = mix( vec3( 0.32, 0.05, 0.02 ), vec3( 1.0, 0.56, 0.14 ), 0.5 + 0.5 * c );
-        totalEmissiveRadiance += vec3( 0.95, 0.34, 0.06 ) * ( 0.6 + 0.4 * c );
-      } else if ( vWater > 3.5 ) {
+      #ifdef SEA
+      {
         // the sea. Its waves (see SEA_WAVES) tilt it, so the sun and the sky light their slopes; the sky shows in those
         // turned away; out on the ocean the crests break white here and there; in the shallows the sun's light, bent by
         // the waves, dances on the sand; little waves glitter; foam laps each shore, coming and going
@@ -5420,6 +5466,13 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
         float lap = 0.5 + 0.5 * sin( vShore * 14.0 - uTime * 1.8 + ( vWP.x + vWP.z ) * 2.5 );
         float foam = smoothstep( 0.74, 0.97, vShore ) + smoothstep( 0.4, 0.76, vShore ) * smoothstep( 0.78, 0.97, lap ) * 0.75;
         diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.95, 0.98, 0.97 ), clamp( foam * ( 0.7 + 0.6 * m ), 0.0, 1.0 ) * 0.85 );
+      }
+      #else
+      if ( vWater > 4.5 ) {
+        // lava: glowing, its dark crust drifting over it
+        float c = sin( vWP.x * 23.0 + uTime * 0.7 + sin( vWP.z * 17.0 - uTime * 0.5 ) * 2.0 ) * sin( vWP.z * 19.0 - uTime * 0.6 + vWP.x * 3.0 );
+        diffuseColor.rgb = mix( vec3( 0.32, 0.05, 0.02 ), vec3( 1.0, 0.56, 0.14 ), 0.5 + 0.5 * c );
+        totalEmissiveRadiance += vec3( 0.95, 0.34, 0.06 ) * ( 0.6 + 0.4 * c );
       } else if ( vWater > 2.5 ) {
         // the land's grain: the same noise at two sizes; bright snow gets less of it
         float g1 = texture2D( uDetail, vWP.xz * 1.7 ).r, g2 = texture2D( uDetail, vWP.xz * 6.1 + 0.37 ).r;
@@ -5436,23 +5489,34 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
           diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.8, 0.88, 0.93 ), 0.3 );
           totalEmissiveRadiance += vec3( 0.35 ) * smoothstep( 0.55, 1.0, s );
         }
-      }`
+      }
+      #endif`
   };
-  function living(m) {
+  // (the sea has a shader of its own: the land's and the scenery's carries none of its work, nor the sea's theirs)
+  function living(m, sea) {
     m.onBeforeCompile = sh => {
       sh.uniforms.uTime = U.time; sh.uniforms.uDetail = U.detail;
       sh.vertexShader = sh.vertexShader.replace('#include <common>', LIVING.vp).replace('#include <begin_vertex>', LIVING.v);
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', LIVING.fp).replace('#include <emissivemap_fragment>', LIVING.f);
     };
-    m.customProgramCacheKey = () => 'living';
+    m.customProgramCacheKey = sea ? () => 'livingsea' : () => 'living';
+    if (sea) m.defines = Object.assign({}, m.defines, { SEA: '' });
     return m;
   }
   // a model from a file (glb.js) has no 'anim' numbers: its water is found by its colour (bluer than it is red, and not
   // greener than blue, as the pictures paint the sea, the pools and the falls), falling where its surface is steep, lying
   // still where it is flat; the same clock as the board's
   const MODEL_WATER = {
-    vp: '#include <common>\nvarying vec3 vWP;\nvarying vec3 vWN;',
+    vp: '#include <common>\nattribute float aLeaf;\nuniform float uTime;\nvarying vec3 vWP;\nvarying vec3 vWN;',
     v: `#include <begin_vertex>
+      if ( aLeaf > 0.0 ) {
+        // its leaves sway in the board's own wind (the same gusts as the scenery's), as far in the board's units
+        // whatever the model's size (glb.js says where the leaves are)
+        vec3 w0 = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;
+        float ph = w0.x * 1.9 + w0.z * 1.3, gust = 0.65 + 0.35 * sin( uTime * 0.41 + w0.x * 0.25 - w0.z * 0.2 );
+        vec3 wo = 1.6 * aLeaf * gust * vec3( 0.009 * sin( uTime * 1.7 + ph ) + 0.0035 * sin( uTime * 3.3 + ph * 2.1 ), 0.0, 0.0055 * sin( uTime * 1.25 + ph * 1.3 + 1.2 ) );
+        transformed += vec3( dot( modelMatrix[ 0 ].xyz, wo ), dot( modelMatrix[ 1 ].xyz, wo ), dot( modelMatrix[ 2 ].xyz, wo ) ) / dot( modelMatrix[ 0 ].xyz, modelMatrix[ 0 ].xyz );
+      }
       vWP = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;
       vWN = normalize( mat3( modelMatrix ) * objectNormal );`,
     fp: '#include <common>\nuniform float uTime;\nvarying vec3 vWP;\nvarying vec3 vWN;',
@@ -5534,6 +5598,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     U.detail.value = detailTexture();
     mats = {
       scenery: living(new T.MeshLambertMaterial({ vertexColors: true })),
+      sea: living(new T.MeshLambertMaterial({ vertexColors: true }), true),
       cloud: new T.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.86 }),
       wing: new T.MeshLambertMaterial({ vertexColors: true, side: T.DoubleSide }),
       plinthTop: new T.MeshLambertMaterial({ color: 0x4a2e1a }),
@@ -5630,7 +5695,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (wg) { const wm = new T.Mesh(wg, mats.scenery); wm.receiveShadow = true; landG.add(wm); }
     yield;
     // the archipelago's lagoon: not part of the land that grows (the islands rise out of it)
-    if (MOD.world === 'sea') { seaMesh = new T.Mesh(yield* Terrain.seaGeo(mobile ? 72 : 96), mats.scenery); seaMesh.receiveShadow = true; root.add(seaMesh); yield; }
+    if (MOD.world === 'sea') { seaMesh = new T.Mesh(yield* Terrain.seaGeo(mobile ? 72 : 96), mats.sea); seaMesh.receiveShadow = true; root.add(seaMesh); yield; }
     // what stands on the land: each lot's scenery, set on its own ground
     for (let i = 0; i < 40; i++) {
       if (!(i % 10)) continue;
@@ -5665,7 +5730,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     landG.add(cm);
     yield;
     // the country around the board: meadows, groves, hills, and the far mountains in the haze
-    const om = new T.Mesh(Terrain.outer(mobile ? 34 : 42, mobile ? 80 : 104), mats.scenery);
+    const om = new T.Mesh(Terrain.outer(mobile ? 34 : 42, mobile ? 80 : 104), MOD.world === 'sea' ? mats.sea : mats.scenery);
     om.receiveShadow = true;
     root.add(om);
     if (MOD.far) { const fm = new T.Mesh(MOD.far(), mats.scenery); root.add(fm); }       // the islands far off in the ocean
@@ -8297,10 +8362,10 @@ const Sheet = (() => {
     const steps = {
       ios: [`დააჭირე <b>„გაზიარება"</b> ღილაკს ${SHARE_SVG} (${where})`,
         'ჩამოსქროლე და აირჩიე <b class="en">Add to Home Screen</b> („მთავარ ეკრანზე დამატება")',
-        'გახსენი „მამული" მთავარი ეკრანიდან: აპივით გაიხსნება, ბრაუზერის ზოლების გარეშე.'],
+        'გახსენი „შენი ჯერი" მთავარი ეკრანიდან: აპივით გაიხსნება, ბრაუზერის ზოლების გარეშე.'],
       mac: ['Safari-ს ზედა მენიუში აირჩიე <b class="en">File → Add to Dock…</b>',
-        '„მამული" Dock-ში გამოჩნდება და ცალკე ფანჯარაში გაიხსნება.'],
-      firefox: ['გახსენი ბრაუზერის მენიუ <b>⋮</b>', 'აირჩიე <b class="en">Install</b> ან <b class="en">Add to Home screen</b>', 'გახსენი „მამული" მთავარი ეკრანიდან.']
+        '„შენი ჯერი" Dock-ში გამოჩნდება და ცალკე ფანჯარაში გაიხსნება.'],
+      firefox: ['გახსენი ბრაუზერის მენიუ <b>⋮</b>', 'აირჩიე <b class="en">Install</b> ან <b class="en">Add to Home screen</b>', 'გახსენი „შენი ჯერი" მთავარი ეკრანიდან.']
     }[arg] || [];
     return `<div class="sheet-h"><h2>დაინსტალირება</h2><button class="x" data-close aria-label="დახურვა">×</button></div>
       <div class="prose"><ol class="steps">${steps.map(t => `<li>${t}</li>`).join('')}</ol>
@@ -8412,18 +8477,29 @@ const saveProfile = () => store.set('profile', PROFILE);
 // both worlds are offered in the lobby (a world still being made could be held back here)
 const WORLDS_OPEN = true;
 const heroPrefs = () => ({ mamuli: PROFILE.hero, archipelago: PROFILE.pirate });
-const myName = () => PROFILE.name || HEROES[PROFILE.hero].s;
+const myName = () => PROFILE.name || HEROES[myHero()].s;
 
-// ----- the first screen -----
+// ----- the first screen: the world first (მამული's towns or the pirates' islands), then the hero, then the game -----
+// the two worlds as the first screen shows them: a picture, and what one does there
+const WORLD_CARDS = {
+  mamuli: { pic: 'g_svan', at: '50% 32%', pitch: 'იყიდე ციხე-ქალაქები, ააშენე კოშკები და ივაჭრე მეგობრებთან' },
+  archipelago: { pic: 'bg_sea', at: '50% 38%', pitch: 'იყიდე განძის კუნძულები, ააშენე ქოხები და გააკოტრე მეტოქე მეკობრეები' }
+};
+const myHero = () => PROFILE.theme === 'archipelago' ? PROFILE.pirate : PROFILE.hero;
 const Menu = (() => {
   function render() {
-    const pick = $('#heroPick');
-    pick.innerHTML = HERO_KEYS.map(h => `<button class="hero${h === PROFILE.hero ? ' on' : ''}" data-hero="${h}" aria-label="${esc(HEROES[h].n)}" aria-pressed="${h === PROFILE.hero}"><img src="${por(h)}" alt=""></button>`).join('');
-    $('#heroName').textContent = HEROES[PROFILE.hero].n;
-    $('#heroFig').src = ART(PROFILE.hero === 'david' ? 'h_davidride' : 'h_' + PROFILE.hero);
+    const th = THEMES[PROFILE.theme] ? PROFILE.theme : 'mamuli', sea = th === 'archipelago', mine = myHero();
+    $('#worldPick').innerHTML = Object.values(THEMES).map(t => { const c = WORLD_CARDS[t.key] || WORLD_CARDS.mamuli; return `<button class="wcard${t.key === th ? ' on' : ''}" data-mworld="${t.key}" aria-pressed="${t.key === th}" style="background-image:linear-gradient(180deg,rgba(13,16,22,0) 25%,rgba(13,16,22,.88)),url(${ART(c.pic)});background-position:${c.at}"><b>${esc(t.name)}</b><small>${esc(t.tag)}</small></button>`; }).join('');
+    $('#menuTag').textContent = (WORLD_CARDS[th] || WORLD_CARDS.mamuli).pitch;
+    $('#heroPick').innerHTML = heroKeys(th).map(h => `<button class="hero${h === mine ? ' on' : ''}" data-hero="${h}" aria-label="${esc(HEROES[h].n)}" aria-pressed="${h === mine}"><img src="${por(h)}" alt=""></button>`).join('');
+    $('#heroLbl').textContent = sea ? 'შენი მეკობრე' : 'შენი გმირი';
+    $('#heroName').textContent = HEROES[mine].n;
+    const fig = $('#heroFig');
+    fig.src = sea ? por(mine) : ART(mine === 'david' ? 'h_davidride' : 'h_' + mine);        // (a pirate has only a portrait)
+    fig.classList.toggle('por', sea);
     const nameIn = $('#nameIn');
     if (document.activeElement !== nameIn) nameIn.value = PROFILE.name;
-    nameIn.placeholder = HEROES[PROFILE.hero].s;
+    nameIn.placeholder = HEROES[mine].s;
     const saved = store.get('local');
     $('#bResume').hidden = !(saved && saved.st && saved.st.phase !== 'lobby' && saved.st.phase !== 'over');
     $('#onlineBox').hidden = !SITE;
@@ -8434,8 +8510,11 @@ const Menu = (() => {
   }
   function onClick(ev) {
     Sound.unlock();
+    // the world: the menu takes its look, and the 3D board is made in it while the menu is on the screen
+    const w = ev.target.closest('[data-mworld]');
+    if (w && THEMES[w.dataset.mworld]) { PROFILE.theme = w.dataset.mworld; saveProfile(); applyTheme({ theme: PROFILE.theme }); render(); return; }
     const h = ev.target.closest('[data-hero]');
-    if (h) { PROFILE.hero = h.dataset.hero; saveProfile(); render(); return; }
+    if (h && HEROES[h.dataset.hero]) { if (HEROES[h.dataset.hero].t === 'archipelago') PROFILE.pirate = h.dataset.hero; else PROFILE.hero = h.dataset.hero; saveProfile(); render(); return; }
     const id = ev.target.closest('button') && ev.target.closest('button').id;
     if (id === 'bHost') { PROFILE.name = Engine.cleanName($('#nameIn').value); saveProfile(); hostRoom(); }
     else if (id === 'bJoin') { PROFILE.name = Engine.cleanName($('#nameIn').value); saveProfile(); joinRoom($('#codeIn').value); }
@@ -8478,7 +8557,7 @@ const Install = (() => {
     if (h) Sheet.open('install', h);
   }
   addEventListener('beforeinstallprompt', e => { e.preventDefault(); ask = e; render(); });
-  addEventListener('appinstalled', () => { ask = null; render(); UI.toast('მამული დაინსტალირდა: გახსენი მთავარი ეკრანიდან', 3200, 'good'); });
+  addEventListener('appinstalled', () => { ask = null; render(); UI.toast('„შენი ჯერი“ დაინსტალირდა: გახსენი მთავარი ეკრანიდან', 3200, 'good'); });
   return { render, go, how };
 })();
 // the offline helper: the game opens without a connection too (and the browser offers to install it)
@@ -8578,8 +8657,8 @@ const Lobby = (() => {
   // the room's link, the way მეტეხი does it: the phone's share sheet, or (on a computer) copied for pasting anywhere
   function invite() {
     if (!ROOM || !ROOM.code) return;
-    const url = roomLink(ROOM.code), text = `ერთად ვითამაშოთ მამული! ოთახის კოდი: ${ROOM.code}`;
-    if (navigator.share && TOUCH) { navigator.share({ title: 'მამული', text, url }).catch(() => { }); return; }
+    const url = roomLink(ROOM.code), text = `მოდი, „შენი ჯერი“ ვითამაშოთ! ოთახის კოდი: ${ROOM.code}`;
+    if (navigator.share && TOUCH) { navigator.share({ title: 'შენი ჯერი', text, url }).catch(() => { }); return; }
     const done = () => UI.toast(`ბმული დაკოპირდა · კოდი ${esc(ROOM.code)}`, 2400, 'good');
     const show = () => UI.toast(esc(url), 5000);
     try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(url).then(done, show); return; } } catch (e) { }

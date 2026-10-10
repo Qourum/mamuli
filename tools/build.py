@@ -25,7 +25,8 @@ PIRATES = ['blackbeard', 'bonny', 'read', 'chingshih', 'omalley', 'morgan', 'kid
 SEA_ART = ([f'por_p_{p}' for p in PIRATES] + ['bg_sea'] + [f'sc_{n}' for n in ['north', 'gotland', 'med', 'atlantic', 'antilles', 'caribbean', 'indian', 'pacific', 'oak', 'cocos',
            'qar', 'whydah', 'galley', 'fortune', 'lighthouse', 'shipyard', 'customs', 'whirlpool', 'port', 'isle', 'tavern', 'kraken', 'chest', 'bottle']])
 # the archipelago's 3D models, made from the Higgsfield pictures with tools/glb_prep.mjs (art/m_*.glb; sea.js says where)
-MODELS = ['m_heligoland', 'm_cocos', 'm_volcano']
+MODELS = ['m_heligoland', 'm_cocos', 'm_volcano', 'm_gotland', 'm_customs', 'm_gramvousa', 'm_lighthouse', 'm_shipyard', 'm_cheungchau', 'm_oak',
+          'm_port', 'm_castaway', 'm_tavern', 'm_kraken', 'm_qar', 'm_whydah', 'm_galley', 'm_fortune', 'm_whirlpool']
 ART = ([f'por_h_{h}' for h in HEROES] + [f'h_{h}' for h in HEROES if h != 'david'] + ['h_davidride'] + SEA_ART +
        ['t_archer_2', 's_fort', 's_camp', 't_palisade', 'ui_page', 'ui_chest_wood', 'ui_chest_wood_o', 'ui_coin', 'ui_coinbag',
         'ui_book', 'ui_feather', 'g_svan', 'g_elbrus', 'g_pass', 'g_stone', 'g_tbilisi'])

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // The archipelago's 3D models: from the GLB files Meshy (or Higgsfield) makes to the board's (art/m_*.glb).
-//   node glb_prep.mjs IN.glb OUT.glb [--tris 7000] [--tex 512] [--cut auto|none|H] [--turn DEG] [--err 0.02] [--drop X,Z,R,Y]
+//   node glb_prep.mjs IN.glb OUT.glb [--tris 7000] [--tex 512] [--cut auto|none|H] [--turn DEG] [--err 0.02] [--drop X,Z,R,Y] [--clip x>N] [--keep X,Z,R] [--sea Y] [--permissive 1] [--sloppy 1]
 // It needs, next to it: npm i @gltf-transform/core @gltf-transform/functions @gltf-transform/extensions meshoptimizer sharp
 // What comes out is one mesh with one picture (webp), as src/glb.js reads it:
 // - the model is turned about its up axis (--turn, in degrees), stood in the middle, its widest side 1 long;
@@ -76,6 +76,73 @@ if (flags.drop) {
   console.log(`dropped ${gone} triangles above ${dy} within ${dr} of ${dx}, ${dz}`);
 }
 
+// what lies past a line (--clip x>0.4, or z<-0.3 and the like: a piece of the next picture that came along)
+if (flags.clip) {
+  const m = /^([xz])([<>])(-?[\d.]+)$/.exec(flags.clip), e = [0, 0, 0];
+  if (!m) throw new Error('--clip x>0.4');
+  const ax = m[1] === 'x' ? 0 : 2, more = m[2] === '>', lim = +m[3];
+  let gone = 0;
+  for (const p of prims) {
+    const a = p.getAttribute('POSITION'), ix = p.getIndices(), keep = [];
+    for (let t = 0; t < ix.getCount(); t += 3) {
+      const v = [ix.getScalar(t), ix.getScalar(t + 1), ix.getScalar(t + 2)];
+      let c = 0;
+      for (const j of v) { a.getElement(j, e); c += e[ax] / 3; }
+      if (more ? c > lim : c < lim) { gone++; continue; }
+      keep.push(...v);
+    }
+    ix.setArray(a.getCount() > 65535 ? new Uint32Array(keep) : new Uint16Array(keep));
+    compactPrimitive(p);
+  }
+  console.log(`clipped ${flags.clip}: ${gone} triangles`);
+}
+
+// only what lies within a circle (--keep x,z,r: a whirlpool's swirl without the square of water it was made on)
+if (flags.keep) {
+  const [kx, kz, kr] = flags.keep.split(',').map(Number), e = [0, 0, 0];
+  let gone = 0;
+  for (const p of prims) {
+    const a = p.getAttribute('POSITION'), ix = p.getIndices(), keep = [];
+    for (let t = 0; t < ix.getCount(); t += 3) {
+      const v = [ix.getScalar(t), ix.getScalar(t + 1), ix.getScalar(t + 2)];
+      let cx = 0, cz = 0;
+      for (const j of v) { a.getElement(j, e); cx += e[0] / 3; cz += e[2] / 3; }
+      if (Math.hypot(cx - kx, cz - kz) > kr) { gone++; continue; }
+      keep.push(...v);
+    }
+    ix.setArray(a.getCount() > 65535 ? new Uint32Array(keep) : new Uint16Array(keep));
+    compactPrimitive(p);
+  }
+  console.log(`kept the circle ${kr} round ${kx}, ${kz}: ${gone} triangles outside it gone`);
+}
+
+// the sea round an island that stands in open water (no block to cut away): what is low and coloured like water, or like
+// its foam, goes (--sea Y, a height from 0 to 1 of the model; the island's own sand and grass stay)
+if (flags.sea) {
+  const lim = +flags.sea * (bounds().hi[1]), tex = root.listTextures()[0];
+  const { data, info } = await sharp(Buffer.from(tex.getImage())).raw().toBuffer({ resolveWithObject: true });
+  const e = [0, 0, 0], u = [0, 0];
+  let gone = 0;
+  for (const p of prims) {
+    const a = p.getAttribute('POSITION'), uv = p.getAttribute('TEXCOORD_0'), ix = p.getIndices(), keep = [];
+    const wet = j => {
+      a.getElement(j, e); if (e[1] > lim) return false;
+      uv.getElement(j, u);
+      const px = Math.min(info.width - 1, Math.max(0, Math.round(u[0] * info.width))), py = Math.min(info.height - 1, Math.max(0, Math.round(u[1] * info.height)));
+      const o = (py * info.width + px) * info.channels, r = data[o] / 255, g = data[o + 1] / 255, b = data[o + 2] / 255;
+      return (b > r + 0.08 && b > g - 0.06) || (r > 0.78 && g > 0.82 && b > 0.82);
+    };
+    for (let t = 0; t < ix.getCount(); t += 3) {
+      const v = [ix.getScalar(t), ix.getScalar(t + 1), ix.getScalar(t + 2)];
+      if (v.every(wet)) { gone++; continue; }
+      keep.push(...v);
+    }
+    ix.setArray(a.getCount() > 65535 ? new Uint32Array(keep) : new Uint16Array(keep));
+    compactPrimitive(p);
+  }
+  console.log(`the sea round it taken away: ${gone} triangles under ${lim.toFixed(3)}`);
+}
+
 // the water line: a wide flat level facing up, low in the model
 const bins = new Map(), STEP = 0.004;
 for (const p of prims) {
@@ -117,6 +184,31 @@ if (cut != null) {
 // fewer triangles, a smaller picture, small numbers
 const now = tri();
 if (now > TRIS) await doc.transform(weld(), simplify({ simplifier: MeshoptSimplifier, ratio: TRIS / now, error: ERR, lockBorder: false }));
+// still too many: a model of a great many small pieces, or whose picture is cut into a great many patches (each patch's
+// edge a seam that an edge at a time cannot cross). --sloppy gathers the shape into a coarse grid instead (it may tear a
+// fine model apart: the better way is to have Meshy make it with fewer triangles, or remesh it there)
+if (flags.permissive != null && tri() > TRIS * 1.5) {      // across the seams too (the picture may smear a little there)
+  for (const p of prims.filter(q => q.listParents().length)) {
+    const a = p.getAttribute('POSITION'), ix = p.getIndices(), pos = new Float32Array(a.getCount() * 3), e = [0, 0, 0];
+    for (let k = 0; k < a.getCount(); k++) { a.getElement(k, e); pos.set(e, k * 3); }
+    const want = Math.max(3, Math.floor(ix.getCount() * TRIS / tri() / 3) * 3);
+    const [out] = MeshoptSimplifier.simplify(Uint32Array.from(ix.getArray()), pos, 3, want, ERR, ['Permissive', 'Prune']);
+    ix.setArray(a.getCount() > 65535 ? out : Uint16Array.from(out));
+    compactPrimitive(p);
+  }
+  console.log(`across the seams: ${Math.round(tri())} triangles`);
+}
+if (flags.sloppy != null) {
+  for (const p of prims.filter(q => q.listParents().length)) {
+    const a = p.getAttribute('POSITION'), ix = p.getIndices(), pos = new Float32Array(a.getCount() * 3), e = [0, 0, 0];
+    for (let k = 0; k < a.getCount(); k++) { a.getElement(k, e); pos.set(e, k * 3); }
+    const share = TRIS / tri(), want = Math.max(3, Math.floor(ix.getCount() * share / 3) * 3);
+    const [out] = MeshoptSimplifier.simplifySloppy(Uint32Array.from(ix.getArray()), pos, 3, null, want, 0.05);
+    ix.setArray(a.getCount() > 65535 ? out : Uint16Array.from(out));
+    compactPrimitive(p);
+  }
+  console.log(`gathered coarsely: ${Math.round(tri())} triangles`);
+} else if (tri() > TRIS * 2) console.log(`(still ${Math.round(tri())} triangles: more --err, or fewer triangles from Meshy)`);
 await doc.transform(
   textureCompress({ encoder: sharp, targetFormat: 'webp', resize: [TEX, TEX], quality: 82 }),
   quantize({ quantizePosition: 14, quantizeNormal: 8, quantizeTexcoord: 12 }),

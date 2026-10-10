@@ -431,6 +431,7 @@ const Board3D = (() => {
       if (!(i % 10)) {
         const cg = MOD.corner(i);
         if (cg) { const cm = new T.Mesh(cg, mats.scenery); cm.position.set(0, TH, 0); m.add(cm); cm.castShadow = true; cm.receiveShadow = true; cm.userData.i = i; lotMesh[i] = cm; }
+        else if (MOD.cornerModels && MOD.cornerModels[i] && typeof GLB !== 'undefined' && GLB) placeCorner(i, m, MOD.cornerModels[i]);
       }
     }
     // the land's shape: every place makes its own piece of the relief, the ring's inside corners theirs, the great
@@ -524,6 +525,7 @@ const Board3D = (() => {
       modelWater(material);
       const g = new T.Group(), p = F.at(d.x || 0, d.z || 0, 0);
       g.position.set(p.x, Terrain.SEA_Y + (d.y || 0), p.z); g.rotation.y = F.yaw + (d.ry || 0); g.scale.setScalar((d.s || 1) * TW);
+      if (d.own) g.position.y = Math.max(g.position.y, p.y);                  // (on the island made here)
       const m = new T.Mesh(geometry, material);
       m.castShadow = true; m.receiveShadow = true; m.userData.i = i; m.userData.model = true;
       g.add(m); landG.add(g);
@@ -531,6 +533,21 @@ const Board3D = (() => {
       if (mark[i] && mark[i].m) setMort(i, true, false);
       shadowDirty = true;
       Diag.note('3d', `model ${d.url}: ${geometry.index ? geometry.index.count / 3 : 0} triangles`);
+    }).catch(e => Diag.note('3d', `model ${d.url} not read: ${e && e.message}`));
+  }
+  // a corner square's model, standing on the square
+  function placeCorner(i, tile, d) {
+    const land = landG;
+    GLB.load(d.url).then(({ geometry, material }) => {
+      if (landG !== land) return;
+      geometry.userData.keep = material.userData.keep = true;
+      modelWater(material);
+      const g = new T.Group(), m = new T.Mesh(geometry, material);
+      g.position.set(d.x || 0, TH, d.z || 0); g.rotation.y = d.ry || 0; g.scale.setScalar(d.s || 1);
+      m.castShadow = true; m.receiveShadow = true; m.userData.i = i; m.userData.model = true;
+      g.add(m); tile.add(g);
+      lotMesh[i] = m;
+      shadowDirty = true;
     }).catch(e => Diag.note('3d', `model ${d.url} not read: ${e && e.message}`));
   }
   // the middle's model: in the board's middle, its water line on the sea's, made lower by sy
@@ -564,7 +581,7 @@ const Board3D = (() => {
   // Smoke, sparkles and spray are points that the shader moves by itself (one draw for all of them). The rest are actors:
   // camels, sheep, guards, boats, the cable car, the customs bar, clouds and eagles, a few copies of a few shapes, put in
   // place every frame that is drawn. While a game rises out of the board they are not there yet; then they fade in.
-  const life = { ready: false, groups: [], pts: null };
+  const life = { ready: false, groups: [], pts: null, models: [] };
   const POSE = { p: new T.Vector3(), yaw: 0, roll: 0, pitch: 0, s: 1 }, FLIPZ = new T.Matrix4().makeScale(1, 1, -1), _w = new T.Matrix4(), _lm = new T.Matrix4();
   const PTS = {
     v: `attribute float kind;
@@ -771,7 +788,10 @@ const Board3D = (() => {
       for (const [x, z, h] of fx.smoke || []) emit(at(x, z, h), 0, 7);
       for (const [x, z, h, kind] of fx.sparkle || []) emit(at(x, z, h), kind, 4);
       for (const [x, z, h] of fx.leaves || []) emit(at(x, z, h), 4, 5);
-      for (const a of fx.actors || []) add(actorOf(a, at, F, tile, rnd() * 20));
+      for (const a of fx.actors || []) {
+        const act = actorOf(a, at, F, tile, rnd() * 20);
+        if (a.model && typeof GLB !== 'undefined' && GLB) modelActor(act, a.model); else add(act);
+      }
       for (const b of fx.birds || []) { const c = at(b.at[0], b.at[1], b.h); circler(c.x, c.y, c.z, b.r, b.w, rnd() * 6, rnd() * 9, 0.9); }
     }
     yield;
@@ -810,10 +830,35 @@ const Board3D = (() => {
     life.ready = true;
     lifeStep(0);
   }
+  // an actor that is a model from a file (a ship at anchor, the whirlpool's swirl): its own mesh, moved like the others
+  function modelActor(act, d) {
+    const rec = { act, d, mesh: null }, land = landG;
+    life.models.push(rec);
+    GLB.load(d.url).then(({ geometry, material }) => {
+      if (landG !== land) return;
+      geometry.userData.keep = material.userData.keep = true;
+      modelWater(material);
+      const m = new T.Mesh(geometry, material);
+      m.castShadow = true; m.receiveShadow = true; m.rotation.order = 'YXZ';
+      root.add(m); rec.mesh = m;
+      lifeStep(U.time.value);
+    }).catch(e => Diag.note('3d', `model ${d.url} not read: ${e && e.message}`));
+  }
   // everything alive put in its place for time t
   function lifeStep(t) {
     if (!life.ready) return;
     const f = U.fade.value, on = f > 0.003;
+    for (const r of life.models) {
+      if (!r.mesh) continue;
+      r.mesh.visible = on;
+      if (!on) continue;
+      POSE.yaw = POSE.roll = POSE.pitch = 0; POSE.s = 1;
+      r.act.up(t, POSE);
+      const k = POSE.s * (r.d.s || 1) * f;
+      r.mesh.position.copy(POSE.p); r.mesh.position.y += (r.d.y || 0) * k;
+      r.mesh.rotation.set(POSE.roll, POSE.yaw + (r.d.ry || 0), POSE.pitch);
+      r.mesh.scale.set(k, k * (r.d.sy || 1), k);
+    }
     for (const g of life.groups) {
       g.mesh.visible = on;
       if (!on) continue;
@@ -1441,7 +1486,7 @@ const Board3D = (() => {
     root = landG = seaMesh = wheel = fallFoot = null;
     tiles.length = lotMesh.length = lotGround.length = flags.length = mark.length = toks.length = 0;
     labelTex.length = labelMat.length = sideMat.length = 0;
-    life.ready = false; life.groups.length = 0; life.pts = null;
+    life.ready = false; life.groups.length = 0; life.models.length = 0; life.pts = null;
     BLD.ready = false; BLD.grow = {}; BLD.busy = 0;
     built = false; camInit = false;
     yield;

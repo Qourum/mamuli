@@ -553,6 +553,7 @@ const SeaModels = (() => {
 
   // ===== the corners of the board (on their squares) =====
   function corner(i) {
+    if (CORNER_MODELS[i]) return null;
     const B = new Builder();
     if (i === 0) {           // the home port: an anchor, the harbour's arch, barrels and the plunder's coins
       const put = B.at(0.2, -0.38, 0.3);
@@ -613,7 +614,43 @@ const SeaModels = (() => {
   // ===== what moves, place by place (in the place's frame; heights above its land) =====
   // moor: a ship at anchor; bob: something floating; spin: turning where it is; sway: rising and curling (the kraken's
   // arms); jump: a dolphin leaping; birds: gulls circling; walking ones go there and back.
-  const ride = (x, z, ry, k = 'galleon') => ({ k, moor: true, at: [x, z], ry });
+  // ----- the places that have a model of their own, made from the Higgsfield pictures (art/m_*.glb, see glb.js): it
+  // stands in its water instead of the island made here, whose relief is then only a shallow shelf round it. s is its
+  // size (a lot is 1 wide), ry how far it is turned, x and z where it stands in the lot, y how high its water line is
+  // (each file's own, from tools/glb_prep.mjs, is at its y = 0) -----
+  // (the lots by a corner share their inner corner with the next side's lot: their models stand away from it, along
+  // their side and towards their square)
+  // (own: the model is a town without its island: it stands on the island made here, y above the water)
+  const MODELS = {
+    1: { url: 'art/m_heligoland.glb', s: 0.75, x: -0.36, z: 0.2 },
+    3: { url: 'art/m_gotland.glb', s: 0.6, y: 0.122, own: true },
+    4: { url: 'art/m_customs.glb', s: 0.7, z: 0.04 },
+    9: { url: 'art/m_gramvousa.glb', s: 0.8, x: 0.3, z: 0.16 },
+    12: { url: 'art/m_lighthouse.glb', s: 0.58 },
+    28: { url: 'art/m_shipyard.glb', s: 0.76, z: 0.04 },
+    31: { url: 'art/m_cheungchau.glb', s: 0.8, x: -0.3, z: 0.16 },
+    37: { url: 'art/m_oak.glb', s: 0.82 },
+    39: { url: 'art/m_cocos.glb', s: 0.8, x: 0.3, z: 0.2 }
+  };
+  const shelf = (R, d) => { tint(R, 0xe3cf98, 0xb8a27a); isle(R, d.x || 0, d.z || 0, 0.36 * (d.s || 1), 0.34 * (d.s || 1), -0.035, 0, 0.6); };
+  // the corner squares' models: little dioramas standing on the square (in the square's frame, on its top)
+  const CORNER_MODELS = {
+    0: { url: 'art/m_port.glb', s: 0.66, x: 0.18, z: -0.3 },
+    10: { url: 'art/m_castaway.glb', s: 0.62, x: 0.18, z: -0.3 },
+    20: { url: 'art/m_tavern.glb', s: 0.7, x: 0.15, z: -0.3 },
+    30: { url: 'art/m_kraken.glb', s: 0.66, x: 0.15, z: -0.3 }
+  };
+  // the ships' models (they ride at anchor in their lot's water: see FX), and the whirlpool's swirl, which turns: s their
+  // size, y how far their water line is above their file's bottom, ry which way their bow points in it
+  const SHIP_MODEL = {
+    5: { url: 'art/m_qar.glb', s: 0.52, y: -0.045, ry: Math.PI },
+    15: { url: 'art/m_whydah.glb', s: 0.56, y: -0.05, ry: Math.PI },
+    25: { url: 'art/m_galley.glb', s: 0.56, y: -0.035, ry: Math.PI },
+    35: { url: 'art/m_fortune.glb', s: 0.5, y: -0.05, ry: Math.PI }
+  };
+  const SWIRL_MODEL = { url: 'art/m_whirlpool.glb', s: 0.66, sy: 0.12, y: 0.004 };
+
+  const ride = (x, z, ry, k = 'galleon', model = null) => ({ k, moor: true, at: [x, z], ry, model });
   const FX = {
     1: { birds: [{ at: [-0.05, -0.1], r: 0.2, h: 0.55, w: 0.5 }] },
     3: { smoke: [[0.12, 0.0, 0.1]] },
@@ -635,19 +672,20 @@ const SeaModels = (() => {
     34: { actors: [{ k: 'goat', a: [-0.2, -0.1], b: [-0.04, -0.14], speed: 0.02 }, { k: 'goat', a: [0.1, -0.12], b: [0.22, -0.08], speed: 0.018, phase: 0.4 }] },
     37: { sparkle: [[0.02, -0.08, 0.0, 1]] },
     39: { sparkle: [[0.0, 0.02, 0.02, 1]] },
-    5: { actors: [ride(-0.06, 0.12, 0.2)] }, 15: { actors: [ride(0.06, 0.12, -0.15)] }, 25: { actors: [ride(-0.06, 0.12, 0.1, 'galley')] }, 35: { actors: [ride(0.06, 0.12, -0.2)] },
+    5: { actors: [ride(-0.06, 0.12, 0.2, 'galleon', SHIP_MODEL[5])] }, 15: { actors: [ride(0.06, 0.12, -0.15, 'galleon', SHIP_MODEL[15])] },
+    25: { actors: [ride(-0.06, 0.12, 0.1, 'galley', SHIP_MODEL[25])] }, 35: { actors: [ride(0.06, 0.12, -0.2, 'galleon', SHIP_MODEL[35])] },
     28: { smoke: [[-0.24, 0.0, 0.04]] },
     4: { sparkle: [[0.02, -0.04, 0.05, 1]] },
-    38: { actors: [{ k: 'swirl', spin: -1.3, at: [0.0, -0.06], h: 0 }, { k: 'barrel', orbit: true, at: [0.0, -0.06], r: 0.2, w: -1.1 }, { k: 'barrel', orbit: true, at: [0.0, -0.06], r: 0.12, w: -1.6, phase: 3 }] },
+    38: { actors: [{ k: 'swirl', spin: -1.3, at: [0.0, -0.06], h: 0, model: SWIRL_MODEL }, { k: 'barrel', orbit: true, at: [0.0, -0.06], r: 0.2, w: -1.1 }, { k: 'barrel', orbit: true, at: [0.0, -0.06], r: 0.12, w: -1.6, phase: 3 }] },
     2: { sparkle: [[0.02, -0.1, 0.06, 1]] }, 17: { sparkle: [[0.02, -0.1, 0.06, 1]] }, 33: { sparkle: [[0.02, -0.1, 0.06, 1]] },
     7: { actors: [{ k: 'bottle', bob: true, at: [0.12, 0.06] }], sparkle: [[0.12, 0.06, 0.06, 2]] },
     22: { actors: [{ k: 'bottle', bob: true, at: [0.1, 0.04] }], sparkle: [[0.1, 0.04, 0.06, 2]] },
     36: { actors: [{ k: 'bottle', bob: true, at: [0.12, 0.06] }], sparkle: [[0.12, 0.06, 0.06, 2]] },
     // the corner squares (on the square itself)
     0: { sparkle: [[-0.3, -0.34, 0.1, 1]] },
-    10: { smoke: [[0.3, -0.12, 0.05]] },
-    20: { smoke: [[-0.1, -0.46, 0.45]] },
-    30: { actors: [[-0.2, -0.36, 0.4], [0.12, -0.38, -0.6], [-0.05, -0.16, 2.6], [0.1, -0.22, -2.2], [-0.24, -0.2, 1.5]].map(([x, z, ry], k) => ({ k: 'tentacle', sway: true, at: [x, z], ry, phase: k * 1.3 })) }
+    10: CORNER_MODELS[10] ? null : { smoke: [[0.3, -0.12, 0.05]] },
+    20: CORNER_MODELS[20] ? null : { smoke: [[-0.1, -0.46, 0.45]] },
+    30: CORNER_MODELS[30] ? null : { actors: [[-0.2, -0.36, 0.4], [0.12, -0.38, -0.6], [-0.05, -0.16, 2.6], [0.1, -0.22, -2.2], [-0.24, -0.2, 1.5]].map(([x, z, ry], k) => ({ k: 'tentacle', sway: true, at: [x, z], ry, phase: k * 1.3 })) }
   };
   const CENTER_FX = CENTER_MODEL ? {
     // the model's: smoke from its crater, birds round it, ships sailing round the island
@@ -736,17 +774,8 @@ const SeaModels = (() => {
     return B.build();
   }
 
-  // ----- the places that have a model of their own, made from the Higgsfield pictures (art/m_*.glb, see glb.js): it
-  // stands in its water instead of the island made here, whose relief is then only a shallow shelf round it. s is its
-  // size (a lot is 1 wide), ry how far it is turned, x and z where it stands in the lot, y how high its water line is
-  // (each file's own, from tools/glb_prep.mjs, is at its y = 0) -----
-  // (the lots by a corner share their inner corner with the next side's lot: their models stand away from it, along
-  // their side and towards their square)
-  const MODELS = { 1: { url: 'art/m_heligoland.glb', s: 0.75, x: -0.36, z: 0.2 }, 39: { url: 'art/m_cocos.glb', s: 0.8, x: 0.3, z: 0.2 } };
-  const shelf = (R, d) => { tint(R, 0xe3cf98, 0xb8a27a); isle(R, d.x || 0, d.z || 0, 0.36 * (d.s || 1), 0.34 * (d.s || 1), -0.035, 0, 0.6); };
-
   // ----- public -----
-  function relief(i, R) { if (MODELS[i]) shelf(R, MODELS[i]); else if (L[i] && L[i].r) L[i].r(R); else R.tint(0x5aa34a, 9); }
+  function relief(i, R) { if (MODELS[i] && !MODELS[i].own) shelf(R, MODELS[i]); else if (L[i] && L[i].r) L[i].r(R); else R.tint(0x5aa34a, 9); }
   function lot(i, ground) {
     if (MODELS[i]) return null;
     const B = new Builder();
@@ -776,7 +805,7 @@ const SeaModels = (() => {
     return B.build();
   }
   return {
-    world: 'sea', relief, lot, corner, ringRelief, inner, centerRelief, centerWater, center, far, CENTER, CENTER_FX, actor, tokenShip, models: MODELS, centerModel: CENTER_MODEL,
+    world: 'sea', relief, lot, corner, ringRelief, inner, centerRelief, centerWater, center, far, CENTER, CENTER_FX, actor, tokenShip, models: MODELS, cornerModels: CORNER_MODELS, centerModel: CENTER_MODEL,
     fx: i => FX[i] || null,
     tower: () => hutCache || (hutCache = hutParts()),
     castle: () => fortCache || (fortCache = seaFortParts()),

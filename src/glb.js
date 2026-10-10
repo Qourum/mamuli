@@ -120,10 +120,13 @@ const GLB = (() => {
     out.setIndex(new T.BufferAttribute(idx, 1));
     return out;
   }
-  // a model, read once: a promise of { geometry, material }
+  // a model, read once: a promise of { geometry, material }. (Claude's viewer, where the preview lives, serves no .glb
+  // files: the preview has each written out as text, base64, next to where it would be.)
+  const asText = typeof SITE !== 'undefined' && !SITE;
+  const bytes = s => { const b = atob(s.trim()), a = new Uint8Array(b.length); for (let k = 0; k < b.length; k++) a[k] = b.charCodeAt(k); return a.buffer; };
   function load(url) {
     if (!cache.has(url)) {
-      const p = fetch(url).then(r => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.arrayBuffer(); }).then(make);
+      const p = fetch(asText ? url + '.txt' : url).then(r => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return asText ? r.text().then(bytes) : r.arrayBuffer(); }).then(make);
       p.catch(e => { cache.delete(url); console.warn('model', url, e); });
       cache.set(url, p);
     }

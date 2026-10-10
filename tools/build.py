@@ -12,7 +12,7 @@ The pictures in art/ come from მეტეხი (github.com/qourum/metekhi), t
 ones of მეტეხი are copied from a checkout of it
 (METEKHI=/path/to/metekhi, default ../qourum/metekhi), and so is rt.js, the bundled Supabase Realtime client.
 """
-import hashlib, json, os, shutil, sys
+import base64, hashlib, json, os, shutil, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'src')
@@ -102,7 +102,11 @@ def main():
         out = sys.argv[sys.argv.index('--preview') + 1]
         os.makedirs(os.path.join(out, 'art'), exist_ok=True)
         for f in FILES:
-            shutil.copyfile(os.path.join(art, f), os.path.join(out, 'art', f))
+            if f.endswith('.glb'):         # (Claude's viewer serves no .glb files: they go as text, base64, glb.js reads them so)
+                with open(os.path.join(art, f), 'rb') as src, open(os.path.join(out, 'art', f + '.txt'), 'w') as dst:
+                    dst.write(base64.b64encode(src.read()).decode())
+            else:
+                shutil.copyfile(os.path.join(art, f), os.path.join(out, 'art', f))
         build, html = page(False)
         with open(os.path.join(out, 'index.html'), 'w', encoding='utf-8') as f:
             f.write(html)

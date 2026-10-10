@@ -4,7 +4,9 @@
 // receives copies of the state. Everything here is deterministic given the random function passed in.
 
 const Engine = (() => {
-  const FEATHER = { s: CARDS.s.findIndex(c => c.k === 'feather'), c: CARDS.c.findIndex(c => c.k === 'feather') };
+  // the room's theme gives the cards (and the chest's questions); the feather card's place in a deck (-1: it has none)
+  const deckOf = st => themeOf(st).deck;
+  const featherOf = (st, d) => deckOf(st)[d].findIndex(c => c.k === 'feather');
 
   function mulberry(seed) {
     let a = seed >>> 0;
@@ -24,22 +26,30 @@ const Engine = (() => {
   // ----- the lobby -----
   function newLobby(hostPid) {
     return {
-      v: 1, term: 0, seq: 0, phase: 'lobby', host: hostPid,
+      v: 1, term: 0, seq: 0, phase: 'lobby', host: hostPid, theme: 'mamuli',
       cfg: { mode: 'rounds', rounds: 30 },
       players: [], own: BOARD.map(() => null), turn: 0, round: 1,
       dice: [3, 4], rolls: 0, again: false, pend: null, trade: null, auc: null, dseed: 0,
-      decks: { s: [], c: [] }, ev: [], evn: 0, winner: -1, tn: 0, offered: -1, memo: []
+      decks: { s: [], c: [] }, qd: [], quiz: null, ev: [], evn: 0, winner: -1, tn: 0, offered: -1, memo: []
     };
   }
   const seatOf = (st, pid) => st.players.findIndex(p => p.pid === pid);
   const cleanName = s => String(s == null ? '' : s).replace(/[\u0000-\u001f<>&"]/g, '').trim().slice(0, 16);
+  const themeKey = st => THEMES[st && st.theme] ? st.theme : 'mamuli';
   const freeHero = (st, pref) => {
-    const used = new Set(st.players.map(p => p.hero));
-    if (pref && HEROES[pref] && !used.has(pref)) return pref;
-    return HERO_KEYS.find(h => !used.has(h)) || HERO_KEYS[0];
+    const keys = heroKeys(themeKey(st)), used = new Set(st.players.map(p => p.hero));
+    if (pref && keys.includes(pref) && !used.has(pref)) return pref;
+    return keys.find(h => !used.has(h)) || keys[0];
   };
-  function newPlayer(pid, name, hero, bot) {
-    return { pid, name, hero, bot: !!bot, cash: START_CASH, pos: 0, jail: false, jt: 0, fe: [], out: false, outAt: 0, dbl: 0, away: false };
+  // the hero a player would like in each theme (an older page sends just one name)
+  function cleanPrefs(x) {
+    const out = {};
+    if (typeof x === 'string') { if (HEROES[x]) out[HEROES[x].t] = x; return out; }
+    if (x && typeof x === 'object') for (const k in THEMES) if (typeof x[k] === 'string' && HEROES[x[k]] && HEROES[x[k]].t === k) out[k] = x[k];
+    return out;
+  }
+  function newPlayer(pid, name, hero, bot, pref) {
+    return { pid, name, hero, pref: pref || {}, bot: !!bot, cash: START_CASH, pos: 0, jail: false, jt: 0, fe: [], out: false, outAt: 0, dbl: 0, away: false };
   }
   // someone knocks: a newcomer gets a seat while there is one; a returning player is simply back
   function lobbyJoin(st, pid, name, hero) {
@@ -47,25 +57,47 @@ const Engine = (() => {
     if (s >= 0) { st.players[s].away = false; return s; }
     if (st.phase !== 'lobby') return -1;                 // the game is on: watchers only
     if (st.players.length >= MAX_PLAYERS) return -2;
-    const h = freeHero(st, hero);
-    st.players.push(newPlayer(pid, cleanName(name) || HEROES[h].s, h, false));
+    const pref = cleanPrefs(hero), h = freeHero(st, pref[themeKey(st)]);
+    st.players.push(newPlayer(pid, cleanName(name) || HEROES[h].s, h, false, pref));
     return st.players.length - 1;
+  }
+  // a player who is called after their hero takes the new hero's name too
+  function setHero(p, h) {
+    const auto = !HEROES[p.hero] || p.name === HEROES[p.hero].s;
+    p.hero = h;
+    if (auto) p.name = HEROES[h].s;
   }
   function lobbyAct(st, pid, a, rnd) {
     if (st.phase !== 'lobby') return 'started';
     const s = seatOf(st, pid), host = pid === st.host;
     switch (a && a.t) {
       case 'hero': {
-        if (s < 0 || !HEROES[a.h]) return 'bad';
+        if (s < 0 || !HEROES[a.h] || HEROES[a.h].t !== themeKey(st)) return 'bad';
         if (st.players.some((p, i) => i !== s && p.hero === a.h)) return 'taken';
-        st.players[s].hero = a.h; return '';
+        const p = st.players[s];
+        setHero(p, a.h);
+        p.pref = Object.assign({}, p.pref, { [themeKey(st)]: a.h });
+        return '';
+      }
+      // the host picks the world: everyone gets a hero of it, the one they had there before if it is free
+      case 'theme': {
+        if (!host) return 'host';
+        const k = THEMES[a.k] ? a.k : 'mamuli', was = themeKey(st);
+        if (k === was) return '';
+        st.theme = k;
+        const keys = heroKeys(k), used = new Set(), next = st.players.map(() => null);
+        st.players.forEach(p => { p.pref = Object.assign({}, p.pref, { [was]: p.hero }); });
+        st.players.forEach((p, i) => { const w = p.pref[k]; if (w && keys.includes(w) && !used.has(w)) { next[i] = w; used.add(w); } });
+        st.players.forEach((p, i) => { if (!next[i]) { next[i] = keys.find(h => !used.has(h)) || keys[0]; used.add(next[i]); } });
+        st.players.forEach((p, i) => setHero(p, next[i]));
+        return '';
       }
       case 'name': if (s < 0) return 'bad'; st.players[s].name = cleanName(a.n) || HEROES[st.players[s].hero].s; return '';
       case 'addbot': {
         if (!host) return 'host';
         if (st.players.length >= MAX_PLAYERS) return 'full';
         const h = freeHero(st, null);
-        st.players.push(newPlayer('bot-' + Math.floor(rnd() * 1e9).toString(36), HEROES[h].s, h, true));
+        st.players.push(newPlayer('bot-' + Math.floor(rnd() * 1e9).toString(36), HEROES[h].s, h, true, {}));
         return '';
       }
       case 'kick': {
@@ -92,8 +124,10 @@ const Engine = (() => {
     shuffle(st.players, rnd);                            // who goes first is decided by lot
     for (const p of st.players) Object.assign(p, { cash: START_CASH, pos: 0, jail: false, jt: 0, fe: [], out: false, outAt: 0, dbl: 0 });
     st.own = BOARD.map(() => null);
-    st.decks = { s: shuffle(CARDS.s.map((_, i) => i), rnd), c: shuffle(CARDS.c.map((_, i) => i), rnd) };
-    Object.assign(st, { turn: 0, round: 1, phase: 'roll', again: false, pend: null, trade: null, auc: null, winner: -1, rolls: 0, tn: 1, offered: -1, memo: [] });
+    const deck = deckOf(st), quiz = themeOf(st).quiz;
+    st.decks = { s: shuffle(deck.s.map((_, i) => i), rnd), c: shuffle(deck.c.map((_, i) => i), rnd) };
+    st.qd = quiz ? shuffle(quiz.map((_, i) => i), rnd) : [];       // the chest's questions, in the order they come
+    Object.assign(st, { turn: 0, round: 1, phase: 'roll', again: false, pend: null, trade: null, auc: null, quiz: null, winner: -1, rolls: 0, tn: 1, offered: -1, memo: [] });
     st.dseed = 1 + Math.floor(rnd() * 2147483646);       // every screen throws the dice the same way (see throwSeed)
     push(st, 'start', {});
     push(st, 'turn', { s: 0, r: 1 });
@@ -228,8 +262,9 @@ const Engine = (() => {
     return true;
   }
   function card(st, seat, deck) {
-    const d = st.decks[deck], id = d.shift(), c = CARDS[deck][id], p = st.players[seat];
+    const d = st.decks[deck], id = d.shift(), c = deckOf(st)[deck][id], p = st.players[seat];
     if (c.k !== 'feather') d.push(id);
+    if (c.k === 'quiz') return ask(st, seat);
     push(st, 'card', { s: seat, d: deck, id });
     switch (c.k) {
       case 'cash':
@@ -247,6 +282,38 @@ const Engine = (() => {
       }
     }
     return true;
+  }
+  // ----- the treasure chest's question: everyone answers on their own phone; whoever knew it gets money, the one who
+  // opened the chest most. A wrong answer costs nothing. The host's clock ends it when time is up (closeQuiz).
+  function ask(st, seat) {
+    const q = st.qd.shift();
+    st.qd.push(q);
+    st.phase = 'quiz'; st.pend = { k: 'quiz' };
+    st.quiz = { q, s: seat, ans: {} };
+    push(st, 'quiz', { s: seat, q });
+    return false;
+  }
+  function endQuiz(st) {
+    const Q = st.quiz;
+    if (!Q) return;
+    const right = themeOf(st).quiz[Q.q].c;
+    st.quiz = null; st.pend = null;
+    push(st, 'quizEnd', { s: Q.s, q: Q.q, c: right, ans: Object.assign({}, Q.ans) });
+    for (const s of activeSeats(st)) {
+      if (Q.ans[s] !== right) continue;
+      const a = s === Q.s ? QUIZ_WIN : QUIZ_SHARE;
+      st.players[s].cash += a;
+      push(st, 'gain', { s, a, why: 'quiz' });
+    }
+    settle(st, st.turn);
+  }
+  function closeQuiz(st) { if (st.phase === 'quiz' && st.quiz) endQuiz(st); }
+  // a computer player knows the answer a little more than half the time (worked out from the game, so it is the same
+  // whenever it is asked)
+  function botAnswer(st, seat) {
+    const Q = st.quiz, right = themeOf(st).quiz[Q.q].c;
+    const r = mulberry((st.dseed ^ Math.imul(Q.q + 1, 0x9e3779b1) ^ Math.imul(seat + 1, 0x85ebca6b) ^ Math.imul(st.rolls + 1, 0x27d4eb2d)) >>> 0)();
+    return r < 0.6 ? right : (right + (r < 0.8 ? 1 : 2)) % 3;
   }
   // the move is over: doubles roll again, otherwise the player may still build or trade and then ends the turn
   function settle(st, seat) {
@@ -288,7 +355,7 @@ const Engine = (() => {
     const n = st.players.length;
     let i = st.turn, wrapped = false, guard = 0;
     do { i = (i + 1) % n; if (i === 0) wrapped = true; } while (st.players[i].out && ++guard < n);
-    st.trade = null; st.pend = null; st.again = false; st.auc = null;
+    st.trade = null; st.pend = null; st.again = false; st.auc = null; st.quiz = null;
     if (wrapped) {
       st.round++;
       if (st.cfg.mode === 'rounds' && st.round > st.cfg.rounds) { st.round = st.cfg.rounds; return finish(st, 'rounds'); }
@@ -301,7 +368,7 @@ const Engine = (() => {
   function finish(st, why) {
     const alive = activeSeats(st).sort((a, b) => worth(st, b) - worth(st, a));
     st.winner = alive.length ? alive[0] : -1;
-    st.phase = 'over'; st.pend = null; st.trade = null; st.auc = null;
+    st.phase = 'over'; st.pend = null; st.trade = null; st.auc = null; st.quiz = null;
     push(st, 'over', { s: st.winner, why });
   }
   // the order at the end: those still standing by worth, then the bankrupt, the last to fall first
@@ -321,7 +388,7 @@ const Engine = (() => {
       c.fe.push(...p.fe);
     } else {
       st.own.forEach((o, i) => { if (o && o.o === seat) st.own[i] = null; });
-      for (const d of p.fe) st.decks[d].push(FEATHER[d]);
+      for (const d of p.fe) st.decks[d].push(featherOf(st, d));
       to = -1;
     }
     p.cash = 0; p.fe = []; p.out = true; p.outAt = st.evn + 1; p.jail = false;
@@ -381,6 +448,7 @@ const Engine = (() => {
       else if (!A.out.includes(seat)) { L.bid = p.cash >= A.hi + BID_STEP; L.pass = true; }
       return L;
     }
+    if (st.phase === 'quiz' && st.quiz) { if (st.quiz.ans[seat] == null) L.answer = true; return L; }
     if (st.turn !== seat) return L;
     const ph = st.phase, free = !st.trade;
     if (ph === 'roll' && free) {
@@ -466,6 +534,17 @@ const Engine = (() => {
         if (auctionDone(st)) endAuction(st);
         return '';
       }
+      case 'answer': {
+        const Q = st.quiz;
+        if (ph !== 'quiz' || !Q) return 'turn';
+        if (Q.ans[seat] != null) return 'answered';
+        const c = Math.floor(+a.c);
+        if (!(c >= 0 && c <= 2)) return 'bad';
+        Q.ans[seat] = c;
+        push(st, 'answer', { s: seat });
+        if (activeSeats(st).every(s => Q.ans[s] != null)) endQuiz(st);
+        return '';
+      }
       case 'end': {
         if (!mine || ph !== 'end' || st.trade) return 'turn';
         nextTurn(st);
@@ -481,7 +560,7 @@ const Engine = (() => {
       case 'feather': {
         if (!mine || ph !== 'roll' || !p.jail || !p.fe.length || st.trade) return 'turn';
         const d = p.fe.shift();
-        st.decks[d].push(FEATHER[d]);
+        st.decks[d].push(featherOf(st, d));
         release(st, seat, 'feather');
         return '';
       }
@@ -724,6 +803,7 @@ const Engine = (() => {
       const inc = A.hi === 0 ? Math.max(BID_STEP, Math.floor(max * 0.45 / BID_STEP) * BID_STEP) : gap > 160 ? 50 : gap > 60 ? 20 : BID_STEP;
       return { t: 'bid', a: Math.min(max, A.hi + inc) };
     }
+    if (st.phase === 'quiz' && st.quiz) return st.quiz.ans[seat] != null || cautious ? null : { t: 'answer', c: botAnswer(st, seat) };
     if (st.trade && st.trade.to === seat) return { t: !cautious && likes(st, seat, st.trade) ? 'accept' : 'decline' };
     if (st.trade && st.trade.from === seat) return cautious ? { t: 'cancel' } : null;
     if (st.turn !== seat || st.trade) return null;
@@ -751,9 +831,9 @@ const Engine = (() => {
   function stop(st) { if (st.phase !== 'lobby' && st.phase !== 'over') finish(st, 'stop'); }
 
   return {
-    mulberry, newLobby, lobbyJoin, lobbyAct, seatOf, cleanName, act, legal, botMove, stop, hammer, throwSeed, BID_STEP,
+    mulberry, newLobby, lobbyJoin, lobbyAct, seatOf, cleanName, act, legal, botMove, stop, hammer, closeQuiz, throwSeed, BID_STEP,
     rentAt, buildBlock, canSell, canMort, buildCost, mortValue, unmortCost, raiseMax, worth, ranking,
-    groupOwner, countOf, tradeBlock, cleanSide, activeSeats, FEATHER
+    groupOwner, countOf, tradeBlock, cleanSide, activeSeats, featherOf, deckOf, themeKey
   };
 })();
 

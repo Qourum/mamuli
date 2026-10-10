@@ -5,7 +5,7 @@
 // is in the room. If the host disappears, the next player in seat order takes over with their copy of the state.
 // "local" is a game on this device only (people taking turns and computer players), without any network.
 
-const PROTO = 3;                 // 3: auctions, and the dice's throw from the game's seed (2: a move's steps in 'steps')
+const PROTO = 4;                 // 4: themes and the chest's questions (3: auctions, the dice's throw from the game's seed)
 const ONLINE = {
   ws: 'wss://wnpqmcucnqcpcceqwega.supabase.co/realtime/v1',
   key: 'sb_publishable_DEGb_dkdj1s3QEJFrxc-Aw_apfCzfNx',
@@ -129,7 +129,7 @@ function newRoom(mode, role, code) {
     mode, role, code, me: myPid(), st: null, net: null, peers: {}, up: false, err: '',
     hostPid: '', heardHost: 0, joinedAt: now(), aid: 0, seenAid: {}, sent: null, sentAt: 0,
     driveT: null, beatT: null, helloT: null, missing: {}, tradeAt: 0, tradeKey: '', awayAt: {},
-    seen: {}, commitAt: 0, aucKey: '', aucAt: 0
+    seen: {}, commitAt: 0, aucKey: '', aucAt: 0, quizKey: '', quizAt: 0
   };
 }
 function meta() {
@@ -160,7 +160,8 @@ async function hostRoom() {
   for (let tries = 0; tries < 3; tries++) {
     ROOM = newRoom('online', 'host', randCode(4));
     const st = Engine.newLobby(ROOM.me);
-    Engine.lobbyJoin(st, ROOM.me, PROFILE.name, PROFILE.hero);
+    if (THEMES[PROFILE.theme]) st.theme = PROFILE.theme;           // the world last played on this device
+    Engine.lobbyJoin(st, ROOM.me, PROFILE.name, heroPrefs());
     ROOM.st = st;
     UI.go('lobby');
     Lobby.connecting();
@@ -193,7 +194,7 @@ async function joinRoom(code) {
     // nobody hosts it any more, but this device played in it: carry on from our copy
     if (!hostHere && now() - t0 > 4500 && saved && saved.st && Engine.seatOf(saved.st, ROOM.me) >= 0 && saved.st.phase !== 'over') return takeOver(saved.st);
     if (now() - t0 > 9500) return fail(hostHere ? 'net' : 'notfound');
-    send('hello', { name: PROFILE.name, hero: PROFILE.hero, p: PROTO });
+    send('hello', { name: PROFILE.name, hero: heroPrefs(), p: PROTO });
     ROOM.helloT = setTimeout(knock, 1500);
   };
   knock();
@@ -212,7 +213,8 @@ function playLocal(resume) {
     }
   }
   const st = Engine.newLobby(ROOM.me);
-  Engine.lobbyJoin(st, ROOM.me, PROFILE.name, PROFILE.hero);
+  if (THEMES[PROFILE.theme]) st.theme = PROFILE.theme;             // the world last played on this device
+  Engine.lobbyJoin(st, ROOM.me, PROFILE.name, heroPrefs());
   for (let i = 0; i < 2; i++) Engine.lobbyAct(st, ROOM.me, { t: 'addbot' }, rndHost);
   ROOM.st = st;
   UI.go('lobby');
@@ -359,7 +361,7 @@ function applyMove(pid, a) {
       if (!err) { st.players.forEach(p => { p.away = false; }); commit(); }
       return err;
     }
-    const by = ROOM.role === 'local' && a.seat != null && st.players[a.seat] && a.t !== 'addbot' && a.t !== 'cfg' && a.t !== 'kick' ? st.players[a.seat].pid : pid;
+    const by = ROOM.role === 'local' && a.seat != null && st.players[a.seat] && a.t !== 'addbot' && a.t !== 'cfg' && a.t !== 'kick' && a.t !== 'theme' ? st.players[a.seat].pid : pid;
     const err = Engine.lobbyAct(st, by, a, rndHost);
     if (!err) commit();
     return err;
@@ -388,7 +390,7 @@ function onStatus(up) {
   if (ROOM.up !== up) Diag.note('net', up ? 'connected' : 'connection lost');
   ROOM.up = up;
   if (up && ROOM.role === 'host' && ROOM.st) send('st', { p: PROTO, st: ROOM.st });
-  if (up && ROOM.role === 'guest' && ROOM.st) send('hello', { name: PROFILE.name, hero: PROFILE.hero, p: PROTO }, ROOM.hostPid || undefined);
+  if (up && ROOM.role === 'guest' && ROOM.st) send('hello', { name: PROFILE.name, hero: heroPrefs(), p: PROTO }, ROOM.hostPid || undefined);
   View.peers();
 }
 function markAway(pid, away) {
@@ -469,6 +471,7 @@ function drive() {
   const st = ROOM.st;
   if (!st || st.phase === 'lobby' || st.phase === 'over') return;
   if (st.phase === 'auction' && st.auc) return driveAuction(st);
+  if (st.phase === 'quiz' && st.quiz) return driveQuiz(st);
   const seat = st.trade ? st.trade.to : st.turn, p = st.players[seat];
   if (!p) return;
   const key = st.trade ? st.tn + ':' + st.trade.from + '>' + st.trade.to : '';
@@ -520,10 +523,45 @@ function driveAuction(st) {
   ROOM.driveT = setTimeout(go, 40);
 }
 
+// The chest's question. Its clock starts once this screen shows the question (and the others' screens have caught up);
+// the computer players answer a few seconds in, each at its own moment; it ends when everyone here has answered, or
+// when time is up (a little after the screens' clocks, so that an answer on its way still counts).
+const QUIZ_GRACE = 900;
+// how long the question waits: on one phone shared by several people, a few seconds more for each
+function quizTime(st) {
+  const here = ROOM && ROOM.role === 'local' ? st.players.filter(p => !p.bot && !p.out).length : 1;
+  return QUIZ_TIME + Math.max(0, here - 1) * 6000;
+}
+function driveQuiz(st) {
+  const Q = st.quiz, room = ROOM, key = st.tn + ':' + st.rolls + ':' + Q.q;
+  if (key !== ROOM.quizKey) { ROOM.quizKey = key; ROOM.quizAt = 0; }
+  const go = () => {
+    if (ROOM !== room || ROOM.st !== st || st.phase !== 'quiz' || !st.quiz) return;
+    if (!ROOM.quizAt) {
+      if (View.idleFor() <= 0 || screensWait() > 0) { ROOM.driveT = setTimeout(go, 200); return; }
+      ROOM.quizAt = now();
+    }
+    const t = now() - ROOM.quizAt, seats = Engine.activeSeats(st);
+    for (const s of seats) {
+      const p = st.players[s];
+      if (!p.bot || Q.ans[s] != null) continue;
+      if (t < 2500 + ((s * 2654435761 + Q.q * 40503 + st.rolls * 977) >>> 0) % 6500) continue;
+      const a = Engine.botMove(st, s);
+      if (a && !Engine.act(st, s, a, rndHost)) commit();
+      return;
+    }
+    const away = s => st.players[s].away && ROOM.mode === 'online';
+    if (seats.every(s => Q.ans[s] != null || away(s)) && t > 1200) { Engine.closeQuiz(st); commit(); return; }   // the rest are away
+    if (t >= quizTime(st) + QUIZ_GRACE) { Engine.closeQuiz(st); commit(); return; }
+    ROOM.driveT = setTimeout(go, 250);
+  };
+  ROOM.driveT = setTimeout(go, 40);
+}
+
 // the page went to the background and came back: make sure we are still in the room
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible' || !ROOM || ROOM.mode !== 'online' || !ROOM.net) return;
-  if (ROOM.role === 'guest') send('hello', { name: PROFILE.name, hero: PROFILE.hero, p: PROTO }, ROOM.hostPid || undefined);
+  if (ROOM.role === 'guest') send('hello', { name: PROFILE.name, hero: heroPrefs(), p: PROTO }, ROOM.hostPid || undefined);
   else if (ROOM.st) send('st', { p: PROTO, st: ROOM.st });
 });
 window.addEventListener('pagehide', () => { if (ROOM && ROOM.mode === 'online') send('bye', {}); });

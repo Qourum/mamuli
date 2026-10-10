@@ -1,10 +1,16 @@
 // ===== the menu, the room's lobby, and starting up =====
 
+// this device's player: a name, a hero for each world (a king or a hero for მამული, a pirate for the archipelago), and
+// the world last played here (a new room starts in it)
 const PROFILE = (() => {
-  const p = store.get('profile') || {};
-  return { hero: HEROES[p.hero] ? p.hero : 'david', name: Engine.cleanName(p.name || '') };
+  const p = store.get('profile') || {}, of = (h, t) => HEROES[h] && HEROES[h].t === t;
+  return { hero: of(p.hero, 'mamuli') ? p.hero : 'david', pirate: of(p.pirate, 'archipelago') ? p.pirate : 'blackbeard',
+    theme: THEMES[p.theme] ? p.theme : 'mamuli', name: Engine.cleanName(p.name || '') };
 })();
 const saveProfile = () => store.set('profile', PROFILE);
+// the archipelago is offered on the site when its 3D sea is ready (…?sea shows it before; the preview always does)
+const WORLDS_OPEN = !SITE || /[?&]sea\b/.test(location.search);
+const heroPrefs = () => ({ mamuli: PROFILE.hero, archipelago: PROFILE.pirate });
 const myName = () => PROFILE.name || HEROES[PROFILE.hero].s;
 
 // ----- the first screen -----
@@ -93,6 +99,9 @@ const Lobby = (() => {
     const mine = s => ROOM && (ROOM.role === 'local' ? !st.players[s].bot : st.players[s].pid === ROOM.me);
     if (sel < 0 || !st.players[sel] || !mine(sel)) sel = st.players.findIndex((p, s) => mine(s));
     $('#lobbyTitle').textContent = online ? 'ოთახი' : 'თამაში ამ მოწყობილობაზე';
+    // the world: the host picks it, everyone sees which (on the site, once the archipelago's sea is ready)
+    const th = Engine.themeKey(st);
+    $('#themeBox').innerHTML = !WORLDS_OPEN && th === 'mamuli' ? '' : `<p class="lbl">თემა</p><div class="seg worlds">${Object.values(THEMES).map(t => `<button class="${t.key === th ? 'on' : ''}" data-pickworld="${t.key}" ${host ? '' : 'disabled'}><b>${esc(t.name)}</b><small>${esc(t.tag)}</small></button>`).join('')}</div>`;
     const codeBox = $('#codeBox');
     codeBox.hidden = !online;
     if (online) {
@@ -111,10 +120,11 @@ const Lobby = (() => {
       : `<li class="seat empty">${MAX_PLAYERS - st.players.length} ადგილი თავისუფალია</li>`);
     // the hero of the selected seat
     const me = st.players[sel];
-    $('#lobbyHeroes').innerHTML = me ? `<p class="lbl">${online ? 'შენი გმირი' : esc(me.name) + ': გმირი'}</p><div class="hero-pick">${HERO_KEYS.map(h => {
+    const pirate = th === 'archipelago', mh = me && HEROES[me.hero];
+    $('#lobbyHeroes').innerHTML = me ? `<p class="lbl">${online ? (pirate ? 'შენი მეკობრე' : 'შენი გმირი') : esc(me.name) + (pirate ? ': მეკობრე' : ': გმირი')}</p><div class="hero-pick">${heroKeys(th).map(h => {
       const taken = st.players.some((p, s) => s !== sel && p.hero === h);
       return `<button class="hero${me.hero === h ? ' on' : ''}" data-lhero="${h}" ${taken ? 'disabled' : ''} aria-label="${esc(HEROES[h].n)}"><img src="${por(h)}" alt=""></button>`;
-    }).join('')}</div>` : '<p class="lbl">ამ თამაშს უყურებ</p>';
+    }).join('')}</div><p class="hint bio"><b>${esc(mh.n)}</b>${mh.b ? ' · ' + esc(mh.b) : ''}</p>` : '<p class="lbl">ამ თამაშს უყურებ</p>';
     // length
     const opts = [['rounds', 20], ['rounds', 30], ['rounds', 40], ['full', 0]];
     $('#cfg').innerHTML = `<p class="lbl">თამაშის ხანგრძლივობა</p><div class="seg">${opts.map(([m, r]) => {
@@ -148,10 +158,13 @@ const Lobby = (() => {
     const cfg = ev.target.closest('[data-cfg]'), lob = ev.target.closest('[data-lob]');
     if (kick) { const s = +kick.dataset.kick; move(st.players[s].pid === ROOM.me && ROOM.role !== 'local' ? { t: 'leave' } : { t: 'kick', s }); return; }
     if (hero && !hero.disabled) {
-      if (ROOM.role !== 'local') { PROFILE.hero = hero.dataset.lhero; saveProfile(); }
-      move({ t: 'hero', h: hero.dataset.lhero, seat: sel });
+      const h = hero.dataset.lhero;
+      if (ROOM.role !== 'local') { if (HEROES[h].t === 'archipelago') PROFILE.pirate = h; else PROFILE.hero = h; saveProfile(); }
+      move({ t: 'hero', h, seat: sel });
       return;
     }
+    const world = ev.target.closest('[data-pickworld]');
+    if (world && !world.disabled) { PROFILE.theme = world.dataset.pickworld; saveProfile(); move({ t: 'theme', k: world.dataset.pickworld }); return; }
     if (seat && ROOM.role === 'local' && !st.players[+seat.dataset.seat].bot) { sel = +seat.dataset.seat; render(st); return; }
     if (cfg && !cfg.disabled) { const [mode, r] = cfg.dataset.cfg.split(':'); move({ t: 'cfg', mode, rounds: +r || st.cfg.rounds }); return; }
     if (lob && !lob.disabled) {
@@ -196,7 +209,14 @@ function boot() {
   $('#scr-game').addEventListener('click', ev => {
     Sound.unlock();
     const a = ev.target.closest('#panel [data-a], #buycard [data-a]');
-    if (a && !a.disabled) { const m = { t: a.dataset.a }; if (a.dataset.seat != null) m.seat = +a.dataset.seat; if (a.dataset.inc) m.inc = +a.dataset.inc; move(m); return; }
+    if (a && !a.disabled) {
+      const m = { t: a.dataset.a };
+      if (a.dataset.seat != null) m.seat = +a.dataset.seat;
+      if (a.dataset.inc) m.inc = +a.dataset.inc;
+      if (a.dataset.c != null) { m.c = +a.dataset.c; a.classList.add('picked'); }      // the chest's answer
+      move(m);
+      return;
+    }
     if (ev.target.closest('#bView')) return View.view();
     const d = ev.target.closest('#panel [data-deed]');
     if (d) return Sheet.open('deed', +d.dataset.deed);

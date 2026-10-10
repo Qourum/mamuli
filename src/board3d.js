@@ -95,25 +95,27 @@ const Board3D = (() => {
     x.font = `${weight} ${s}px ${family}`;
     return s;
   }
-  // a name on one line, or on two (split at a space or a soft hyphen), as large as fits
+  // a name on one line, or on two (split at a space or a soft hyphen), as large as fits: one line is liked best, then a
+  // break at a space, a word broken with a hyphen least (it has to be much larger to win)
   function lines(x, name, weight, family, size, maxW, min = 18) {
-    const plain = name.replace(/­/g, '');
-    for (let s = size; s >= min; s--) {
-      x.font = `${weight} ${s}px ${family}`;
-      if (x.measureText(plain).width <= maxW) return [plain];
-      let best = null;
-      for (let k = 1; k < name.length - 1; k++) {
-        const ch = name[k];
-        if (ch !== ' ' && ch !== '­') continue;
-        const a = name.slice(0, k).replace(/­/g, '') + (ch === '­' ? '-' : ''), b = name.slice(k + 1).replace(/­/g, '');
-        const w = Math.max(x.measureText(a).width, x.measureText(b).width);
-        if (w <= maxW && (!best || w < best.w)) best = { w, l: [a, b] };
-      }
-      if (best) return best.l;
+    const plain = name.replace(/\u00ad/g, ''), cand = [{ l: [plain], k: 1 }];
+    for (let k = 1; k < name.length - 1; k++) {
+      const ch = name[k], soft = ch === '\u00ad';
+      if (ch !== ' ' && ch !== '-' && !soft) continue;
+      // after a space nothing is added, a hyphen stays on the first line, a soft one is written there
+      cand.push({ l: [name.slice(0, k).replace(/\u00ad/g, '') + (ch === ' ' ? '' : '-'), name.slice(k + 1).replace(/\u00ad/g, '')], k: ch === ' ' ? 0.9 : soft ? 0.72 : 0.86 });
     }
-    x.font = `${weight} ${min}px ${family}`;
-    return [plain];
+    x.font = `${weight} 100px ${family}`;                // the widths measured once, at 100px
+    let best = null;
+    for (const c of cand) {
+      const w = Math.max(...c.l.map(l => x.measureText(l).width)) / 100, s = Math.min(size, Math.floor(maxW / w)), score = s * c.k;
+      if (!best || score > best.score) best = { score, s, l: c.l };
+    }
+    x.font = `${weight} ${Math.max(min, best.s)}px ${family}`;
+    return best.l;
   }
+  // the size of the canvas's font now (its weight comes first in the font: '800 40px …')
+  const fontPx = x => +(/(\d+(?:\.\d+)?)px/.exec(x.font) || [0, 30])[1];
   function coinIcon(x, cx, cy, r) {
     const im = pic('ui_coin');
     if (im) { x.drawImage(im, cx - r, cy - r, r * 2, r * 2); return; }
@@ -144,15 +146,15 @@ const Board3D = (() => {
     x.fillStyle = g; x.fillRect(0, 0, cw, ch);
     x.strokeStyle = 'rgba(122, 86, 44, .45)'; x.lineWidth = 3; rr(x, 15, 15, cw - 30, ch - 30, 12); x.stroke();
     x.textAlign = 'center'; x.textBaseline = 'middle';
-    const ink = '#2c1b10', soft = '#7a5a3a';
+    const ink = '#2c1b10', soft = '#7a5a3a', words = THEME.w;     // the theme's words (W is this board's width here)
     const name = (n, top, bottom, size = 40) => {
       const ls = lines(x, n, 800, FONT.sans, size, cw - 40);
-      const lh = parseInt(x.font, 10) * 1.12, y0 = (top + bottom) / 2 - (ls.length - 1) * lh / 2;
+      const lh = fontPx(x) * 1.12, y0 = (top + bottom) / 2 - (ls.length - 1) * lh / 2;
       x.fillStyle = ink;
       ls.forEach((l, k) => x.fillText(l, mid, y0 + k * lh));
     };
     if (t.k === 'p' || t.k === 'road' || t.k === 'util') {
-      const band = t.k === 'p' ? GROUPS[t.g].c : '#7b5532', bandText = t.k === 'p' ? GROUPS[t.g].n : t.k === 'road' ? 'ქარვასლა' : 'მეურნეობა';
+      const band = t.k === 'p' ? GROUPS[t.g].c : '#7b5532', bandText = t.k === 'p' ? GROUPS[t.g].n : t.k === 'road' ? words.road : words.util;
       x.fillStyle = band; rr(x, 18, 18, cw - 36, 80, 10); x.fill();
       x.fillStyle = 'rgba(255, 255, 255, .2)'; rr(x, 18, 18, cw - 36, 14, 7); x.fill();
       x.fillStyle = '#fff'; fit(x, bandText, 800, FONT.sans, 27, cw - 60);
@@ -161,28 +163,34 @@ const Board3D = (() => {
       x.fillStyle = soft; x.font = `700 21px ${FONT.sans}`; x.fillText('ფასი', mid, 280);
       priceLine(x, mid, 326, String(t.p));
     } else if (t.k === 'scroll' || t.k === 'chest') {
-      name(t.k === 'scroll' ? 'ბედის გრაგნილი' : 'საგანძური', 46, 130, 38);
+      const sub = t.k === 'scroll' ? words.scrollTile : words.chestTile;
+      name(t.k === 'scroll' ? words.scroll : words.chest, 46, 130, 38);
       iconAt(x, t.k === 'scroll' ? 'ui_page' : 'ui_chest_wood', mid, 222, 128);
-      x.fillStyle = soft; fit(x, 'აიღე ბარათი', 700, FONT.sans, 25, cw - 50); x.fillText('აიღე ბარათი', mid, 330);
+      x.fillStyle = soft; fit(x, sub, 700, FONT.sans, 25, cw - 50); x.fillText(sub, mid, 330);
     } else if (t.k === 'tax') {
       name(t.n, 50, 120, 42);
       iconAt(x, t.a > 150 ? 'ui_coinbag' : 'ui_coin', mid, 200, 110);
       x.fillStyle = soft; x.font = `700 22px ${FONT.sans}`; x.fillText('გადაიხადე', mid, 280);
       priceLine(x, mid, 326, String(t.a), '#a3261c');
     } else if (corner) {
-      const big = (text, y, color, size = 58) => { x.fillStyle = color; fit(x, text, 900, FONT.serif, size, cw - 50); x.fillText(text, mid, y); };
+      // the corner's name, large: on two lines when it is long (the line above moves up)
+      const big = (text, y, color, size = 58) => {
+        x.fillStyle = color;
+        const ls = lines(x, text, 900, FONT.serif, size, cw - 50, 36), lh = fontPx(x) * 1.05;
+        ls.forEach((l, k) => x.fillText(l, mid, y - (ls.length - 1 - k) * lh));
+      };
       const small = (text, y) => { x.fillStyle = soft; fit(x, text, 700, FONT.sans, 26, cw - 50); x.fillText(text, mid, y); };
       if (t.k === 'start') {
         // the big arrow along the way
         x.fillStyle = '#c8372d'; x.strokeStyle = '#7a1d14'; x.lineWidth = 5;
         x.beginPath(); x.moveTo(60, 196); x.lineTo(140, 146); x.lineTo(140, 176); x.lineTo(320, 176); x.lineTo(320, 216); x.lineTo(140, 216); x.lineTo(140, 246); x.closePath(); x.fill(); x.stroke();
-        big('სტარტი', 282, '#8d2a1f');
+        big(words.start, 282, '#8d2a1f');
         x.fillStyle = '#2f7a2a'; x.font = `400 40px ${FONT.num}`;
         priceLine(x, mid - 40, 336, '+' + SALARY, '#2f7a2a', 40);
-        x.fillStyle = soft; x.font = `700 21px ${FONT.sans}`; x.textAlign = 'left'; x.fillText('ყოველ წრეზე', mid + 34, 338); x.textAlign = 'center';
-      } else if (t.k === 'jail') { big('ზინდანი', 290, '#3b2c22'); small('აქ სტუმრად ხარ', 340); }
-      else if (t.k === 'feast') { big('სუფრა', 290, '#8d2a1f'); small('დაისვენე', 340); }
-      else if (t.k === 'gojail') { big('ზინდანში!', 290, '#8d2a1f', 54); small('მცველი წაგიყვანს', 340); }
+        x.fillStyle = soft; x.font = `700 21px ${FONT.sans}`; x.textAlign = 'left'; x.fillText(words.startTile, mid + 34, 338); x.textAlign = 'center';
+      } else if (t.k === 'jail') { big(words.jail, 290, '#3b2c22'); small(words.jailTile, 340); }
+      else if (t.k === 'feast') { big(words.feast, 290, '#8d2a1f'); small(words.feastTile, 340); }
+      else if (t.k === 'gojail') { big(words.gojail, 290, '#8d2a1f', 54); small(words.gojailTile, 340); }
     }
     return cv;
   }
@@ -840,7 +848,7 @@ const Board3D = (() => {
     face.rotation.order = 'YXZ';
     face.position.y = 0.43;
     goldRim = goldRim || new T.MeshLambertMaterial({ color: 0xd9a443 });
-    const tx = texLoader().load(ART('por_h_' + hero));
+    const tx = texLoader().load(por(hero));
     tx.encoding = T.sRGBEncoding;
     const pm = new T.MeshLambertMaterial({ map: tx });
     const coinG = new T.CylinderGeometry(0.24, 0.24, 0.06, 40);
@@ -863,7 +871,7 @@ const Board3D = (() => {
       const p = st.players[s];
       if (!toks[s]) toks[s] = makeToken(s, p.hero);
       else if (toks[s].hero !== p.hero) {
-        const tx = texLoader().load(ART('por_h_' + p.hero)); tx.encoding = T.sRGBEncoding;
+        const tx = texLoader().load(por(p.hero)); tx.encoding = T.sRGBEncoding;
         toks[s].pm.map = tx; toks[s].pm.needsUpdate = true; toks[s].hero = p.hero;
       }
       toks[s].g.visible = !p.out;
@@ -1293,9 +1301,11 @@ const Board3D = (() => {
   function snap() { camInit = false; }
   function setMode(m) { mode = m === 'overview' ? 'overview' : 'follow'; modeSet = true; return mode; }
   function leave() { built = false; stop(); }
+  // the room's world changed: the squares are written again with its names and words
+  function retheme() { if (ok && labelTex.length) relabelAll(); }
 
   return {
-    init, prepare, show, sync, walk, fly, setOwner, setLevel, setMort, pop, celebrate, coins, focus, snap, setMode, setTurn, leave, resize, halt,
+    init, prepare, show, sync, walk, fly, setOwner, setLevel, setMort, pop, celebrate, coins, focus, snap, setMode, setTurn, leave, resize, halt, retheme,
     speed(k) { speedK = k > 0 ? k : 1; },
     get ok() { return done; }, get mode() { return mode; },
     // how long ago a frame was drawn (the animations wait for frames: none coming means they must not be waited for)
@@ -1317,6 +1327,7 @@ const Board3D = (() => {
     _project(x, y, z) { const c = new T.Vector3(x, y, z).project(cam), r = host.getBoundingClientRect(); return [r.left + (c.x + 1) / 2 * r.width, r.top + (1 - c.y) / 2 * r.height]; },
     _dbg: () => ({ y: tiles.slice(0, 6).map(t => +t.position.y.toFixed(2)), tw: tweens.length, built, running, frame, quality, land: landG ? +landG.scale.y.toFixed(3) : 0, fade: +U.fade.value.toFixed(3), top: +landTop.toFixed(2) }),
     _scene: () => scene, _gl: () => ({ R, cam, scene }),
+    _label: i => labelCv[i] ? labelCv[i].toDataURL() : '',
     _life: () => ({ ready: life.ready, groups: life.groups.map(g => [g.k, g.list.length]), points: life.pts ? life.pts.geometry.attributes.position.count : 0, fall: fallFoot }),
     _perf: () => R ? Object.assign({ calls: R.info.render.calls, tris: R.info.render.triangles, programs: R.info.programs.length, textures: R.info.memory.textures, geometries: R.info.memory.geometries, frame, quality, pr: R.getPixelRatio() }, PERF) : PERF
   };

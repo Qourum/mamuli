@@ -289,6 +289,9 @@ img { max-width: 100%; }
 .au-me { width: 30px; height: 30px; border-radius: 50%; box-shadow: 0 0 0 2px var(--c); align-self: center; flex: none; }
 
 /* ----- a note by a player's picture at the top: what just happened to them ----- */
+/* the technical log */
+pre.diag { margin: 10px 0 0; padding: 10px; max-height: 52vh; overflow: auto; border-radius: 10px; background: rgba(0, 0, 0, .35); color: #d9d2c0;
+  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; user-select: text; -webkit-user-select: text; }
 .bubbles { position: fixed; inset: 0; z-index: 8; pointer-events: none; overflow: hidden; }
 .bub { position: absolute; transform: translateX(-50%); display: flex; align-items: center; gap: 5px; width: max-content; max-width: 52vw; padding: 3px 10px 3px 3px;
   border-radius: 99px; font: 700 12px/1.3 var(--f-ui); color: var(--cream); background: rgba(23, 29, 42, .96); border: 1.5px solid var(--c, var(--line));

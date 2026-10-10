@@ -232,6 +232,7 @@ async function connect() {
   ROOM.beatT = setInterval(() => beat(room), 2500);
 }
 function fail(why) {
+  Diag.note('net', 'failed: ' + why);
   const msg = {
     site: 'ონლაინ ოთახები მხოლოდ თამაშის საიტზე მუშაობს',
     net: 'კავშირი ვერ დამყარდა. შეამოწმე ინტერნეტი და სცადე თავიდან.',
@@ -384,6 +385,7 @@ function onPeers(peers) {
   View.peers();
 }
 function onStatus(up) {
+  if (ROOM.up !== up) Diag.note('net', up ? 'connected' : 'connection lost');
   ROOM.up = up;
   if (up && ROOM.role === 'host' && ROOM.st) send('st', { p: PROTO, st: ROOM.st });
   if (up && ROOM.role === 'guest' && ROOM.st) send('hello', { name: PROFILE.name, hero: PROFILE.hero, p: PROTO }, ROOM.hostPid || undefined);
@@ -418,6 +420,7 @@ function maybeTakeOver() {
   if (next && next.pid === ROOM.me) takeOver(st);
 }
 function takeOver(st) {
+  Diag.note('net', 'the host is gone: this phone carries the room on');
   st = clone(st);
   const old = Engine.seatOf(st, st.host);
   if (old >= 0) { st.players[old].away = true; if (st.phase === 'lobby') st.players.splice(old, 1); }

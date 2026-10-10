@@ -248,10 +248,13 @@ const Dice3D = (() => {
   // the throw for this seed: ready, half done (finished now), or worked out now (an old game without seeds: any throw)
   function nextThrow(seed) {
     seed = seed >>> 0;
-    let sim = null;
+    let sim = null, how = 'ready';
+    const t = performance.now();
     if (seed && ahead.has(seed)) { sim = ahead.get(seed); ahead.delete(seed); }
-    else if (seed && making && making.seed === seed) { making.run(Infinity); sim = making.result; making = null; }
-    else sim = simulate(rndOf(seed || ((Math.random() * 4294967295) >>> 0) || 1));
+    else if (seed && making && making.seed === seed) { how = 'half done'; making.run(Infinity); sim = making.result; making = null; }
+    else { how = seed ? 'not ready' : 'no seed'; sim = simulate(rndOf(seed || ((Math.random() * 4294967295) >>> 0) || 1)); }
+    const ms = performance.now() - t;
+    if (how !== 'ready' || ms > 8) Diag.note('dice', `throw ${how}: ${ms.toFixed(0)} ms`);
     if (todo.length) later(work);
     return sim;
   }

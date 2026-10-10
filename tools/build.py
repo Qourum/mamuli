@@ -16,7 +16,7 @@ import hashlib, json, os, shutil, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'src')
 METEKHI = os.environ.get('METEKHI', os.path.join(os.path.dirname(ROOT), 'qourum', 'metekhi'))
-JS = ['data.js', 'engine.js', 'net.js', 'terrain.js', 'models.js', 'board3d.js', 'dice3d.js', 'ui.js', 'app.js']
+JS = ['diag.js', 'data.js', 'engine.js', 'net.js', 'terrain.js', 'models.js', 'board3d.js', 'dice3d.js', 'ui.js', 'app.js']
 THREE_CDN = 'https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js'
 HEROES = ['david', 'tamar', 'gorgasali', 'erekle', 'kakutsa', 'tariel', 'avtandil', 'gurdjieff', 'abrag', 'amirani', 'mikha', 'prometheus']
 ART = ([f'por_h_{h}' for h in HEROES] + [f'h_{h}' for h in HEROES if h != 'david'] + ['h_davidride'] +

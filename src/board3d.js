@@ -1044,6 +1044,7 @@ const Board3D = (() => {
   // change itself is not seen as a jolt; and the shaders never change mid-game (rebuilding them stalls a phone).
   let last = 0, running = false, frame = 0, quality = 2, basePR = 1, shadowDirty = true, shadowLate = false, shadowAt = 0;
   let drewLast = false, busyAvg = 1 / 60, busyN = 0, prStep = 0, prNext = 0;
+  let drewAt = 0, lostAt = 0, progN = 0;          // when a frame was last drawn; when the graphics were lost; shaders made
   const PR_STEPS = [1, 0.85, 0.72, 0.6];
   function adapt(real) {
     if (real > 0.25 || real <= 0) return;                // a hiccup (a tab switch), not the device
@@ -1053,11 +1054,12 @@ const Board3D = (() => {
     prStep++; busyN = 0;
     if (pr < R.getPixelRatio() - 0.01) prNext = pr;
   }
-  function coarser() { R.setPixelRatio(prNext); prNext = 0; busyAvg = 1 / 60; busyN = 0; PERF.coarser = (PERF.coarser || 0) + 1; resize(); }
+  function coarser() { Diag.note('3d', `resolution ${R.getPixelRatio().toFixed(2)} -> ${prNext.toFixed(2)} (frames ${Math.round(busyAvg * 1000)} ms)`); R.setPixelRatio(prNext); prNext = 0; busyAvg = 1 / 60; busyN = 0; PERF.coarser = (PERF.coarser || 0) + 1; resize(); }
   function loop(now) {
     if (!running) return;
     requestAnimationFrame(loop);
     const real = last ? (now - last) / 1000 : 0.016, dt = Math.min(0.25, real);
+    if (real > 0.35 && document.visibilityState === 'visible') Diag.slow(real * 1000);
     last = now;
     frame++;
     if (riseAt && frame >= riseAt) riseGo();
@@ -1106,10 +1108,13 @@ const Board3D = (() => {
     R.clear();
     R.render(scene, cam);
     Dice3D.frame(R, diceDt);
+    drewAt = performance.now();
+    const pn = R.info.programs.length;                  // a shader made now, in the middle of a game, stalls a phone
+    if (pn !== progN) { if (progN && built) Diag.note('3d', `new shader (${progN} -> ${pn}) while showing ${Diag.doing()}`); progN = pn; }
   }
   function start() {
     if (running || !ok) return;
-    running = true; last = 0;
+    running = true; last = 0; drewAt = performance.now();
     requestAnimationFrame(loop);
   }
   function stop() { running = false; }
@@ -1183,8 +1188,16 @@ const Board3D = (() => {
     PERF.build = performance.now() - tb;
     cv.addEventListener('pointerdown', onDown);
     cv.addEventListener('pointerup', onUp);
-    cv.addEventListener('webglcontextlost', e => { e.preventDefault(); stop(); });
-    cv.addEventListener('webglcontextrestored', () => { start(); });
+    // the phone took the graphics away (short of memory, or the page was in the background): the loop goes on, so the
+    // figures still arrive and the dice still land (unseen), and three.js makes everything again once they are back
+    cv.addEventListener('webglcontextlost', e => {
+      e.preventDefault(); lostAt = performance.now(); Diag.note('3d', 'graphics lost');
+      setTimeout(() => { if (lostAt && performance.now() - lostAt > 4500 && built) UI.toast('3D დაფამ გრაფიკა დაკარგა. თამაში გრძელდება; გვერდის განახლება დაფას დააბრუნებს.', 5200); }, 5000);
+    });
+    cv.addEventListener('webglcontextrestored', () => {
+      Diag.note('3d', `graphics back after ${Math.round(performance.now() - lostAt)} ms`); lostAt = 0;
+      shadowDirty = true; relabelSoon(); if (built) start();
+    });
     if (document.fonts) {
       const again = () => { if (!drawnWithFonts && fontsReady()) relabelSoon(); };
       Promise.all(LABEL_FONTS.map(([f, t]) => document.fonts.load(f, t).catch(() => null))).then(again);
@@ -1207,6 +1220,7 @@ const Board3D = (() => {
   function warm() {
     try {
       moveCamera(0);
+      for (let i = 0; i < 40; i++) if (OWNABLE(BOARD[i])) { flagFor(i); break; }     // (its cloth's shader: else made at the first purchase)
       R.compile(scene, cam);
       for (const t of labelTex) if (t) R.initTexture(t);
       R.shadowMap.needsUpdate = true;
@@ -1284,6 +1298,17 @@ const Board3D = (() => {
     init, prepare, show, sync, walk, fly, setOwner, setLevel, setMort, pop, celebrate, coins, focus, snap, setMode, setTurn, leave, resize, halt,
     speed(k) { speedK = k > 0 ? k : 1; },
     get ok() { return done; }, get mode() { return mode; },
+    // how long ago a frame was drawn (the animations wait for frames: none coming means they must not be waited for)
+    get drawnAgo() { return running && !lostAt ? performance.now() - drewAt : Infinity; },
+    get lost() { return !!lostAt; },
+    // for the technical log
+    gpu() {
+      if (!R) return 'gpu: no 3D' + (failed ? ' (failed)' : '');
+      let name = '';
+      try { const gl = R.getContext(), x = gl.getExtension('WEBGL_debug_renderer_info'); name = x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); } catch (e) { }
+      const m = R.info.memory;
+      return `gpu ${name} · webgl${R.capabilities.isWebGL2 ? 2 : 1} · pixel ratio ${R.getPixelRatio().toFixed(2)} (${prStep} steps down) · quality ${quality} · ${mobile ? 'phone' : 'computer'} · shaders ${R.info.programs.length} · textures ${m.textures} · geometries ${m.geometries}${lostAt ? ' · GRAPHICS LOST' : ''}`;
+    },
     onPick(cb) { pickCb = cb; },
     setPos(seat, at) { pos[seat] = at; },
     tween, ease, toWorld,

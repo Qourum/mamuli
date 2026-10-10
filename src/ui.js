@@ -133,6 +133,7 @@ const View = (() => {
   // the next throw of the dice is known already: it is worked out while there is time
   function expectThrow(st) { if (st && st.phase !== 'lobby' && st.phase !== 'over') Dice3D.expect(Engine.throwSeed(st, st.rolls + 1)); }
   function reset(st) {
+    if (shown && shown.evn !== st.evn) Diag.note('screen', `jumped from event ${shown.evn} to ${st.evn}`);
     target = clone(st); shown = clone(st); lastEv = st.evn; q = []; playing = false; idleAt = Date.now(); speed(1);
     expectThrow(target);
     caughtUp(shown.evn);
@@ -189,12 +190,24 @@ const View = (() => {
       current = e;
       // several moves behind the present (this phone is slower than the host's, or the connection stalled): faster
       const behind = q.length ? q[q.length - 1]._b - e._b : 0;
-      speed(behind >= 4 ? 2.4 : behind >= 2 ? 1.6 : 1);
-      // an animation that never ends (the 3D board lost its graphics, say) must not hold up the game
+      const k = behind >= 4 ? 2.4 : behind >= 2 ? 1.6 : 1;
+      if (k > 1 && rate === 1) Diag.note('screen', `${behind} moves behind: faster`);
+      speed(k);
+      // an animation that never ends must not hold up the game: none takes 9 seconds, and none goes on without frames
+      // (the 3D board lost its graphics, or stopped drawing): then everything jumps to its end and the game goes on
       let late = 0;
-      const guard = new Promise(r => { late = setTimeout(() => r('late'), 9000); });
-      try { if (await Promise.race([animate(e), guard]) === 'late' && gen === my && gl && Board3D.ok) Board3D.halt(); } catch (err) { console.warn(err); }
-      clearTimeout(late);
+      const t0 = Date.now();
+      const guard = new Promise(r => {
+        late = setInterval(() => {
+          const starved = gl && Board3D.ok && document.visibilityState === 'visible' && Board3D.drawnAgo > 1500;
+          if (starved || Date.now() - t0 > 9000) r(starved ? 'no frames' : 'too long');
+        }, 250);
+      });
+      try {
+        const stuck = await Promise.race([animate(e), guard]);
+        if (stuck && gen === my) { Diag.note('stall', `${e.k}: ${stuck} after ${Date.now() - t0} ms`); if (gl && Board3D.ok) Board3D.halt(); }
+      } catch (err) { console.warn(err); Diag.note('error', `${e.k}: ${(err && err.message) || err}`); }
+      clearInterval(late);
       if (gen === my) current = null;
     }
     if (gen === my) finishPlay();
@@ -216,7 +229,14 @@ const View = (() => {
   async function animate(e) {
     const st = target;
     switch (e.k) {
-      case 'roll': if (gl) { Board3D.focus(e.s); Sound.dice(); await Dice3D.roll(e.d, e.w); } break;
+      case 'roll': {
+        if (!gl) break;
+        Board3D.focus(e.s); Sound.dice();
+        const t = performance.now();
+        await Dice3D.roll(e.d, e.w);
+        if (performance.now() - t > 4000) Diag.note('dice', `the throw took ${Math.round(performance.now() - t)} ms`);
+        break;
+      }
       case 'move': {
         const n = stepsOf(e), g0 = gen;
         Board3D.focus(e.s);
@@ -623,8 +643,8 @@ const Sheet = (() => {
   function refresh() { if (kind) draw(); }
   function draw() {
     const st = View.st;
-    if (!st && kind !== 'rules' && kind !== 'install') return close();
-    const fn = { deed, player, estate, build, trade, offer, log, menu, over, bankrupt: bankruptSheet, rules, install }[kind];
+    if (!st && kind !== 'rules' && kind !== 'install' && kind !== 'diag') return close();
+    const fn = { deed, player, estate, build, trade, offer, log, menu, over, bankrupt: bankruptSheet, rules, install, diag }[kind];
     if (!fn) return close();
     const html = fn(st);
     if (html == null) return close();
@@ -805,7 +825,15 @@ const Sheet = (() => {
         <button class="btn wide" data-sound>ხმა: ${Sound.on ? 'ჩართული' : 'გამორთული'}</button>
         ${host && st && st.phase !== 'over' ? '<button class="btn wide" data-confirm="stop">თამაშის დასრულება ახლავე</button>' : ''}
         <button class="btn wide danger" data-confirm="leave">${ROOM && ROOM.mode === 'online' ? 'ოთახიდან გასვლა' : 'მთავარ მენიუში გასვლა'}</button>
+        <button class="btn wide ghost small" data-sheet="diag">ტექნიკური ჟურნალი</button>
       </div><div id="confirm"></div>`;
+  }
+  // what this phone went through, to send to whoever makes the game when something went wrong
+  function diag() {
+    return `<div class="sheet-h"><h2>ტექნიკური ჟურნალი</h2><button class="x" data-close aria-label="დახურვა">×</button></div>
+      <p class="hint">თუ თამაში გაიჭედა ან რამე უცნაურად მოხდა, დააკოპირე და გაუგზავნე თამაშის ავტორს: აქ წერია, რა ხდებოდა ამ ტელეფონზე.</p>
+      <div class="row"><button class="btn gold" data-copylog>კოპირება</button></div>
+      <pre class="diag" id="diagText">${esc(Diag.report())}</pre>`;
   }
   function bankruptSheet(st) {
     const s = st.turn;
@@ -879,6 +907,12 @@ const Sheet = (() => {
     if (sh) return open(sh.dataset.sheet);
     if (ev.target.closest('[data-sound]')) { Sound.on = !Sound.on; Sound.unlock(); return draw(); }
     if (ev.target.closest('[data-invite]')) return Lobby.invite();
+    if (ev.target.closest('[data-copylog]')) {
+      const text = Diag.report(), pre = $('#diagText');
+      const select = () => { if (!pre) return; const r = document.createRange(); r.selectNodeContents(pre); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); UI.toast('მონიშნულია: დააკოპირე'); };
+      try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(() => UI.toast('დაკოპირდა'), select); return; } } catch (e) { }
+      return select();
+    }
     const c = ev.target.closest('[data-confirm]');
     if (c) {
       const what = c.dataset.confirm;
@@ -930,6 +964,7 @@ const UI = (() => {
     setTimeout(() => { t.classList.add('bye'); setTimeout(() => t.remove(), 400); }, ms || 2600);
   }
   function moveRefused(code) {
+    Diag.note('move', 'refused: ' + code);
     View.busy(false);
     if (View.st) View.render();
     if (code && code !== 'turn' && ERR[code]) { toast(ERR[code], 2600, 'bad'); Sound.bad(); }    // 'turn': a button pressed twice

@@ -313,6 +313,9 @@ img { max-width: 100%; }
 .au-me { width: 30px; height: 30px; border-radius: 50%; box-shadow: 0 0 0 2px var(--c); align-self: center; flex: none; }
 
 /* ----- a note by a player's picture at the top: what just happened to them ----- */
+/* the technical log */
+pre.diag { margin: 10px 0 0; padding: 10px; max-height: 52vh; overflow: auto; border-radius: 10px; background: rgba(0, 0, 0, .35); color: #d9d2c0;
+  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; user-select: text; -webkit-user-select: text; }
 .bubbles { position: fixed; inset: 0; z-index: 8; pointer-events: none; overflow: hidden; }
 .bub { position: absolute; transform: translateX(-50%); display: flex; align-items: center; gap: 5px; width: max-content; max-width: 52vw; padding: 3px 10px 3px 3px;
   border-radius: 99px; font: 700 12px/1.3 var(--f-ui); color: var(--cream); background: rgba(23, 29, 42, .96); border: 1.5px solid var(--c, var(--line));
@@ -543,8 +546,47 @@ img { max-width: 100%; }
 </div>
 <script src="vendor/three.min.js"></script>
 <script>
-const BUILD = "fce0934fc7";
+const BUILD = "4740735ed2";
 const SITE = true;
+// ===== the technical log: what this phone went through, to copy and send when something goes wrong =====
+// Errors, the 3D board losing or getting back its graphics, slow frames (and what was on the screen then), shaders made
+// in the middle of a game, how each throw of the dice was got, the connection coming and going. A few hundred lines,
+// kept in memory only; the menu shows them with a summary of the device, and a button copies it all.
+
+const Diag = (() => {
+  const t0 = Date.now(), lines = [];
+  const at = () => ((Date.now() - t0) / 1000).toFixed(1);
+  function note(kind, text) {
+    lines.push(`${at()} ${kind} ${String(text == null ? '' : text).replace(/\s+/g, ' ').slice(0, 240)}`);
+    if (lines.length > 300) lines.splice(0, lines.length - 300);
+  }
+  // what the screen is busy with (the event being shown)
+  const doing = () => { try { return (typeof View !== 'undefined' && View.playing) || 'idle'; } catch (e) { return '?'; } };
+  window.addEventListener('error', e => note('error', `${e.message || e} @${String(e.filename || '').split('/').pop()}:${e.lineno || 0}:${e.colno || 0}`));
+  window.addEventListener('unhandledrejection', e => { const r = e.reason; note('reject', (r && (r.stack || r.message)) || r); });
+  document.addEventListener('visibilitychange', () => note('page', document.visibilityState));
+  window.addEventListener('pageshow', e => note('page', 'shown' + (e.persisted ? ' from the back-forward cache' : '')));
+  // a frame that came very late (the board's loop tells; a page in the background has no frames and is not counted)
+  const slow = ms => note('slow', `frame after ${Math.round(ms)} ms, showing ${doing()}${typeof Dice3D !== 'undefined' && Dice3D.busy ? ', dice rolling' : ''}`);
+  function device() {
+    const n = navigator, s = screen, out = [];
+    out.push(`მამული ${typeof BUILD !== 'undefined' ? BUILD : ''} · ${new Date().toISOString()}`);
+    out.push(n.userAgent);
+    const installed = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || n.standalone;
+    out.push(`screen ${s.width}x${s.height} · window ${innerWidth}x${innerHeight} · dpr ${window.devicePixelRatio || 1} · ${installed ? 'installed' : 'in the browser'}${window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches ? ' · less motion' : ''}`);
+    try { if (typeof Board3D !== 'undefined' && Board3D.gpu) out.push(Board3D.gpu()); } catch (e) { out.push('gpu ?'); }
+    try {
+      if (typeof ROOM !== 'undefined' && ROOM) {
+        const st = ROOM.st;
+        out.push(`room ${ROOM.mode}/${ROOM.role}${ROOM.code ? ' ' + ROOM.code : ''}${ROOM.mode === 'online' ? ` · connection ${ROOM.up ? 'up' : 'down'}` : ''}${st ? ` · players ${st.players.length} · phase ${st.phase} · seq ${st.seq} · events ${st.evn}` : ''}`);
+      }
+    } catch (e) { }
+    return out.join('\n');
+  }
+  const report = () => [device(), '', ...lines].join('\n');
+  return { note, report, doing, slow };
+})();
+
 // ===== მამული: the board, the regions, the cards and the heroes =====
 // Everything here is plain data; the rules live in engine.js.
 
@@ -1698,6 +1740,7 @@ async function connect() {
   ROOM.beatT = setInterval(() => beat(room), 2500);
 }
 function fail(why) {
+  Diag.note('net', 'failed: ' + why);
   const msg = {
     site: 'ონლაინ ოთახები მხოლოდ თამაშის საიტზე მუშაობს',
     net: 'კავშირი ვერ დამყარდა. შეამოწმე ინტერნეტი და სცადე თავიდან.',
@@ -1850,6 +1893,7 @@ function onPeers(peers) {
   View.peers();
 }
 function onStatus(up) {
+  if (ROOM.up !== up) Diag.note('net', up ? 'connected' : 'connection lost');
   ROOM.up = up;
   if (up && ROOM.role === 'host' && ROOM.st) send('st', { p: PROTO, st: ROOM.st });
   if (up && ROOM.role === 'guest' && ROOM.st) send('hello', { name: PROFILE.name, hero: PROFILE.hero, p: PROTO }, ROOM.hostPid || undefined);
@@ -1884,6 +1928,7 @@ function maybeTakeOver() {
   if (next && next.pid === ROOM.me) takeOver(st);
 }
 function takeOver(st) {
+  Diag.note('net', 'the host is gone: this phone carries the room on');
   st = clone(st);
   const old = Engine.seatOf(st, st.host);
   if (old >= 0) { st.players[old].away = true; if (st.phase === 'lobby') st.players.splice(old, 1); }
@@ -4263,6 +4308,7 @@ const Board3D = (() => {
   // change itself is not seen as a jolt; and the shaders never change mid-game (rebuilding them stalls a phone).
   let last = 0, running = false, frame = 0, quality = 2, basePR = 1, shadowDirty = true, shadowLate = false, shadowAt = 0;
   let drewLast = false, busyAvg = 1 / 60, busyN = 0, prStep = 0, prNext = 0;
+  let drewAt = 0, lostAt = 0, progN = 0;          // when a frame was last drawn; when the graphics were lost; shaders made
   const PR_STEPS = [1, 0.85, 0.72, 0.6];
   function adapt(real) {
     if (real > 0.25 || real <= 0) return;                // a hiccup (a tab switch), not the device
@@ -4272,11 +4318,12 @@ const Board3D = (() => {
     prStep++; busyN = 0;
     if (pr < R.getPixelRatio() - 0.01) prNext = pr;
   }
-  function coarser() { R.setPixelRatio(prNext); prNext = 0; busyAvg = 1 / 60; busyN = 0; PERF.coarser = (PERF.coarser || 0) + 1; resize(); }
+  function coarser() { Diag.note('3d', `resolution ${R.getPixelRatio().toFixed(2)} -> ${prNext.toFixed(2)} (frames ${Math.round(busyAvg * 1000)} ms)`); R.setPixelRatio(prNext); prNext = 0; busyAvg = 1 / 60; busyN = 0; PERF.coarser = (PERF.coarser || 0) + 1; resize(); }
   function loop(now) {
     if (!running) return;
     requestAnimationFrame(loop);
     const real = last ? (now - last) / 1000 : 0.016, dt = Math.min(0.25, real);
+    if (real > 0.35 && document.visibilityState === 'visible') Diag.slow(real * 1000);
     last = now;
     frame++;
     if (riseAt && frame >= riseAt) riseGo();
@@ -4325,10 +4372,13 @@ const Board3D = (() => {
     R.clear();
     R.render(scene, cam);
     Dice3D.frame(R, diceDt);
+    drewAt = performance.now();
+    const pn = R.info.programs.length;                  // a shader made now, in the middle of a game, stalls a phone
+    if (pn !== progN) { if (progN && built) Diag.note('3d', `new shader (${progN} -> ${pn}) while showing ${Diag.doing()}`); progN = pn; }
   }
   function start() {
     if (running || !ok) return;
-    running = true; last = 0;
+    running = true; last = 0; drewAt = performance.now();
     requestAnimationFrame(loop);
   }
   function stop() { running = false; }
@@ -4402,8 +4452,16 @@ const Board3D = (() => {
     PERF.build = performance.now() - tb;
     cv.addEventListener('pointerdown', onDown);
     cv.addEventListener('pointerup', onUp);
-    cv.addEventListener('webglcontextlost', e => { e.preventDefault(); stop(); });
-    cv.addEventListener('webglcontextrestored', () => { start(); });
+    // the phone took the graphics away (short of memory, or the page was in the background): the loop goes on, so the
+    // figures still arrive and the dice still land (unseen), and three.js makes everything again once they are back
+    cv.addEventListener('webglcontextlost', e => {
+      e.preventDefault(); lostAt = performance.now(); Diag.note('3d', 'graphics lost');
+      setTimeout(() => { if (lostAt && performance.now() - lostAt > 4500 && built) UI.toast('3D დაფამ გრაფიკა დაკარგა. თამაში გრძელდება; გვერდის განახლება დაფას დააბრუნებს.', 5200); }, 5000);
+    });
+    cv.addEventListener('webglcontextrestored', () => {
+      Diag.note('3d', `graphics back after ${Math.round(performance.now() - lostAt)} ms`); lostAt = 0;
+      shadowDirty = true; relabelSoon(); if (built) start();
+    });
     if (document.fonts) {
       const again = () => { if (!drawnWithFonts && fontsReady()) relabelSoon(); };
       Promise.all(LABEL_FONTS.map(([f, t]) => document.fonts.load(f, t).catch(() => null))).then(again);
@@ -4426,6 +4484,7 @@ const Board3D = (() => {
   function warm() {
     try {
       moveCamera(0);
+      for (let i = 0; i < 40; i++) if (OWNABLE(BOARD[i])) { flagFor(i); break; }     // (its cloth's shader: else made at the first purchase)
       R.compile(scene, cam);
       for (const t of labelTex) if (t) R.initTexture(t);
       R.shadowMap.needsUpdate = true;
@@ -4503,6 +4562,17 @@ const Board3D = (() => {
     init, prepare, show, sync, walk, fly, setOwner, setLevel, setMort, pop, celebrate, coins, focus, snap, setMode, setTurn, leave, resize, halt,
     speed(k) { speedK = k > 0 ? k : 1; },
     get ok() { return done; }, get mode() { return mode; },
+    // how long ago a frame was drawn (the animations wait for frames: none coming means they must not be waited for)
+    get drawnAgo() { return running && !lostAt ? performance.now() - drewAt : Infinity; },
+    get lost() { return !!lostAt; },
+    // for the technical log
+    gpu() {
+      if (!R) return 'gpu: no 3D' + (failed ? ' (failed)' : '');
+      let name = '';
+      try { const gl = R.getContext(), x = gl.getExtension('WEBGL_debug_renderer_info'); name = x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); } catch (e) { }
+      const m = R.info.memory;
+      return `gpu ${name} · webgl${R.capabilities.isWebGL2 ? 2 : 1} · pixel ratio ${R.getPixelRatio().toFixed(2)} (${prStep} steps down) · quality ${quality} · ${mobile ? 'phone' : 'computer'} · shaders ${R.info.programs.length} · textures ${m.textures} · geometries ${m.geometries}${lostAt ? ' · GRAPHICS LOST' : ''}`;
+    },
     onPick(cb) { pickCb = cb; },
     setPos(seat, at) { pos[seat] = at; },
     tween, ease, toWorld,
@@ -4766,10 +4836,13 @@ const Dice3D = (() => {
   // the throw for this seed: ready, half done (finished now), or worked out now (an old game without seeds: any throw)
   function nextThrow(seed) {
     seed = seed >>> 0;
-    let sim = null;
+    let sim = null, how = 'ready';
+    const t = performance.now();
     if (seed && ahead.has(seed)) { sim = ahead.get(seed); ahead.delete(seed); }
-    else if (seed && making && making.seed === seed) { making.run(Infinity); sim = making.result; making = null; }
-    else sim = simulate(rndOf(seed || ((Math.random() * 4294967295) >>> 0) || 1));
+    else if (seed && making && making.seed === seed) { how = 'half done'; making.run(Infinity); sim = making.result; making = null; }
+    else { how = seed ? 'not ready' : 'no seed'; sim = simulate(rndOf(seed || ((Math.random() * 4294967295) >>> 0) || 1)); }
+    const ms = performance.now() - t;
+    if (how !== 'ready' || ms > 8) Diag.note('dice', `throw ${how}: ${ms.toFixed(0)} ms`);
     if (todo.length) later(work);
     return sim;
   }
@@ -4998,6 +5071,7 @@ const View = (() => {
   // the next throw of the dice is known already: it is worked out while there is time
   function expectThrow(st) { if (st && st.phase !== 'lobby' && st.phase !== 'over') Dice3D.expect(Engine.throwSeed(st, st.rolls + 1)); }
   function reset(st) {
+    if (shown && shown.evn !== st.evn) Diag.note('screen', `jumped from event ${shown.evn} to ${st.evn}`);
     target = clone(st); shown = clone(st); lastEv = st.evn; q = []; playing = false; idleAt = Date.now(); speed(1);
     expectThrow(target);
     caughtUp(shown.evn);
@@ -5054,12 +5128,24 @@ const View = (() => {
       current = e;
       // several moves behind the present (this phone is slower than the host's, or the connection stalled): faster
       const behind = q.length ? q[q.length - 1]._b - e._b : 0;
-      speed(behind >= 4 ? 2.4 : behind >= 2 ? 1.6 : 1);
-      // an animation that never ends (the 3D board lost its graphics, say) must not hold up the game
+      const k = behind >= 4 ? 2.4 : behind >= 2 ? 1.6 : 1;
+      if (k > 1 && rate === 1) Diag.note('screen', `${behind} moves behind: faster`);
+      speed(k);
+      // an animation that never ends must not hold up the game: none takes 9 seconds, and none goes on without frames
+      // (the 3D board lost its graphics, or stopped drawing): then everything jumps to its end and the game goes on
       let late = 0;
-      const guard = new Promise(r => { late = setTimeout(() => r('late'), 9000); });
-      try { if (await Promise.race([animate(e), guard]) === 'late' && gen === my && gl && Board3D.ok) Board3D.halt(); } catch (err) { console.warn(err); }
-      clearTimeout(late);
+      const t0 = Date.now();
+      const guard = new Promise(r => {
+        late = setInterval(() => {
+          const starved = gl && Board3D.ok && document.visibilityState === 'visible' && Board3D.drawnAgo > 1500;
+          if (starved || Date.now() - t0 > 9000) r(starved ? 'no frames' : 'too long');
+        }, 250);
+      });
+      try {
+        const stuck = await Promise.race([animate(e), guard]);
+        if (stuck && gen === my) { Diag.note('stall', `${e.k}: ${stuck} after ${Date.now() - t0} ms`); if (gl && Board3D.ok) Board3D.halt(); }
+      } catch (err) { console.warn(err); Diag.note('error', `${e.k}: ${(err && err.message) || err}`); }
+      clearInterval(late);
       if (gen === my) current = null;
     }
     if (gen === my) finishPlay();
@@ -5081,7 +5167,14 @@ const View = (() => {
   async function animate(e) {
     const st = target;
     switch (e.k) {
-      case 'roll': if (gl) { Board3D.focus(e.s); Sound.dice(); await Dice3D.roll(e.d, e.w); } break;
+      case 'roll': {
+        if (!gl) break;
+        Board3D.focus(e.s); Sound.dice();
+        const t = performance.now();
+        await Dice3D.roll(e.d, e.w);
+        if (performance.now() - t > 4000) Diag.note('dice', `the throw took ${Math.round(performance.now() - t)} ms`);
+        break;
+      }
       case 'move': {
         const n = stepsOf(e), g0 = gen;
         Board3D.focus(e.s);
@@ -5488,8 +5581,8 @@ const Sheet = (() => {
   function refresh() { if (kind) draw(); }
   function draw() {
     const st = View.st;
-    if (!st && kind !== 'rules' && kind !== 'install') return close();
-    const fn = { deed, player, estate, build, trade, offer, log, menu, over, bankrupt: bankruptSheet, rules, install }[kind];
+    if (!st && kind !== 'rules' && kind !== 'install' && kind !== 'diag') return close();
+    const fn = { deed, player, estate, build, trade, offer, log, menu, over, bankrupt: bankruptSheet, rules, install, diag }[kind];
     if (!fn) return close();
     const html = fn(st);
     if (html == null) return close();
@@ -5670,7 +5763,15 @@ const Sheet = (() => {
         <button class="btn wide" data-sound>ხმა: ${Sound.on ? 'ჩართული' : 'გამორთული'}</button>
         ${host && st && st.phase !== 'over' ? '<button class="btn wide" data-confirm="stop">თამაშის დასრულება ახლავე</button>' : ''}
         <button class="btn wide danger" data-confirm="leave">${ROOM && ROOM.mode === 'online' ? 'ოთახიდან გასვლა' : 'მთავარ მენიუში გასვლა'}</button>
+        <button class="btn wide ghost small" data-sheet="diag">ტექნიკური ჟურნალი</button>
       </div><div id="confirm"></div>`;
+  }
+  // what this phone went through, to send to whoever makes the game when something went wrong
+  function diag() {
+    return `<div class="sheet-h"><h2>ტექნიკური ჟურნალი</h2><button class="x" data-close aria-label="დახურვა">×</button></div>
+      <p class="hint">თუ თამაში გაიჭედა ან რამე უცნაურად მოხდა, დააკოპირე და გაუგზავნე თამაშის ავტორს: აქ წერია, რა ხდებოდა ამ ტელეფონზე.</p>
+      <div class="row"><button class="btn gold" data-copylog>კოპირება</button></div>
+      <pre class="diag" id="diagText">${esc(Diag.report())}</pre>`;
   }
   function bankruptSheet(st) {
     const s = st.turn;
@@ -5744,6 +5845,12 @@ const Sheet = (() => {
     if (sh) return open(sh.dataset.sheet);
     if (ev.target.closest('[data-sound]')) { Sound.on = !Sound.on; Sound.unlock(); return draw(); }
     if (ev.target.closest('[data-invite]')) return Lobby.invite();
+    if (ev.target.closest('[data-copylog]')) {
+      const text = Diag.report(), pre = $('#diagText');
+      const select = () => { if (!pre) return; const r = document.createRange(); r.selectNodeContents(pre); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); UI.toast('მონიშნულია: დააკოპირე'); };
+      try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(() => UI.toast('დაკოპირდა'), select); return; } } catch (e) { }
+      return select();
+    }
     const c = ev.target.closest('[data-confirm]');
     if (c) {
       const what = c.dataset.confirm;
@@ -5795,6 +5902,7 @@ const UI = (() => {
     setTimeout(() => { t.classList.add('bye'); setTimeout(() => t.remove(), 400); }, ms || 2600);
   }
   function moveRefused(code) {
+    Diag.note('move', 'refused: ' + code);
     View.busy(false);
     if (View.st) View.render();
     if (code && code !== 'turn' && ERR[code]) { toast(ERR[code], 2600, 'bad'); Sound.bad(); }    // 'turn': a button pressed twice

@@ -6,6 +6,9 @@
 // up high, dry patches and paths, and valleys a little darker. Water lies in the river beds and lakes as its own
 // surface (it shimmers in the board's shader). Outside the board the country goes on: meadows, then hills, then
 // mountains lost in the haze.
+// The archipelago's world is the same relief under the sea (setWorld('sea')): the floor lies below the water, the places
+// raise their islands out of it, sand runs along every shore, and the lagoon's water takes the colour of its depth, with
+// foam where it meets the land. Around the board the open ocean goes on, with islands far off in the haze.
 
 const Terrain = (() => {
   const T = window.THREE;
@@ -32,9 +35,11 @@ const Terrain = (() => {
 
   // ----- the shapes -----
   const feats = [], pads = [], waters = [], paths = [], tints = [];
-  let bins = null;
+  let bins = null, sea = false;
   const BIN = 1, B0 = -7, NB = 14;
+  const SEA_Y = 0.02, BED = -0.16, RIM_SEA = -0.06, OCEAN_Y = -0.3;     // the water, the sea floor, along the squares, the ocean
   function reset() { feats.length = pads.length = waters.length = paths.length = tints.length = 0; bins = null; }
+  function setWorld(w) { sea = w === 'sea'; reset(); }
   function put(f) { feats.push(f); bins = null; return f; }
   function rot(f, x, z) { const dx = x - f.x, dz = z - f.z, c = Math.cos(f.rot || 0), s = Math.sin(f.rot || 0); return [dx * c - dz * s, dx * s + dz * c]; }
   function segQ(f, x, z) {
@@ -87,12 +92,12 @@ const Terrain = (() => {
   // the height of the land inside the board, before the flat places
   function raw(x, z) {
     if (!bins) binIt();
-    let h = 0.03 + 0.028 * fbm(x * 1.15 + 3, z * 1.15 - 2);
+    let h = sea ? BED + 0.035 * fbm(x * 0.9 + 3, z * 0.9 - 2) : 0.03 + 0.028 * fbm(x * 1.15 + 3, z * 1.15 - 2);
     const i = Math.floor((x - B0) / BIN), j = Math.floor((z - B0) / BIN);
     if (i >= 0 && j >= 0 && i < NB && j < NB) for (const f of bins[j * NB + i]) h += value(f, x, z);
-    // along the ring of squares the land comes down to meet them
-    const m = Math.max(Math.abs(x), Math.abs(z));
-    return RIM_Y + (h - RIM_Y) * smooth(RIM, RIM - 0.34, m);
+    // along the ring of squares the land comes down to meet them (the sea's floor comes up to a shallow lagoon there)
+    const m = Math.max(Math.abs(x), Math.abs(z)), rim = sea ? RIM_SEA : RIM_Y;
+    return rim + (h - rim) * smooth(RIM, RIM - 0.34, m);
   }
   function height(x, z) {
     let h = raw(x, z);
@@ -114,28 +119,33 @@ const Terrain = (() => {
     ridge: (x1, z1, x2, z2, w, h) => put({ t: 'ridge', x1, z1, x2, z2, w, h }),
     // a river bed, with its water
     dig: (x1, z1, x2, z2, w, d, water = true) => { const f = put({ t: 'dig', x1, z1, x2, z2, w, d }); if (water) waters.push({ k: 'river', f }); return f; },
-    lake: (x, z, rx, rz, d, rotation = 0, sea = false) => { const f = put({ t: 'lake', x, z, rx, rz, d, rot: rotation }); waters.push({ k: 'lake', f, sea }); return f; },
+    // a lake (its water: true for the sea's colour, 'lava' for a volcano's crater)
+    lake: (x, z, rx, rz, d, rotation = 0, kind = false) => { const f = put({ t: 'lake', x, z, rx, rz, d, rot: rotation }); waters.push({ k: 'lake', f, sea: kind === true || kind === 'sea', lava: kind === 'lava' }); return f; },
     fall: (x1, y1, z1, x2, y2, z2, w) => waters.push({ k: 'fall', a: [x1, y1, z1], b: [x2, y2, z2], w }),
     // level ground for a building: the land around it is brought to the height at its middle
     pad: (x, z, r) => { pads.push({ x, z, r, y: null }); },
     path: (x1, z1, x2, z2, w, color = 0xa48c64) => paths.push({ x1, z1, x2, z2, w, c: new T.Color(color) }),
-    // the region's grass colour and snow line around a point
-    tint: (x, z, color, snow = 9, spread = 0.62) => tints.push({ x, z, c: new T.Color(color), snow, s2: spread * spread }),
+    // the region's grass colour and snow line around a point (and the colour of its rock, when it has its own)
+    tint: (x, z, color, snow = 9, spread = 0.62, rock = null) => tints.push({ x, z, c: new T.Color(color), snow, s2: spread * spread, r: rock == null ? null : new T.Color(rock) }),
     height, raw
   };
 
   // ----- the colours of the land -----
   const ROCK = new T.Color(0x857b6e), ROCK2 = new T.Color(0x57524b), ROCK3 = new T.Color(0xa59a8a), SNOW = new T.Color(0xf3f6f9), DRY = new T.Color(0xb7a467), SOIL = new T.Color(0x8d7650);
+  const SAND = new T.Color(0xeedcab), WET = new T.Color(0xc9b483), ROCKC = new T.Color();
+  // the grass colour around a point (into out), its rock's colour (into ROCKC) and its snow line
   function regionAt(x, z, out) {
-    let w = 0, snow = 0;
-    out.setRGB(0, 0, 0);
+    let w = 0, snow = 0, rw = 0;
+    out.setRGB(0, 0, 0); ROCKC.setRGB(0, 0, 0);
     for (const t of tints) {
       const dx = x - t.x, dz = z - t.z, d2 = dx * dx + dz * dz;
       if (d2 > t.s2 * 9) continue;
-      const k = Math.exp(-d2 / t.s2);
+      const k = Math.exp(-d2 / t.s2), rc = t.r || ROCK;
       out.r += t.c.r * k; out.g += t.c.g * k; out.b += t.c.b * k; snow += t.snow * k; w += k;
+      ROCKC.r += rc.r * k; ROCKC.g += rc.g * k; ROCKC.b += rc.b * k; rw += k;
     }
-    if (w < 1e-6) { out.set(0x8ea455); return 9; }
+    if (rw > 1e-6) { ROCKC.r /= rw; ROCKC.g /= rw; ROCKC.b /= rw; } else ROCKC.copy(ROCK);
+    if (w < 1e-6) { out.set(sea ? 0x5a9e46 : 0x8ea455); return 9; }
     out.r /= w; out.g /= w; out.b /= w;
     return snow / w;
   }
@@ -150,10 +160,15 @@ const Terrain = (() => {
     }
     // rock where it is steep: in layers, darker in its clefts, paler on its edges
     const band = Math.sin(y * 23 + n1 * 3.2);
-    C3.copy(ROCK).lerp(ROCK2, Math.max(0, Math.min(1, 0.3 + 0.45 * (n2 * 0.5 + 0.5) + 0.22 * band + ao * 2.5))).lerp(ROCK3, Math.min(0.65, edge * 3.5));
+    C3.copy(ROCKC).lerp(ROCK2, Math.max(0, Math.min(1, 0.22 + 0.4 * (n2 * 0.5 + 0.5) + 0.2 * band + ao * 2.5)) * (sea ? 0.55 : 1)).lerp(ROCK3, Math.min(0.65, edge * 3.5) * (sea ? 0.4 : 1));
     out.lerp(C3, smooth(0.13, 0.33, slope));
     const snow = smooth(snowLine - 0.1, snowLine + 0.06, y + 0.2 * n1 + 0.08 * n2) * (1 - smooth(0.5, 0.74, slope));
     out.lerp(SNOW, snow);
+    if (sea) {                                                                             // a beach along every shore, wet below the water
+      const beach = (1 - smooth(SEA_Y + 0.022, SEA_Y + 0.07, y + 0.012 * n1)) * (1 - smooth(0.3, 0.6, slope));
+      out.lerp(SAND, beach);
+      out.lerp(WET, smooth(SEA_Y + 0.004, SEA_Y - 0.03, y));
+    }
     out.multiplyScalar(1 - ao);                                                            // valleys a little darker
     return out;
   }
@@ -210,7 +225,7 @@ const Terrain = (() => {
   function landAnim(n) { const a = new Float32Array(n * 2); for (let k = 1; k < a.length; k += 2) a[k] = 3; return new T.BufferAttribute(a, 2); }
 
   // ----- water: rivers along their beds, lakes, a waterfall -----
-  const WATER = 0x3d82a3, SEA = 0x2f7fb3;
+  const WATER = 0x3d82a3, SEA = 0x2f7fb3, LAVA = 0xff7a22;
   function waterGeo() {
     const P = [], Cc = [], A = [];
     const tri = (a, b, c, color, kind) => { for (const v of [a, b, c]) { P.push(v[0], v[1], v[2]); Cc.push(color.r, color.g, color.b); A.push(0, kind); } };
@@ -228,9 +243,10 @@ const Terrain = (() => {
         }
       } else if (w.k === 'lake') {
         const f = w.f, y = height(f.x, f.z) + f.d * 0.55, c = Math.cos(f.rot || 0), s = Math.sin(f.rot || 0), n = 28;
-        C1.set(w.sea ? SEA : WATER);
+        if (sea && !w.lava && y < SEA_Y + 0.01) continue;                       // under the sea: the sea's own water is there
+        C1.set(w.lava ? LAVA : w.sea ? SEA : WATER);
         const at = k => { const a = k / n * Math.PI * 2, lx = Math.cos(a) * f.rx * 0.97, lz = Math.sin(a) * f.rz * 0.97; return [f.x + lx * c + lz * s, y, f.z - lx * s + lz * c]; };
-        for (let k = 0; k < n; k++) tri([f.x, y, f.z], at(k + 1), at(k), C1, 1);
+        for (let k = 0; k < n; k++) tri([f.x, y, f.z], at(k + 1), at(k), C1, w.lava ? 5 : 1);
       } else if (w.k === 'fall') {
         // off the lip it arcs out, clear of the rock, and spreads as it falls
         const [a, b] = [w.a, w.b], dx = b[0] - a[0], dz = b[2] - a[2], l = Math.hypot(dx, dz) || 1, ux = dx / l, uz = dz / l, px = -uz * w.w / 2, pz = ux * w.w / 2;
@@ -255,8 +271,44 @@ const Terrain = (() => {
     return g;
   }
 
+  // ----- the archipelago's lagoon: the water inside the ring of squares, coloured by how deep it is (pale turquoise
+  // over sand, blue where it is deep), with the foam lapping each shore (the board's shader moves it: anim.y = 4, anim.x
+  // how near the shore). Where land stands well above it, there is none. -----
+  const DEEP = [[0, 0x8fe6dc], [0.03, 0x3cc9cf], [0.09, 0x1fa2c4], [0.17, 0x1a7db6], [0.3, 0x15609a]].map(([d, c]) => [d, new T.Color(c)]);
+  function depthColor(d, out) {
+    if (d <= DEEP[0][0]) return out.copy(DEEP[0][1]);
+    for (let k = 1; k < DEEP.length; k++) if (d < DEEP[k][0]) return out.copy(DEEP[k - 1][1]).lerp(DEEP[k][1], (d - DEEP[k - 1][0]) / (DEEP[k][0] - DEEP[k - 1][0]));
+    return out.copy(DEEP[DEEP.length - 1][1]);
+  }
+  function* seaGeo(N = 84) {
+    const n = N + 1, step = (EDGE * 2) / N, dep = new Float32Array(n * n);
+    for (let j = 0; j < n; j++) { for (let i = 0; i < n; i++) dep[j * n + i] = SEA_Y - height(-EDGE + i * step, -EDGE + j * step); if (j % 6 === 5) yield; }
+    const P = [], Cc = [], A = [], idx = [], map = new Int32Array(n * n).fill(-1);
+    const vert = k => {
+      if (map[k] >= 0) return map[k];
+      const i = k % n, j = (k - i) / n, d = dep[k];
+      P.push(-EDGE + i * step, SEA_Y, -EDGE + j * step);
+      depthColor(d, C1); Cc.push(C1.r, C1.g, C1.b);
+      A.push(1 - smooth(0, 0.07, d), 4);
+      return (map[k] = P.length / 3 - 1);
+    };
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const a = j * n + i, b = a + 1, c = a + n, d = c + 1;
+      if (Math.max(dep[a], dep[b], dep[c], dep[d]) < -0.02) continue;                // dry land all round
+      idx.push(vert(a), vert(c), vert(b), vert(b), vert(c), vert(d));
+    }
+    const g = new T.BufferGeometry();
+    g.setAttribute('position', new T.Float32BufferAttribute(P, 3));
+    g.setAttribute('normal', new T.Float32BufferAttribute(new Float32Array(P.length).map((v, k) => k % 3 === 1 ? 1 : 0), 3));
+    g.setAttribute('color', new T.Float32BufferAttribute(Cc, 3));
+    g.setAttribute('anim', new T.Float32BufferAttribute(A, 2));
+    g.setIndex(idx);
+    g.computeBoundingSphere();
+    return g;
+  }
+
   // ----- the country around the board: rings outward from under its plinth; meadows and fields, then wooded hills,
-  // then the mountains far off -----
+  // then the mountains far off. In the archipelago, the open ocean, waves breaking along the board's sides -----
   const outY = (x, z) => {
     const r = Math.sqrt(x * x + z * z), far = smooth(18, 46, r);
     return -0.47 + 0.3 * smooth(6.8, 9, r) * (0.5 + 0.5 * fbm(x * 0.32, z * 0.32))
@@ -265,7 +317,33 @@ const Terrain = (() => {
   };
   // where the woods are (the trees grow there, and the ground under them is darker)
   const woods = (x, z) => smooth(-0.12, 0.22, fbm(x * 0.24 + 2, z * 0.24 - 1));
+  function ocean(rings, seg) {
+    const r0 = 6.25, r1 = 70, pos = [], col = [], anim = [], idx = [], NEAR = new T.Color(0x2593bd), MID = new T.Color(0x1b76a8), FAR = new T.Color(0x2a6f98);
+    for (let k = 0; k <= rings; k++) {
+      const r = r0 * Math.pow(r1 / r0, k / rings);
+      for (let s = 0; s < seg; s++) {
+        const a = s / seg * Math.PI * 2, x = Math.cos(a) * r, z = Math.sin(a) * r, side = Math.max(Math.abs(x), Math.abs(z)) - 6.45;
+        pos.push(x, OCEAN_Y, z);
+        C1.copy(NEAR).lerp(MID, smooth(0.5, 6, side)).lerp(FAR, smooth(10, 40, r)).multiplyScalar(0.94 + 0.12 * (fbm(x * 0.15, z * 0.15) * 0.5 + 0.5));
+        col.push(C1.r, C1.g, C1.b);
+        anim.push(1 - smooth(0.0, 0.45, side), 4);                                             // the surf along the board
+      }
+    }
+    for (let k = 0; k < rings; k++) for (let s = 0; s < seg; s++) {
+      const a = k * seg + s, b = k * seg + (s + 1) % seg, c = a + seg, d = b + seg;
+      idx.push(a, b, c, b, d, c);
+    }
+    const g = new T.BufferGeometry();
+    g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));
+    g.setAttribute('normal', new T.Float32BufferAttribute(new Float32Array(pos.length).map((v, k) => k % 3 === 1 ? 1 : 0), 3));
+    g.setAttribute('color', new T.Float32BufferAttribute(col, 3));
+    g.setAttribute('anim', new T.Float32BufferAttribute(anim, 2));
+    g.setIndex(idx);
+    g.computeBoundingSphere();
+    return g;
+  }
   function outer(rings = 40, seg = 96) {
+    if (sea) return ocean(rings, seg);
     const r0 = 6.25, r1 = 70, pos = [], col = [], idx = [];
     for (let k = 0; k <= rings; k++) {
       const r = r0 * Math.pow(r1 / r0, k / rings);
@@ -305,6 +383,7 @@ const Terrain = (() => {
   // spots for trees around the board: mostly in the woods, a few out in the meadows; firs higher up, none on the peaks
   function groves(n, seed = 7) {
     const out = [];
+    if (sea) return out;                                                                    // the ocean has its own islands (sea.js)
     let s = seed;
     const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
     for (let tries = 0; out.length < n && tries < n * 14; tries++) {
@@ -321,11 +400,12 @@ const Terrain = (() => {
   // the water's surface where (x, z) lies in a lake (or the sea), or null
   function waterAt(x, z) {
     for (const w of waters) {
-      if (w.k !== 'lake') continue;
+      if (w.k !== 'lake' || w.lava) continue;
       const f = w.f, [lx, lz] = rot(f, x, z);
-      if ((lx / f.rx) ** 2 + (lz / f.rz) ** 2 < 1) return height(f.x, f.z) + f.d * 0.55;
+      if ((lx / f.rx) ** 2 + (lz / f.rz) ** 2 < 1) { const y = height(f.x, f.z) + f.d * 0.55; if (!sea || y > SEA_Y + 0.01) return y; }
     }
+    if (sea) { const r = Math.max(Math.abs(x), Math.abs(z)); return r > 6.2 ? OCEAN_Y : height(x, z) < SEA_Y ? SEA_Y : null; }
     return null;
   }
-  return Object.assign(api, { reset, board, waterGeo, waterAt, outer, outY, groves, noise, fbm, RIM });
+  return Object.assign(api, { reset, setWorld, board, waterGeo, seaGeo, waterAt, outer, outY, groves, noise, fbm, RIM, SEA_Y, BED, OCEAN_Y, get sea() { return sea; } });
 })();

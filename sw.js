@@ -2,7 +2,7 @@
 // The page comes from the network when it can, so an update arrives at once, and from the cache when it cannot.
 // Pictures, the 3D library and the fonts come from the cache and are refreshed in the background. Once the game has
 // loaded, the page asks the helper to keep every picture, so a game with the computer players works without a connection.
-const VERSION = "fbb82784f3";
+const VERSION = "c3f1c3d596";
 const ARTS = ["por_h_david.webp", "por_h_tamar.webp", "por_h_gorgasali.webp", "por_h_erekle.webp", "por_h_kakutsa.webp", "por_h_tariel.webp", "por_h_avtandil.webp", "por_h_gurdjieff.webp", "por_h_abrag.webp", "por_h_amirani.webp", "por_h_mikha.webp", "por_h_prometheus.webp", "h_tamar.webp", "h_gorgasali.webp", "h_erekle.webp", "h_kakutsa.webp", "h_tariel.webp", "h_avtandil.webp", "h_gurdjieff.webp", "h_abrag.webp", "h_amirani.webp", "h_mikha.webp", "h_prometheus.webp", "h_davidride.webp", "t_archer_2.webp", "s_fort.webp", "s_camp.webp", "t_palisade.webp", "ui_page.webp", "ui_chest_wood.webp", "ui_chest_wood_o.webp", "ui_coin.webp", "ui_coinbag.webp", "ui_book.webp", "ui_feather.webp", "g_svan.webp", "g_elbrus.webp", "g_pass.webp", "g_stone.webp", "g_tbilisi.webp"];
 const PAGE = 'mamuli-page-' + VERSION, FILES = 'mamuli-files', FONTS = 'mamuli-fonts';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'icon-512-maskable.png', 'rt.js'];

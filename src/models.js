@@ -888,6 +888,9 @@ const Models = (() => {
     fx: i => FX[i] || null,
     tower: () => towerCache || (towerCache = towerParts()),
     castle: () => castleCache || (castleCache = castleParts()),
-    shapes: { box, cyl, cone, pyr, ball, roof, dome, lathe, taper }
+    shapes: { box, cyl, cone, pyr, ball, roof, dome, lathe, taper, jitter, lump },
+    // the pieces the archipelago builds with too (sea.js)
+    parts: { tree, bigTree, pine, palm, bush, rock, house, wall, roundTower, squareTower, fortress, church, coins, moneyBag, chestProp, scrollProp, guard, caves },
+    LIFE: ['camel', 'sheep', 'guard', 'boat', 'sail', 'gondola', 'bar', 'cloud', 'eagle', 'wing'], world: 'land'
   };
 })();

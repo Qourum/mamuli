@@ -8,8 +8,8 @@ const PROFILE = (() => {
     theme: THEMES[p.theme] ? p.theme : 'mamuli', name: Engine.cleanName(p.name || '') };
 })();
 const saveProfile = () => store.set('profile', PROFILE);
-// the archipelago is offered on the site when its 3D sea is ready (…?sea shows it before; the preview always does)
-const WORLDS_OPEN = !SITE || /[?&]sea\b/.test(location.search);
+// both worlds are offered in the lobby (a world still being made could be held back here)
+const WORLDS_OPEN = true;
 const heroPrefs = () => ({ mamuli: PROFILE.hero, archipelago: PROFILE.pirate });
 const myName = () => PROFILE.name || HEROES[PROFILE.hero].s;
 
@@ -238,7 +238,9 @@ function boot() {
   fromLink();
   window.addEventListener('hashchange', fromLink);
   offlineHelper();
-  // the 3D board is made in the background while the menu is on screen, so that a game starts without a stall
+  // the 3D board is made in the background while the menu is on screen, so that a game starts without a stall (in the
+  // world last played here)
+  applyTheme({ theme: PROFILE.theme });
   setTimeout(() => Board3D.prepare($('#stage')), 400);
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();

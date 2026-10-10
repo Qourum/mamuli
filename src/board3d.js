@@ -11,7 +11,7 @@ const Board3D = (() => {
   const T = window.THREE;
   const S = 12, C = 1.5, D = 1.5, TW = 1, TH = 0.2, LOT = 1.25;
   const LS = [1.18, 1.25, 1.12], RS = [1.2, 1.3, 1.2];     // a lot's scenery, a corner of the ring's: their models' units on the board
-  const HAZE = 0xc4cfd0;                                   // the far country fades into it
+  const HAZE = 0xc4cfd0, SEA_HAZE = 0xbcdbe6;            // the far country (or the far ocean) fades into it
   const OUT = [[0, 1], [-1, 0], [0, -1], [1, 0]], ALONG = [[-1, 0], [0, -1], [1, 0], [0, 1]];
   const sideOf = i => Math.floor(i / 10) % 4;
   const yawOf = s => -s * Math.PI / 2;
@@ -30,6 +30,10 @@ const Board3D = (() => {
   let st = null, pos = [], turnSeat = -1, pickCb = null, built = false, mats = null, ownerMats = [], wheel = null;
   let landG = null, landTop = 4, fallFoot = null;
   const lotF = [], ringF = [];
+  // the world on the board: the land (models.js) or the archipelago's sea (sea.js), as the room's theme says; made again
+  // when the theme changes (see retheme)
+  let MOD = Models, worldBuilt = null, hemi = null, seaMesh = null;
+  const wantWorld = () => (typeof THEME !== 'undefined' && THEME.world === 'sea' && typeof SeaModels !== 'undefined' && SeaModels) ? 'sea' : 'land';
   const O = new T.Object3D();                              // for putting matrices together
 
   // ----- where things are -----
@@ -209,7 +213,7 @@ const Board3D = (() => {
   // itself, which gets the fine grain of soil, grass and rock from a small noise picture). One clock for all of it.
   const U = { time: { value: 0 }, fade: { value: 1 }, scale: { value: 800 }, detail: { value: null } };
   const LIVING = {
-    vp: '#include <common>\nattribute vec2 anim;\nuniform float uTime;\nvarying vec3 vWP;\nvarying float vWater;',
+    vp: '#include <common>\nattribute vec2 anim;\nuniform float uTime;\nvarying vec3 vWP;\nvarying float vWater;\nvarying float vShore;',
     v: `#include <begin_vertex>
       vec4 wp4 = vec4( position, 1.0 );
       #ifdef USE_INSTANCING
@@ -218,15 +222,34 @@ const Board3D = (() => {
       wp4 = modelMatrix * wp4;
       vWP = wp4.xyz;
       vWater = anim.y;
-      if ( anim.x > 0.0 ) {
+      vShore = anim.x;
+      if ( anim.y > 3.5 && anim.y < 4.5 ) {
+        // the sea's swell (anim.x is how near the shore: no sway)
+        transformed.y += 0.006 * sin( uTime * 1.3 + wp4.x * 2.3 + wp4.z * 1.1 ) + 0.004 * sin( uTime * 1.9 - wp4.z * 3.1 + wp4.x * 0.7 );
+      } else if ( anim.x > 0.0 ) {
         float ph = wp4.x * 1.9 + wp4.z * 1.3;
         float gust = 0.65 + 0.35 * sin( uTime * 0.41 + wp4.x * 0.25 - wp4.z * 0.2 );
         transformed.x += anim.x * gust * ( 0.009 * sin( uTime * 1.7 + ph ) + 0.0035 * sin( uTime * 3.3 + ph * 2.1 ) );
         transformed.z += anim.x * gust * 0.0055 * sin( uTime * 1.25 + ph * 1.3 + 1.2 );
       }`,
-    fp: '#include <common>\nuniform float uTime;\nuniform sampler2D uDetail;\nvarying vec3 vWP;\nvarying float vWater;',
+    fp: '#include <common>\nuniform float uTime;\nuniform sampler2D uDetail;\nvarying vec3 vWP;\nvarying float vWater;\nvarying float vShore;',
     f: `#include <emissivemap_fragment>
-      if ( vWater > 2.5 ) {
+      if ( vWater > 4.5 ) {
+        // lava: glowing, its dark crust drifting over it
+        float c = sin( vWP.x * 23.0 + uTime * 0.7 + sin( vWP.z * 17.0 - uTime * 0.5 ) * 2.0 ) * sin( vWP.z * 19.0 - uTime * 0.6 + vWP.x * 3.0 );
+        diffuseColor.rgb = mix( vec3( 0.32, 0.05, 0.02 ), vec3( 1.0, 0.56, 0.14 ), 0.5 + 0.5 * c );
+        totalEmissiveRadiance += vec3( 0.95, 0.34, 0.06 ) * ( 0.6 + 0.4 * c );
+      } else if ( vWater > 3.5 ) {
+        // the sea: small waves glitter in the sun; foam laps each shore, coming and going
+        float w1 = sin( vWP.x * 6.3 + uTime * 1.1 + sin( vWP.z * 2.9 + uTime * 0.5 ) * 1.9 + sin( vWP.x * 1.7 - vWP.z * 2.3 ) * 1.2 );
+        float w2 = sin( vWP.z * 5.7 - uTime * 0.85 + sin( vWP.x * 2.4 - uTime * 0.4 ) * 1.6 + sin( vWP.z * 1.3 + vWP.x * 2.1 ) * 1.1 );
+        float near = 1.0 - smoothstep( 9.0, 30.0, length( vWP.xz ) );            // the glitter fades out over the far ocean
+        diffuseColor.rgb *= 0.94 + 0.08 * ( w1 * 0.5 + 0.5 ) * ( 0.4 + 0.6 * near );
+        totalEmissiveRadiance += vec3( 0.11, 0.13, 0.14 ) * smoothstep( 0.82, 0.995, w1 * w2 ) * near;
+        float lap = 0.5 + 0.5 * sin( vShore * 14.0 - uTime * 1.8 + ( vWP.x + vWP.z ) * 2.5 );
+        float foam = smoothstep( 0.74, 0.97, vShore ) + smoothstep( 0.4, 0.76, vShore ) * smoothstep( 0.78, 0.97, lap ) * 0.75;
+        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.95, 0.98, 0.97 ), clamp( foam, 0.0, 1.0 ) * 0.85 );
+      } else if ( vWater > 2.5 ) {
         // the land's grain: the same noise at two sizes; bright snow gets less of it
         float g1 = texture2D( uDetail, vWP.xz * 1.7 ).r, g2 = texture2D( uDetail, vWP.xz * 6.1 + 0.37 ).r;
         float k = 1.0 - 0.6 * smoothstep( 0.55, 0.85, diffuseColor.g );
@@ -326,6 +349,11 @@ const Board3D = (() => {
   }
   // made in steps (each yield is a pause where the page may do other things): see prepare()
   function* buildStatic() {
+    worldBuilt = wantWorld();
+    MOD = worldBuilt === 'sea' ? SeaModels : Models;
+    Terrain.setWorld(MOD.world);
+    scene.fog.color.set(MOD.world === 'sea' ? SEA_HAZE : HAZE);
+    hemi.groundColor.set(MOD.world === 'sea' ? 0x4f8aa0 : 0x8a6a48);
     root = new T.Group();
     scene.add(root);
     landG = new T.Group();                                  // all that grows out of the board when a game starts
@@ -354,26 +382,25 @@ const Board3D = (() => {
       m.userData.i = i;
       root.add(m); tiles[i] = m;
       if (!(i % 10)) {
-        const cg = Models.corner(i);
+        const cg = MOD.corner(i);
         if (cg) { const cm = new T.Mesh(cg, mats.scenery); cm.position.set(0, TH, 0); m.add(cm); cm.castShadow = true; cm.receiveShadow = true; cm.userData.i = i; lotMesh[i] = cm; }
       }
     }
     // the land's shape: every place makes its own piece of the relief, the ring's inside corners theirs, the great
     // mountain the middle; the waterfall comes last, when the cliff it falls from is there
-    Terrain.reset();
     for (let i = 0; i < 40; i++) {
       if (!(i % 10)) continue;
       const c = toWorld(i, 0, -(D / 2 + LOT / 2));
       lotF[i] = frameOf(c.x, c.z, yawOf(sideOf(i)), LS);
-      Models.relief(i, lotF[i]);
+      MOD.relief(i, lotF[i]);
     }
     for (let k = 0; k < 4; k++) {
       const [ox, oz] = OUT[k], [ax, az] = ALONG[k], a = S / 2 - D - LOT / 2;
       ringF[k] = frameOf(ox * a - ax * a, oz * a - az * a, yawOf(k), RS);
-      Models.ringRelief(k, ringF[k]);
+      MOD.ringRelief(k, ringF[k]);
     }
-    Models.centerRelief(Terrain);
-    fallFoot = Models.centerWater(Terrain);
+    MOD.centerRelief(Terrain);
+    fallFoot = MOD.centerWater(Terrain);
     yield;
     const lg = yield* Terrain.board(mobile ? 136 : 160);
     const land = new T.Mesh(lg, mats.scenery);
@@ -383,11 +410,13 @@ const Board3D = (() => {
     const wg = Terrain.waterGeo();
     if (wg) { const wm = new T.Mesh(wg, mats.scenery); wm.receiveShadow = true; landG.add(wm); }
     yield;
+    // the archipelago's lagoon: not part of the land that grows (the islands rise out of it)
+    if (MOD.world === 'sea') { seaMesh = new T.Mesh(yield* Terrain.seaGeo(mobile ? 72 : 96), mats.scenery); seaMesh.receiveShadow = true; root.add(seaMesh); yield; }
     // what stands on the land: each lot's scenery, set on its own ground
     for (let i = 0; i < 40; i++) {
       if (!(i % 10)) continue;
       yield;
-      const F = lotF[i], g = Models.lot(i, F.ground);
+      const F = lotF[i], g = MOD.lot(i, F.ground);
       if (!g) continue;
       g.scale(LS[0], LS[1], LS[2]);
       const m = new T.Mesh(g, mats.scenery);
@@ -398,14 +427,14 @@ const Board3D = (() => {
     // the inside corners of the ring
     for (let k = 0; k < 4; k++) {
       yield;
-      const F = ringF[k], g = Models.inner(k, F.ground);
+      const F = ringF[k], g = MOD.inner(k, F.ground);
       g.scale(RS[0], RS[1], RS[2]);
       const m = new T.Mesh(g, mats.scenery);
       m.position.set(F.cx, 0, F.cz); m.rotation.y = F.yaw; m.castShadow = true; m.receiveShadow = true;
       landG.add(m); lotMesh[100 + k] = m;
     }
     // the great mountain's church, village, forest and lake shore
-    const ctr = Models.center(Terrain.height);
+    const ctr = MOD.center(Terrain.height);
     for (const step of ctr.steps) { yield; step(); }
     yield;
     const cm = new T.Mesh(ctr.B.build(), mats.scenery);
@@ -416,12 +445,13 @@ const Board3D = (() => {
     const om = new T.Mesh(Terrain.outer(mobile ? 34 : 42, mobile ? 80 : 104), mats.scenery);
     om.receiveShadow = true;
     root.add(om);
+    if (MOD.far) { const fm = new T.Mesh(MOD.far(), mats.scenery); root.add(fm); }       // the islands far off in the ocean
     yield;
     const spots = Terrain.groves(mobile ? 320 : 520);
     for (const pine of [true, false]) {
       const list = spots.filter(s => s.pine === pine);
       if (!list.length) continue;
-      const im = new T.InstancedMesh(Models.grove(pine), mats.scenery, list.length);
+      const im = new T.InstancedMesh(Models.grove(pine), mats.scenery, list.length);       // (the land's only)
       list.forEach((s, k) => { O.position.set(s.x, s.y, s.z); O.rotation.set(0, s.ry, 0); O.scale.setScalar(s.s); O.updateMatrix(); im.setMatrixAt(k, O.matrix); });
       im.frustumCulled = false;                             // its copies are all around the board, not where its shape is
       root.add(im);
@@ -429,7 +459,12 @@ const Board3D = (() => {
     }
     buildingMeshes();
     yield;
-    // the mill's wheel turns, between the mill and its stream
+    if (MOD.world === 'land') millWheel();
+    yield;
+    yield* buildLife();
+  }
+  // the mill's wheel turns, between the mill and its stream
+  function millWheel() {
     const WB = new Models.Builder();
     WB.add(new T.TorusGeometry(0.1, 0.014, 5, 14), 0x4a3020);
     for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; WB.add(new T.BoxGeometry(0.02, 0.09, 0.05), 0x7a5232, Math.cos(a) * 0.1, Math.sin(a) * 0.1, 0, { rz: a }); }
@@ -438,8 +473,6 @@ const Board3D = (() => {
     wheel = new T.Group(); wheel.add(wm);
     wheel.position.copy(lotF[12].at(0.17, -0.11, 0)); wheel.position.y += 0.1; wheel.rotation.y = yawOf(1);
     landG.add(wheel);
-    yield;
-    yield* buildLife();
   }
 
   // ===== life on the board =====
@@ -448,7 +481,6 @@ const Board3D = (() => {
   // place every frame that is drawn. While a game rises out of the board they are not there yet; then they fade in.
   const life = { ready: false, groups: [], pts: null };
   const POSE = { p: new T.Vector3(), yaw: 0, roll: 0, pitch: 0, s: 1 }, FLIPZ = new T.Matrix4().makeScale(1, 1, -1), _w = new T.Matrix4(), _lm = new T.Matrix4();
-  const LIFE_ORDER = ['camel', 'sheep', 'guard', 'boat', 'sail', 'gondola', 'bar', 'cloud', 'eagle', 'wing'];
   const PTS = {
     v: `attribute float kind;
       attribute float seed;
@@ -529,6 +561,60 @@ const Board3D = (() => {
   // one actor: where it is at time t (its shape faces +x)
   function actorOf(a, at, F, tile, ph) {
     const s = a.s != null ? a.s : tile >= 0 ? 1 : 1.18, onTile = () => (tile >= 0 && tiles[tile] ? tiles[tile].position.y : 0);
+    const yaw0 = (F ? F.yaw : tile >= 0 ? yawOf(sideOf(tile)) : 0) + (a.ry || 0);
+    // a point on the water there (the sea's, a lake's or a river's level)
+    const water = (x, z) => { const p = at(x, z), w = Terrain.waterAt(p.x, p.z); if (w != null) p.y = w; return p; };
+    if (a.moor) {                                            // a ship at anchor: it rides the swell, swinging on its cable
+      const p = water(a.at[0], a.at[1]);
+      return { k: a.k, up(t, o) {
+        o.p.copy(p); o.p.y += 0.006 * Math.sin(t * 1.4 + ph);
+        o.yaw = yaw0 + 0.12 * Math.sin(t * 0.13 + ph); o.roll = 0.05 * Math.sin(t * 1.1 + ph); o.pitch = 0.03 * Math.sin(t * 0.9 + ph * 1.3); o.s = s;
+      } };
+    }
+    if (a.orbit) {                                           // sailing round and round (a ship), or drawn round (the whirlpool's barrels)
+      const n = 72, ring = [], w = a.w || 0.1;
+      for (let j = 0; j <= n; j++) { const th = j / n * TAU; ring.push(water(a.at[0] + Math.cos(th) * a.r, a.at[1] + Math.sin(th) * a.r)); }
+      return { k: a.k, up(t, o) {
+        const th = ((t * w + (a.phase || 0)) % TAU + TAU) % TAU, f = th / TAU * n, j = Math.min(n - 1, Math.floor(f));
+        o.p.lerpVectors(ring[j], ring[j + 1], f - j);
+        o.yaw = Math.atan2(-(ring[j + 1].z - ring[j].z), ring[j + 1].x - ring[j].x) + (w < 0 ? Math.PI : 0);
+        o.p.y += 0.005 * Math.sin(t * 1.5 + ph); o.roll = 0.05 * Math.sin(t * 1.2 + ph); o.s = s;
+      } };
+    }
+    if (a.bob) {                                             // floating: it bobs and drifts a little
+      const p = water(a.at[0], a.at[1]);
+      return { k: a.k, up(t, o) {
+        o.p.copy(p); o.p.x += 0.03 * Math.sin(t * 0.3 + ph); o.p.z += 0.02 * Math.cos(t * 0.37 + ph); o.p.y += 0.008 * Math.sin(t * 2.1 + ph);
+        o.yaw = yaw0 + 0.4 * Math.sin(t * 0.2 + ph); o.roll = 0.25 * Math.sin(t * 1.7 + ph); o.s = s;
+      } };
+    }
+    if (a.spin) {                                            // turning where it is: a windmill's sails (about x), a whirlpool (about y)
+      const p = a.axis === 'x' ? at(a.at[0], a.at[1], a.h || 0) : water(a.at[0], a.at[1]);
+      return { k: a.k, up(t, o) {
+        o.p.copy(p); o.p.y += onTile();
+        if (a.axis === 'x') { o.yaw = yaw0; o.roll = t * a.spin; } else o.yaw = yaw0 + t * a.spin;
+        o.s = s;
+      } };
+    }
+    if (a.sway) {                                            // rising and curling: the kraken's arms
+      const p = at(a.at[0], a.at[1], 0), q0 = a.phase || 0;
+      return { k: a.k, up(t, o) {
+        const q = t * 0.9 + q0;
+        o.p.copy(p); o.p.y += onTile();
+        o.yaw = yaw0 + 0.35 * Math.sin(q * 0.5); o.pitch = 0.25 * Math.sin(q); o.roll = 0.15 * Math.sin(q * 0.7 + 1);
+        o.s = s * (0.85 + 0.15 * Math.sin(q * 0.6 + 2));
+      } };
+    }
+    if (a.jump) {                                            // a dolphin: three leaps on its way, then under the water back again
+      const A = water(a.at[0], a.at[1]), B2 = water(a.b[0], a.b[1]), yaw = Math.atan2(-(B2.z - A.z), B2.x - A.x), per = 9;
+      return { k: a.k, up(t, o) {
+        const q = ((t / per + (a.phase || 0)) % 1 + 1) % 1, lq = (q * 3) % 1;
+        o.p.lerpVectors(A, B2, q);
+        if (lq < 0.4) { const j = lq / 0.4; o.p.y = A.y - 0.04 + 0.22 * s * Math.sin(Math.PI * j); o.pitch = 1.1 * Math.cos(Math.PI * j); }
+        else { o.p.y = A.y - 0.25; o.pitch = 0; }
+        o.yaw = yaw; o.s = s;
+      } };
+    }
     if (a.k === 'sheep') {                                   // grazing round and round, stopping now and then
       const n = 24, ring = [];
       for (let j = 0; j <= n; j++) { const t = j / n * TAU; ring.push(at(a.at[0] + Math.cos(t) * a.r, a.at[1] + Math.sin(t) * a.r)); }
@@ -576,8 +662,24 @@ const Board3D = (() => {
     const P = [], K = [], Sd = [], groups = {}, rnd = Models.rng(4242);
     const emit = (p, kind, n) => { const o = rnd(); for (let j = 0; j < n; j++) { P.push(p.x, p.y, p.z); K.push(kind); Sd.push(kind ? rnd() : ((j + o) / n) % 1); } };
     const add = a => (groups[a.k] || (groups[a.k] = [])).push(a);
+    // a bird circling a point (an eagle round the summit, gulls round the volcano and the lighthouse): its wings flap, then
+    // it glides; the wing on the inside dips as it banks
+    const circler = (cx, cy, cz, r, w, a0, ph, sc) => {
+      const dir = Math.sign(w) || 1, [body, wing] = MOD.BIRD || ['eagle', 'wing'];
+      const e = { k: body, M: new T.Matrix4(), flap: 0, mat(t, m4, f) {
+        const a = a0 + w * t, vx = -Math.sin(a) * dir, vz = Math.cos(a) * dir, yaw = Math.atan2(-vz, vx);
+        const inward = Math.sin(yaw) * -Math.cos(a) + Math.cos(yaw) * -Math.sin(a);
+        O.position.set(cx + Math.cos(a) * r, cy + 0.12 * Math.sin(t * 0.37 + ph), cz + Math.sin(a) * r);
+        O.rotation.set(0.3 * Math.sign(inward), yaw, 0, 'YXZ'); O.scale.setScalar(Math.max(1e-4, sc * f)); O.updateMatrix();
+        e.M.copy(O.matrix); m4.copy(e.M);
+        const beat = smooth(-0.3, 0.5, Math.sin(t * 0.55 + ph));
+        e.flap = 0.1 + beat * 0.55 * Math.sin(t * 6.5 + ph);
+      } };
+      add(e);
+      for (const side of [1, -1]) add({ k: wing, mat(t, m4) { _w.makeRotationX(-e.flap); if (side < 0) _w.premultiply(FLIPZ); m4.multiplyMatrices(e.M, _w); } });
+    };
     for (let i = 0; i < 40; i++) {
-      const fx = Models.fx(i);
+      const fx = MOD.fx(i);
       if (!fx) continue;
       const F = lotF[i] || null, tile = i % 10 ? -1 : i;
       const at = tile >= 0 ? (x, z, h = 0) => toWorld(i, x, z, TH + h) : (x, z, h = 0) => F.at(x, z, h);
@@ -585,40 +687,29 @@ const Board3D = (() => {
       for (const [x, z, h, kind] of fx.sparkle || []) emit(at(x, z, h), kind, 4);
       for (const [x, z, h] of fx.leaves || []) emit(at(x, z, h), 4, 5);
       for (const a of fx.actors || []) add(actorOf(a, at, F, tile, rnd() * 20));
+      for (const b of fx.birds || []) { const c = at(b.at[0], b.at[1], b.h); circler(c.x, c.y, c.z, b.r, b.w, rnd() * 6, rnd() * 9, 0.9); }
     }
     yield;
     // the great mountain: smoke over the village, spray where the waterfall lands, sheep on the church's hill,
     // clouds round the summit and two eagles circling it
-    const CF = Models.CENTER_FX, ground = (x, z, h = 0) => new T.Vector3(x, Terrain.height(x, z) + h, z);
+    const CF = MOD.CENTER_FX, ground = (x, z, h = 0) => new T.Vector3(x, Terrain.height(x, z) + h, z);
     for (const [x, z, h] of CF.smoke) emit(ground(x, z, h), 0, 7);
     if (fallFoot) emit(new T.Vector3(fallFoot[0], fallFoot[1] + 0.02, fallFoot[2]), 3, 16);
     else for (const [x, z, h] of CF.mist) emit(ground(x, z, h), 3, 16);
     for (const [x, z] of CF.sheep) add(actorOf({ k: 'sheep', at: [x, z], r: 0.09, s: 1.35 }, (xx, zz) => ground(xx, zz), null, -1, rnd() * 20));
-    const [px, pz] = Models.CENTER.peak;
-    for (let k = 0; k < 4; k++) {
-      const r = 1.0 + 0.3 * (k % 2) + 0.08 * k, h = landTop * (0.56 + 0.06 * k), w = 0.045 + 0.012 * k, a0 = k * 1.7, cs = 0.6 + 0.12 * (k % 3), ph = k * 2.1;
+    for (const a of CF.actors || []) add(actorOf(a, ground, null, -1, rnd() * 20));
+    const [px, pz] = MOD.CENTER.peak, isl = MOD.world === 'sea';       // the volcano's clouds: fewer, smaller and higher
+    for (let k = 0; k < (isl ? 3 : 4); k++) {
+      const r = (isl ? 1.45 : 1.0) + 0.3 * (k % 2) + 0.08 * k, h = landTop * (isl ? 0.86 + 0.08 * k : 0.56 + 0.06 * k), w = 0.045 + 0.012 * k, a0 = k * 1.7, cs = (isl ? 0.4 : 0.6) + 0.12 * (k % 3), ph = k * 2.1;
       add({ k: 'cloud', up(t, o) { const a = a0 + w * t; o.p.set(px + Math.cos(a) * r, h + 0.05 * Math.sin(t * 0.3 + ph), pz + Math.sin(a) * r); o.yaw = -a - Math.PI / 2; o.s = cs; } });
     }
-    for (let k = 0; k < 2; k++) {
-      const r = [1.7, 2.35][k], h = landTop * [0.8, 0.64][k], w = [0.24, -0.18][k], a0 = k * 2.6, ph = k * 3.7, dir = Math.sign(w);
-      const e = { k: 'eagle', M: new T.Matrix4(), flap: 0, mat(t, m4, f) {
-        const a = a0 + w * t, vx = -Math.sin(a) * dir, vz = Math.cos(a) * dir, yaw = Math.atan2(-vz, vx);
-        // flying round: the wing on the inside dips (it banks)
-        const inward = Math.sin(yaw) * -Math.cos(a) + Math.cos(yaw) * -Math.sin(a);
-        O.position.set(px + Math.cos(a) * r, h + 0.12 * Math.sin(t * 0.37 + ph), pz + Math.sin(a) * r);
-        O.rotation.set(0.3 * Math.sign(inward), yaw, 0, 'YXZ'); O.scale.setScalar(Math.max(1e-4, 1.3 * f)); O.updateMatrix();
-        e.M.copy(O.matrix); m4.copy(e.M);
-        const beat = smooth(-0.3, 0.5, Math.sin(t * 0.55 + ph));            // now it flaps, now it glides
-        e.flap = 0.1 + beat * 0.55 * Math.sin(t * 6.5 + ph);
-      } };
-      add(e);
-      for (const side of [1, -1]) add({ k: 'wing', mat(t, m4) { _w.makeRotationX(-e.flap); if (side < 0) _w.premultiply(FLIPZ); m4.multiplyMatrices(e.M, _w); } });
-    }
+    if (CF.birds) for (const [k, b] of CF.birds.entries()) circler(b.at[0], b.h, b.at[1], b.r, b.w, k * 2.6, k * 3.7, 1.2);
+    else for (let k = 0; k < 2; k++) circler(px, landTop * [0.8, 0.64][k], pz, [1.7, 2.35][k], [0.24, -0.18][k], k * 2.6, k * 3.7, 1.3);   // two eagles round the summit
     yield;
-    for (const k of LIFE_ORDER) {
+    for (const k of MOD.LIFE) {
       const list = groups[k];
       if (!list) continue;
-      const im = new T.InstancedMesh(Models.actor(k), k === 'cloud' ? mats.cloud : k === 'wing' ? mats.wing : mats.scenery, list.length);
+      const im = new T.InstancedMesh(MOD.actor(k), k === 'cloud' ? mats.cloud : k === 'wing' || k === 'gwing' ? mats.wing : mats.scenery, list.length);
       im.frustumCulled = false; im.receiveShadow = k !== 'cloud';
       root.add(im);
       life.groups.push({ k, mesh: im, list });
@@ -681,7 +772,7 @@ const Board3D = (() => {
   // all the towers of the board are drawn as one instanced mesh (and the fortresses as another), roofs coloured per copy
   const BLD = { ready: false, grow: {}, busy: 0 };
   function buildingMeshes() {
-    const tw = Models.tower(), ca = Models.castle();
+    const tw = MOD.tower(), ca = MOD.castle();
     const roofMat = new T.MeshLambertMaterial({ color: 0xffffff });
     BLD.tb = new T.InstancedMesh(tw.body, mats.stone, 96); BLD.tr = new T.InstancedMesh(tw.roof, roofMat, 96);
     BLD.cb = new T.InstancedMesh(ca.body, mats.stone, 24); BLD.cr = new T.InstancedMesh(ca.roof, roofMat, 24);
@@ -837,34 +928,46 @@ const Board3D = (() => {
   // ===== the players' figures: a coin with the hero's face on a pedestal of the player's colour =====
   const texLoader = () => new T.TextureLoader();
   let goldRim = null;
+  // In the archipelago a player is a little ship with sails of their colour, sailing along the board, their face at its
+  // masthead.
   function makeToken(seat, hero) {
-    const color = new T.Color(SEAT_COLORS[seat]);
+    const color = new T.Color(SEAT_COLORS[seat]), sea = MOD.world === 'sea', R0 = sea ? 0.13 : 0.24;
     const g = new T.Group();
-    const ped = new T.Mesh(new T.CylinderGeometry(0.16, 0.19, 0.07, 24), new T.MeshLambertMaterial({ color }));
-    ped.position.y = 0.035; ped.castShadow = true; ped.receiveShadow = true;
-    const stem = new T.Mesh(new T.CylinderGeometry(0.03, 0.045, 0.14, 10), mats.gold);
-    stem.position.y = 0.13; stem.castShadow = true;
+    const ped = new T.Mesh(new T.CylinderGeometry(0.16, 0.19, sea ? 0.05 : 0.07, 24), new T.MeshLambertMaterial({ color }));
+    ped.position.y = sea ? 0.025 : 0.035; ped.castShadow = true; ped.receiveShadow = true;
+    g.add(ped);
+    let hull = null;
+    if (sea) {
+      hull = new T.Group(); hull.rotation.order = 'YXZ'; hull.position.y = 0.05;
+      const sm = new T.Mesh(MOD.tokenShip(SEAT_COLORS[seat]), mats.scenery);
+      sm.castShadow = true; sm.scale.setScalar(1.15);
+      hull.add(sm); g.add(hull);
+    } else {
+      const stem = new T.Mesh(new T.CylinderGeometry(0.03, 0.045, 0.14, 10), mats.gold);
+      stem.position.y = 0.13; stem.castShadow = true;
+      g.add(stem);
+    }
     const face = new T.Group();
     face.rotation.order = 'YXZ';
-    face.position.y = 0.43;
+    face.position.y = sea ? 0.8 : 0.43;
     goldRim = goldRim || new T.MeshLambertMaterial({ color: 0xd9a443 });
     const tx = texLoader().load(por(hero));
     tx.encoding = T.sRGBEncoding;
     const pm = new T.MeshLambertMaterial({ map: tx });
-    const coinG = new T.CylinderGeometry(0.24, 0.24, 0.06, 40);
+    const coinG = new T.CylinderGeometry(R0, R0, sea ? 0.04 : 0.06, 40);
     const coin = new T.Mesh(coinG, [goldRim, pm, goldRim]);
     coin.rotation.x = Math.PI / 2;
     coin.rotation.y = Math.PI / 2;           // the face upright
     coin.castShadow = true;
-    const ring = new T.Mesh(new T.TorusGeometry(0.245, 0.03, 8, 40), new T.MeshLambertMaterial({ color }));
+    const ring = new T.Mesh(new T.TorusGeometry(R0 + 0.005, sea ? 0.022 : 0.03, 8, 40), new T.MeshLambertMaterial({ color }));
     ring.position.z = 0.012;
     face.add(coin, ring);
     // the glow under whoever's turn it is
     const glow = new T.Mesh(new T.TorusGeometry(0.27, 0.035, 8, 40), new T.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.85 }));
     glow.rotation.x = -Math.PI / 2; glow.position.y = 0.02; glow.visible = false;
-    g.add(ped, stem, face, glow);
+    g.add(face, glow);
     root.add(g);
-    return { g, face, coin, pm, glow, hero, seat, hop: 0 };
+    return { g, face, coin, pm, glow, hero, seat, hop: 0, hull };
   }
   function ensureTokens() {
     for (let s = 0; s < st.players.length; s++) {
@@ -989,7 +1092,7 @@ const Board3D = (() => {
     if (vis < 6.2) followD = 6.2 / (2 * Math.tan(vf / 2));
     // overview: the whole board fits, and the mountain's top with it
     elOver = W > H ? 0.95 : 1.08; elFollow = W > H ? 0.74 : 0.8;
-    const pts = [new T.Vector3(Models.CENTER.peak[0], landTop + 0.2, Models.CENTER.peak[1])];
+    const pts = [new T.Vector3(MOD.CENTER.peak[0], landTop + 0.2, MOD.CENTER.peak[1])];
     for (const x of [-S / 2 - 0.5, S / 2 + 0.5]) for (const z of [-S / 2 - 0.5, S / 2 + 0.5]) for (const y of [-0.5, 1.2]) pts.push(new T.Vector3(x, y, z));
     const c2 = cam.clone();
     let lo = 6, hi = 90;
@@ -1080,6 +1183,11 @@ const Board3D = (() => {
       tk.face.rotation.y = Math.atan2(cam.position.x - tk.g.position.x, cam.position.z - tk.g.position.z);
       tk.face.rotation.x = -camS.el * 0.6;
       if (tk.glow.visible) { const s = 1 + Math.sin(t * 4) * 0.08; tk.glow.scale.set(s, s, s); tk.glow.material.opacity = 0.6 + Math.sin(t * 4) * 0.25; }
+      if (tk.hull) {        // the ship turns to sail along its side of the board, and rolls
+        const want = yawOf(sideOf(pos[tk.seat] || 0)) + Math.PI + 0.45, d = Math.atan2(Math.sin(want - tk.hull.rotation.y), Math.cos(want - tk.hull.rotation.y));
+        tk.hull.rotation.y += d * Math.min(1, dt * 5);
+        tk.hull.rotation.x = REDUCED ? 0 : 0.06 * Math.sin(t * 1.6 + tk.seat * 1.7); tk.hull.rotation.z = REDUCED ? 0 : 0.03 * Math.sin(t * 1.1 + tk.seat);
+      }
     }
     // flags wave, the wheel turns
     for (const f of flags) {
@@ -1180,7 +1288,8 @@ const Board3D = (() => {
     scene = new T.Scene();
     scene.fog = new T.Fog(HAZE, 28, 80);
     cam = new T.PerspectiveCamera(32, 1, 0.5, 200);
-    scene.add(new T.HemisphereLight(0xe6f2ff, 0x8a6a48, 0.62));
+    hemi = new T.HemisphereLight(0xe6f2ff, 0x8a6a48, 0.62);
+    scene.add(hemi);
     sun = new T.DirectionalLight(0xfff0d6, 1.0);
     sun.castShadow = true;
     sun.shadow.mapSize.set(mobile ? 1024 : 2048, mobile ? 1024 : 2048);
@@ -1218,10 +1327,59 @@ const Board3D = (() => {
     resize();
     yield;
     // one figure made ahead: its shaders are compiled with the rest (it is the first seat's, until a game says whose)
-    if (!toks[0]) { toks[0] = makeToken(0, 'david'); toks[0].g.visible = false; }
+    if (!toks[0]) { toks[0] = makeToken(0, worldBuilt === 'sea' ? 'blackbeard' : 'david'); toks[0].g.visible = false; }
     yield;
     warm();
     done = true;
+    if (worldBuilt !== wantWorld()) startRemake();      // the room's world changed while this one was being made
+  }
+  // ----- another world: when the room's theme changes, everything on the board is made again (in the lobby, a little
+  // at a time; at once if a game wants the board before it is done) -----
+  let remake = null;
+  function disposeAll(o) {
+    const keep = new Set([mats.poleGeo, dustGeo, confGeo, coinGeo].filter(Boolean));
+    const shared = new Set(Object.values(mats).concat(ownerMats, [goldRim, coinMat]).filter(Boolean));
+    o.traverse(m => {
+      if (m.geometry && !keep.has(m.geometry)) m.geometry.dispose();
+      for (const x of Array.isArray(m.material) ? m.material : m.material ? [m.material] : []) if (!shared.has(x)) { if (x.map) x.map.dispose(); x.dispose(); }
+    });
+  }
+  function* remaking() {
+    const t0 = performance.now();
+    stop(); halt();
+    if (root) { disposeAll(root); scene.remove(root); }
+    root = landG = seaMesh = wheel = fallFoot = null;
+    tiles.length = lotMesh.length = lotGround.length = flags.length = mark.length = toks.length = 0;
+    labelTex.length = labelMat.length = sideMat.length = 0;
+    life.ready = false; life.groups.length = 0; life.pts = null;
+    BLD.ready = false; BLD.grow = {}; BLD.busy = 0;
+    built = false; camInit = false;
+    yield;
+    yield* buildStatic();
+    toks[0] = makeToken(0, worldBuilt === 'sea' ? 'blackbeard' : 'david'); toks[0].g.visible = false;
+    yield;
+    warm();
+    resize();
+    Diag.note('3d', `board made again: ${worldBuilt} (${Math.round(performance.now() - t0)} ms)`);
+  }
+  function startRemake() {
+    if (remake || !done) return;
+    remake = remaking();
+    const slice = () => {
+      if (!remake) return;
+      const until = performance.now() + 8;
+      do { if (remake.next().done) { remake = null; if (worldBuilt !== wantWorld()) startRemake(); return; } } while (performance.now() < until);
+      idle(slice);
+    };
+    idle(slice);
+  }
+  // the board must be of the room's world now (a game is about to be shown)
+  function ensureWorld() {
+    if (!done) return;
+    if (!remake && worldBuilt === wantWorld()) return;
+    if (!remake) remake = remaking();
+    while (remake && !remake.next().done) { }
+    remake = null;
   }
   // every shader the game needs is compiled now and every picture is on the graphics card, so the first moments of a
   // game and the first throw of the dice do not stall
@@ -1265,6 +1423,7 @@ const Board3D = (() => {
   // a game appears (a new one, or after joining): everything set from the state, the board rises
   function show(state, positions, animate) {
     if (!ok) return;
+    ensureWorld();
     st = state; pos = positions.slice();
     shadowDirty = true;
     ensureTokens();
@@ -1284,6 +1443,7 @@ const Board3D = (() => {
   // the state changed without animation (end of the animations, a resync): the same, without the rise
   function sync(state, positions) {
     if (!ok) return;
+    ensureWorld();
     st = state; pos = positions.slice();
     ensureTokens();
     for (let i = 0; i < 40; i++) {
@@ -1301,13 +1461,17 @@ const Board3D = (() => {
   function snap() { camInit = false; }
   function setMode(m) { mode = m === 'overview' ? 'overview' : 'follow'; modeSet = true; return mode; }
   function leave() { built = false; stop(); }
-  // the room's world changed: the squares are written again with its names and words
-  function retheme() { if (ok && labelTex.length) relabelAll(); }
+  // the room's world changed: the board is made again in it (another world), or its squares written again
+  function retheme() {
+    if (!done) return;                             // still being made: making() looks again at its end
+    if (worldBuilt !== wantWorld()) { startRemake(); return; }
+    if (!remake && labelTex.length) relabelAll();
+  }
 
   return {
     init, prepare, show, sync, walk, fly, setOwner, setLevel, setMort, pop, celebrate, coins, focus, snap, setMode, setTurn, leave, resize, halt, retheme,
     speed(k) { speedK = k > 0 ? k : 1; },
-    get ok() { return done; }, get mode() { return mode; },
+    get ok() { return done; }, get mode() { return mode; }, get world() { return worldBuilt; },
     // how long ago a frame was drawn (the animations wait for frames: none coming means they must not be waited for)
     get drawnAgo() { return running && !lostAt ? performance.now() - drewAt : Infinity; },
     get lost() { return !!lostAt; },

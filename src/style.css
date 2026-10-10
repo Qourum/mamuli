@@ -411,7 +411,7 @@ pre.diag { margin: 10px 0 0; padding: 10px; max-height: 52vh; overflow: auto; bo
   background: linear-gradient(180deg, var(--wood-3), var(--wood-2)); border: 2px solid var(--gold); box-shadow: 0 10px 30px rgba(0, 0, 0, .6);
   font: 900 21px var(--f-display); color: var(--gold-hi); white-space: nowrap; opacity: 0; transform: translate(-50%, -50%) scale(.6); pointer-events: none; }
 .banner img { width: 1.9em; height: 1.9em; border-radius: 50%; box-shadow: 0 0 0 2px var(--c); }
-.banner.go { animation: bannerGo 1.5s ease-out forwards; }
+.banner.go { animation: bannerGo 2.6s ease-out forwards; }
 @keyframes bannerGo { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.6); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1.04); } 25% { transform: translate(-50%, -50%) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -70%) scale(1); } }
 
 /* ----- sheets ----- */

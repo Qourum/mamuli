@@ -14,7 +14,7 @@ const ONLINE = {
   away: 5000,       // a player missing from the room this long counts as away
   awayWait: 12000,  // on an away player's turn, wait this long before the computer plays for them
   tradeWait: 60000, // an offer nobody answers is declined after this long
-  seenMax: 2500     // the computer players wait for the others' screens to catch up, but not longer than this
+  seenMax: 6000     // the computer players wait for the others' screens to catch up, but not longer than this
 };
 // the auction's hammer falls this long after the last bid (the first bid gets longer, to read the card)
 const AUCTION = { first: 9000, after: 7000 };
@@ -50,7 +50,10 @@ function rtLib() {
   });
 }
 function supaNet() {
-  let rt = null, ch = null, meta = null;
+  let rt = null, ch = null, meta = null, tracked = '', trackedAt = 0, trackT = 0;
+  // who this phone is, for the others' list: the server counts these and drops a phone that sends them too often from
+  // the room (a few a second is too many), so only a change goes out, and not more often than every few seconds
+  const trackNow = c => { tracked = JSON.stringify(meta); trackedAt = now(); c.track(meta).catch(() => { }); };
   return {
     async join(code, m, h) {
       meta = m;
@@ -71,7 +74,7 @@ function supaNet() {
         c.subscribe(s => {
           if (ch !== c) return;
           if (s === 'SUBSCRIBED') {
-            c.track(meta).catch(() => { });              // again after every reconnection
+            trackNow(c);                                  // again after every reconnection
             if (!done) { done = true; clearTimeout(t); ok(); }
             h.status(true);
           } else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT' || s === 'CLOSED') {
@@ -82,8 +85,15 @@ function supaNet() {
       });
     },
     send(p) { if (ch) ch.send({ type: 'broadcast', event: 'm', payload: p }).catch(() => { }); },
-    track(m) { meta = m; if (ch) ch.track(m).catch(() => { }); },
+    track(m) {
+      meta = m;
+      clearTimeout(trackT);
+      if (!ch || JSON.stringify(m) === tracked) return;
+      const c = ch, wait = 3000 - (now() - trackedAt);
+      if (wait <= 0) trackNow(c); else trackT = setTimeout(() => { if (ch === c) trackNow(c); }, wait);
+    },
     leave() {
+      clearTimeout(trackT);
       const c = ch; ch = null;
       if (c) { try { c.untrack().catch(() => { }); } catch (e) { } try { rt.removeChannel(c); } catch (e) { } }
       try { if (rt) rt.disconnect(); } catch (e) { }

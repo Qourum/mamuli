@@ -435,7 +435,7 @@ pre.diag { margin: 10px 0 0; padding: 10px; max-height: 52vh; overflow: auto; bo
   background: linear-gradient(180deg, var(--wood-3), var(--wood-2)); border: 2px solid var(--gold); box-shadow: 0 10px 30px rgba(0, 0, 0, .6);
   font: 900 21px var(--f-display); color: var(--gold-hi); white-space: nowrap; opacity: 0; transform: translate(-50%, -50%) scale(.6); pointer-events: none; }
 .banner img { width: 1.9em; height: 1.9em; border-radius: 50%; box-shadow: 0 0 0 2px var(--c); }
-.banner.go { animation: bannerGo 1.5s ease-out forwards; }
+.banner.go { animation: bannerGo 2.6s ease-out forwards; }
 @keyframes bannerGo { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.6); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1.04); } 25% { transform: translate(-50%, -50%) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -70%) scale(1); } }
 
 /* ----- sheets ----- */
@@ -613,7 +613,7 @@ pre.diag { margin: 10px 0 0; padding: 10px; max-height: 52vh; overflow: auto; bo
 </div>
 <script src="vendor/three.min.js"></script>
 <script>
-const BUILD = "badad1e33f";
+const BUILD = "e294743461";
 const SITE = true;
 // ===== the technical log: what this phone went through, to copy and send when something goes wrong =====
 // Errors, the 3D board losing or getting back its graphics, slow frames (and what was on the screen then), shaders made
@@ -1935,7 +1935,7 @@ const ONLINE = {
   away: 5000,       // a player missing from the room this long counts as away
   awayWait: 12000,  // on an away player's turn, wait this long before the computer plays for them
   tradeWait: 60000, // an offer nobody answers is declined after this long
-  seenMax: 2500     // the computer players wait for the others' screens to catch up, but not longer than this
+  seenMax: 6000     // the computer players wait for the others' screens to catch up, but not longer than this
 };
 // the auction's hammer falls this long after the last bid (the first bid gets longer, to read the card)
 const AUCTION = { first: 9000, after: 7000 };
@@ -1971,7 +1971,10 @@ function rtLib() {
   });
 }
 function supaNet() {
-  let rt = null, ch = null, meta = null;
+  let rt = null, ch = null, meta = null, tracked = '', trackedAt = 0, trackT = 0;
+  // who this phone is, for the others' list: the server counts these and drops a phone that sends them too often from
+  // the room (a few a second is too many), so only a change goes out, and not more often than every few seconds
+  const trackNow = c => { tracked = JSON.stringify(meta); trackedAt = now(); c.track(meta).catch(() => { }); };
   return {
     async join(code, m, h) {
       meta = m;
@@ -1992,7 +1995,7 @@ function supaNet() {
         c.subscribe(s => {
           if (ch !== c) return;
           if (s === 'SUBSCRIBED') {
-            c.track(meta).catch(() => { });              // again after every reconnection
+            trackNow(c);                                  // again after every reconnection
             if (!done) { done = true; clearTimeout(t); ok(); }
             h.status(true);
           } else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT' || s === 'CLOSED') {
@@ -2003,8 +2006,15 @@ function supaNet() {
       });
     },
     send(p) { if (ch) ch.send({ type: 'broadcast', event: 'm', payload: p }).catch(() => { }); },
-    track(m) { meta = m; if (ch) ch.track(m).catch(() => { }); },
+    track(m) {
+      meta = m;
+      clearTimeout(trackT);
+      if (!ch || JSON.stringify(m) === tracked) return;
+      const c = ch, wait = 3000 - (now() - trackedAt);
+      if (wait <= 0) trackNow(c); else trackT = setTimeout(() => { if (ch === c) trackNow(c); }, wait);
+    },
     leave() {
+      clearTimeout(trackT);
       const c = ch; ch = null;
       if (c) { try { c.untrack().catch(() => { }); } catch (e) { } try { rt.removeChannel(c); } catch (e) { } }
       try { if (rt) rt.disconnect(); } catch (e) { }
@@ -6933,7 +6943,7 @@ const View = (() => {
       if (e.k === 'roll') t += REDUCED ? 300 : 2300;
       else if (e.k === 'move') t += e.fly || stepsOf(e) > 12 ? 1000 : stepsOf(e) * 190 + 300;
       else if (e.k === 'jail') t += 1000;
-      else if (e.k === 'card') t += 2600;
+      else if (e.k === 'card') t += 4500;
       else if (e.k === 'turn') t += 300;
       else t += 450;
     }
@@ -7115,7 +7125,7 @@ const View = (() => {
       const cx = r.left + r.width / 2, h = b.offsetWidth / 2 + 6, x = Math.max(h, Math.min(innerWidth - h, cx));
       b.style.left = x + 'px'; b.style.top = (r.bottom + 3) + 'px'; b.style.setProperty('--tx', (cx - x).toFixed(1) + 'px');
     }
-    setTimeout(() => { b.classList.add('bye'); setTimeout(() => { b.remove(); if (notes[s] === b) notes[s] = null; }, 350); }, 2600);
+    setTimeout(() => { b.classList.add('bye'); setTimeout(() => { b.remove(); if (notes[s] === b) notes[s] = null; }, 350); }, 4500);
   }
   function banner(text, s) {
     const b = $('#banner'); if (!b) return;
@@ -7123,7 +7133,7 @@ const View = (() => {
     b.style.setProperty('--c', SEAT_COLORS[s]);
     b.classList.remove('go'); void b.offsetWidth; b.classList.add('go');
   }
-  function toastEv(msg, kind) { UI.toast(msg, 2200, kind); }
+  function toastEv(msg, kind) { UI.toast(msg, 4200, kind); }
   async function showCard(e) {
     const c = Engine.deckOf(target)[e.d][e.id], box = $('#cardpop');
     if (!box) return;
@@ -7135,7 +7145,7 @@ const View = (() => {
     Sound.card();
     let closed = false;
     box.onclick = () => { closed = true; };
-    const until = Date.now() + 2600 / rate;
+    const until = Date.now() + Math.max(3200, 4500 / rate);       // (long enough to read, even when the screen hurries)
     while (!closed && Date.now() < until) await sleep(80);
     box.hidden = true;
   }
@@ -7374,7 +7384,7 @@ const View = (() => {
     if (won.some(s => controls(s))) Sound.coin(); else Sound.card();
     let closed = false;
     box.onclick = () => { closed = true; };
-    const until = Date.now() + 5600 / rate;
+    const until = Date.now() + Math.max(4500, 6500 / rate);
     while (!closed && Date.now() < until && document.visibilityState !== 'hidden') await sleep(80);
     box.onclick = null;
     hideCard();
@@ -7781,13 +7791,13 @@ const UI = (() => {
     t.innerHTML = msg;
     box.appendChild(t);
     while (box.children.length > 3) box.firstChild.remove();
-    setTimeout(() => { t.classList.add('bye'); setTimeout(() => t.remove(), 400); }, ms || 2600);
+    setTimeout(() => { t.classList.add('bye'); setTimeout(() => t.remove(), 400); }, ms || 4000);
   }
   function moveRefused(code) {
     Diag.note('move', 'refused: ' + code);
     View.busy(false);
     if (View.st) View.render();
-    if (code && code !== 'turn' && ERR[code]) { toast(ERR[code], 2600, 'bad'); Sound.bad(); }    // 'turn': a button pressed twice
+    if (code && code !== 'turn' && ERR[code]) { toast(ERR[code], 3600, 'bad'); Sound.bad(); }    // 'turn': a button pressed twice
   }
   return { go, toast, moveRefused, get screen() { return screen; } };
 })();

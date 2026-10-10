@@ -188,7 +188,7 @@ const View = (() => {
       if (e.k === 'roll') t += REDUCED ? 300 : 2300;
       else if (e.k === 'move') t += e.fly || stepsOf(e) > 12 ? 1000 : stepsOf(e) * 190 + 300;
       else if (e.k === 'jail') t += 1000;
-      else if (e.k === 'card') t += 2600;
+      else if (e.k === 'card') t += 4500;
       else if (e.k === 'turn') t += 300;
       else t += 450;
     }
@@ -370,7 +370,7 @@ const View = (() => {
       const cx = r.left + r.width / 2, h = b.offsetWidth / 2 + 6, x = Math.max(h, Math.min(innerWidth - h, cx));
       b.style.left = x + 'px'; b.style.top = (r.bottom + 3) + 'px'; b.style.setProperty('--tx', (cx - x).toFixed(1) + 'px');
     }
-    setTimeout(() => { b.classList.add('bye'); setTimeout(() => { b.remove(); if (notes[s] === b) notes[s] = null; }, 350); }, 2600);
+    setTimeout(() => { b.classList.add('bye'); setTimeout(() => { b.remove(); if (notes[s] === b) notes[s] = null; }, 350); }, 4500);
   }
   function banner(text, s) {
     const b = $('#banner'); if (!b) return;
@@ -378,7 +378,7 @@ const View = (() => {
     b.style.setProperty('--c', SEAT_COLORS[s]);
     b.classList.remove('go'); void b.offsetWidth; b.classList.add('go');
   }
-  function toastEv(msg, kind) { UI.toast(msg, 2200, kind); }
+  function toastEv(msg, kind) { UI.toast(msg, 4200, kind); }
   async function showCard(e) {
     const c = Engine.deckOf(target)[e.d][e.id], box = $('#cardpop');
     if (!box) return;
@@ -390,7 +390,7 @@ const View = (() => {
     Sound.card();
     let closed = false;
     box.onclick = () => { closed = true; };
-    const until = Date.now() + 2600 / rate;
+    const until = Date.now() + Math.max(3200, 4500 / rate);       // (long enough to read, even when the screen hurries)
     while (!closed && Date.now() < until) await sleep(80);
     box.hidden = true;
   }
@@ -629,7 +629,7 @@ const View = (() => {
     if (won.some(s => controls(s))) Sound.coin(); else Sound.card();
     let closed = false;
     box.onclick = () => { closed = true; };
-    const until = Date.now() + 5600 / rate;
+    const until = Date.now() + Math.max(4500, 6500 / rate);
     while (!closed && Date.now() < until && document.visibilityState !== 'hidden') await sleep(80);
     box.onclick = null;
     hideCard();
@@ -1036,13 +1036,13 @@ const UI = (() => {
     t.innerHTML = msg;
     box.appendChild(t);
     while (box.children.length > 3) box.firstChild.remove();
-    setTimeout(() => { t.classList.add('bye'); setTimeout(() => t.remove(), 400); }, ms || 2600);
+    setTimeout(() => { t.classList.add('bye'); setTimeout(() => t.remove(), 400); }, ms || 4000);
   }
   function moveRefused(code) {
     Diag.note('move', 'refused: ' + code);
     View.busy(false);
     if (View.st) View.render();
-    if (code && code !== 'turn' && ERR[code]) { toast(ERR[code], 2600, 'bad'); Sound.bad(); }    // 'turn': a button pressed twice
+    if (code && code !== 'turn' && ERR[code]) { toast(ERR[code], 3600, 'bad'); Sound.bad(); }    // 'turn': a button pressed twice
   }
   return { go, toast, moveRefused, get screen() { return screen; } };
 })();

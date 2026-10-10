@@ -1,25 +1,36 @@
-// ===== the board in 3D: raised squares with their writing, the scenery behind them, figures, flags, towers, the camera =====
+// ===== the board in 3D: raised squares with their writing, the land behind them, figures, flags, towers, the camera =====
 // Board coordinates: y up, the board's middle at (0, 0, 0). Side 0 (start .. jail) is nearest +z, then the board goes on
 // clockwise seen from above: side 1 at -x, side 2 at -z, side 3 at +x. Each square has its own frame: x along its writing,
 // +z towards its outer edge; its writing is upright for someone sitting at that side, where the camera goes.
+// Inside the ring of squares lies one relief (terrain.js): every place shapes its own piece of it, and the great mountain
+// stands in the middle; around the board the country goes on into the haze. And it all lives: leaves sway, water
+// shimmers and falls, smoke rises from the chimneys, camels walk, sheep graze, boats sail, the cable car goes up and down,
+// a guard keeps watch, clouds and eagles circle the summit.
 
 const Board3D = (() => {
   const T = window.THREE;
   const S = 12, C = 1.5, D = 1.5, TW = 1, TH = 0.2, LOT = 1.25;
+  const LS = [1.18, 1.25, 1.12], RS = [1.2, 1.3, 1.2];     // a lot's scenery, a corner of the ring's: their models' units on the board
+  const HAZE = 0xc4cfd0;                                   // the far country fades into it
   const OUT = [[0, 1], [-1, 0], [0, -1], [1, 0]], ALONG = [[-1, 0], [0, -1], [1, 0], [0, 1]];
   const sideOf = i => Math.floor(i / 10) % 4;
   const yawOf = s => -s * Math.PI / 2;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  const TAU = Math.PI * 2;
   const ease = {
     out: t => 1 - Math.pow(1 - t, 3), inOut: t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
     back: t => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); },
     lin: t => t
   };
 
-  let ok = false, R = null, scene = null, cam = null, host = null, W = 1, H = 1, root = null, sun = null, ray = null, maxAniso = 4;
+  let ok = false, R = null, scene = null, cam = null, host = null, W = 1, H = 1, root = null, sun = null, ray = null, maxAniso = 4, mobile = false;
   const tiles = [], labelCv = [], labelTex = [], labelMat = [], sideMat = [], lotMesh = [], lotGround = [], flags = [], mark = [];
   const toks = [];
-  let st = null, pos = [], turnSeat = -1, pickCb = null, built = false, mats = null, ownerMats = [], clouds = [], wheel = null;
+  let st = null, pos = [], turnSeat = -1, pickCb = null, built = false, mats = null, ownerMats = [], wheel = null;
+  let landG = null, landTop = 4, fallFoot = null;
+  const lotF = [], ringF = [];
+  const O = new T.Object3D();                              // for putting matrices together
 
   // ----- where things are -----
   function centerOf(i) {
@@ -184,6 +195,79 @@ const Board3D = (() => {
     PERF.relabel++; PERF.relabelMs += performance.now() - t0;
   }
 
+  // ===== the board's own material: leaves and vines sway, water shimmers and falls, the land has its grain =====
+  // Every piece of the land and of what stands on it says in its 'anim' attribute what it is: x how much it sways (more
+  // the higher it is above its ground), y what kind of surface it is (1 water lying still, 2 falling water, 3 the land
+  // itself, which gets the fine grain of soil, grass and rock from a small noise picture). One clock for all of it.
+  const U = { time: { value: 0 }, fade: { value: 1 }, scale: { value: 800 }, detail: { value: null } };
+  const LIVING = {
+    vp: '#include <common>\nattribute vec2 anim;\nuniform float uTime;\nvarying vec3 vWP;\nvarying float vWater;',
+    v: `#include <begin_vertex>
+      vec4 wp4 = vec4( position, 1.0 );
+      #ifdef USE_INSTANCING
+        wp4 = instanceMatrix * wp4;
+      #endif
+      wp4 = modelMatrix * wp4;
+      vWP = wp4.xyz;
+      vWater = anim.y;
+      if ( anim.x > 0.0 ) {
+        float ph = wp4.x * 1.9 + wp4.z * 1.3;
+        float gust = 0.65 + 0.35 * sin( uTime * 0.41 + wp4.x * 0.25 - wp4.z * 0.2 );
+        transformed.x += anim.x * gust * ( 0.009 * sin( uTime * 1.7 + ph ) + 0.0035 * sin( uTime * 3.3 + ph * 2.1 ) );
+        transformed.z += anim.x * gust * 0.0055 * sin( uTime * 1.25 + ph * 1.3 + 1.2 );
+      }`,
+    fp: '#include <common>\nuniform float uTime;\nuniform sampler2D uDetail;\nvarying vec3 vWP;\nvarying float vWater;',
+    f: `#include <emissivemap_fragment>
+      if ( vWater > 2.5 ) {
+        // the land's grain: the same noise at two sizes; bright snow gets less of it
+        float g1 = texture2D( uDetail, vWP.xz * 1.7 ).r, g2 = texture2D( uDetail, vWP.xz * 6.1 + 0.37 ).r;
+        float k = 1.0 - 0.6 * smoothstep( 0.55, 0.85, diffuseColor.g );
+        diffuseColor.rgb *= 1.0 + k * ( 0.42 * ( g1 - 0.5 ) + 0.3 * ( g2 - 0.5 ) );
+      } else if ( vWater > 0.5 ) {
+        if ( vWater < 1.5 ) {
+          float w1 = sin( vWP.x * 21.0 + uTime * 1.2 + sin( vWP.z * 8.0 + uTime * 0.6 ) * 1.7 );
+          float w2 = sin( vWP.z * 17.0 - uTime * 0.95 + sin( vWP.x * 6.5 - uTime * 0.4 ) * 1.4 );
+          diffuseColor.rgb *= 0.9 + 0.12 * ( w1 * 0.5 + 0.5 );
+          totalEmissiveRadiance += vec3( 0.16, 0.19, 0.2 ) * smoothstep( 0.55, 0.95, w1 * w2 );
+        } else {
+          float s = fract( vWP.y * 6.5 + uTime * 1.7 + sin( vWP.x * 37.0 + vWP.z * 31.0 ) * 0.35 );
+          diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.8, 0.88, 0.93 ), 0.3 );
+          totalEmissiveRadiance += vec3( 0.35 ) * smoothstep( 0.55, 1.0, s );
+        }
+      }`
+  };
+  function living(m) {
+    m.onBeforeCompile = sh => {
+      sh.uniforms.uTime = U.time; sh.uniforms.uDetail = U.detail;
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', LIVING.vp).replace('#include <begin_vertex>', LIVING.v);
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', LIVING.fp).replace('#include <emissivemap_fragment>', LIVING.f);
+    };
+    m.customProgramCacheKey = () => 'living';
+    return m;
+  }
+
+  // the land's grain: a small noise picture that tiles (its lattice wraps round), at a few sizes summed
+  function detailTexture() {
+    const N = 128, cv = document.createElement('canvas'), x = cv.getContext('2d');
+    cv.width = cv.height = N;
+    const im = x.createImageData(N, N), oct = [[8, 0.42], [16, 0.28], [32, 0.18], [64, 0.12]];
+    const lat = oct.map(([f], o) => { const r = Models.rng(f * 13 + o); return Float32Array.from({ length: f * f }, () => r()); });
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      let v = 0;
+      oct.forEach(([f, a], o) => {
+        const L = lat[o], u = i / N * f, w = j / N * f, i0 = Math.floor(u), j0 = Math.floor(w), su = smooth(0, 1, u - i0), sw = smooth(0, 1, w - j0);
+        const g = (a2, b2) => L[(b2 % f) * f + (a2 % f)];
+        v += a * (g(i0, j0) * (1 - su) * (1 - sw) + g(i0 + 1, j0) * su * (1 - sw) + g(i0, j0 + 1) * (1 - su) * sw + g(i0 + 1, j0 + 1) * su * sw);
+      });
+      const c = Math.round(clamp(v, 0, 1) * 255), k = (j * N + i) * 4;
+      im.data[k] = im.data[k + 1] = im.data[k + 2] = c; im.data[k + 3] = 255;
+    }
+    x.putImageData(im, 0, 0);
+    const t = new T.CanvasTexture(cv);
+    t.wrapS = t.wrapT = T.RepeatWrapping; t.anisotropy = maxAniso;
+    return t;
+  }
+
   // ===== building the board =====
   function slabGeo(w, d, h, r = 0.08, bevel = 0.03, hole = null) {
     const sh = new T.Shape(), x0 = -w / 2 + bevel, y0 = -d / 2 + bevel, ww = w - 2 * bevel, dd = d - 2 * bevel, rad = Math.max(0.001, Math.min(r, ww / 2, dd / 2));
@@ -198,8 +282,11 @@ const Board3D = (() => {
     return g;
   }
   function makeMaterials() {
+    U.detail.value = detailTexture();
     mats = {
-      scenery: new T.MeshLambertMaterial({ vertexColors: true }),
+      scenery: living(new T.MeshLambertMaterial({ vertexColors: true })),
+      cloud: new T.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.86 }),
+      wing: new T.MeshLambertMaterial({ vertexColors: true, side: T.DoubleSide }),
       plinthTop: new T.MeshLambertMaterial({ color: 0x4a2e1a }),
       plinthSide: new T.MeshLambertMaterial({ color: 0x6b4528 }),
       gold: new T.MeshLambertMaterial({ color: 0xe0ad45 }),
@@ -208,33 +295,42 @@ const Board3D = (() => {
     };
     ownerMats = SEAT_COLORS.map(c => new T.MeshLambertMaterial({ color: c }));
   }
+  // a place's frame: its model's (x, z) are turned and scaled onto the board, its shapes go into the relief there, and
+  // its ground (in its model's units of height) is the relief's
+  function frameOf(cx, cz, yaw, [sx, sy, sz]) {
+    const cs = Math.cos(yaw), sn = Math.sin(yaw), sr = (sx + sz) / 2;
+    const W = (x, z) => [cx + x * sx * cs + z * sz * sn, cz - x * sx * sn + z * sz * cs];
+    return {
+      cx, cz, yaw, sy,
+      peak(x, z, r, h, seed) { const [a, b] = W(x, z); Terrain.peak(a, b, r * sr * 1.15, h * sy, seed); },
+      hill(x, z, rx, rz, h, rot = 0) { const [a, b] = W(x, z); Terrain.hill(a, b, rx * sx, rz * sz, h * sy, yaw + rot); },
+      mesa(x, z, rx, rz, h, edge = 0.3, rot = 0) { const [a, b] = W(x, z); Terrain.mesa(a, b, rx * sx, rz * sz, h * sy, edge, yaw + rot); },
+      ridge(x1, z1, x2, z2, w, h) { const [a, b] = W(x1, z1), [c, d] = W(x2, z2); Terrain.ridge(a, b, c, d, w * sr, h * sy); },
+      dig(x1, z1, x2, z2, w, d, water) { const [a, b] = W(x1, z1), [c, e] = W(x2, z2); Terrain.dig(a, b, c, e, w * sr, d * sy, water); },
+      lake(x, z, rx, rz, d, rot = 0, sea = false) { const [a, b] = W(x, z); Terrain.lake(a, b, rx * sx, rz * sz, d * sy, yaw + rot, sea); },
+      pad(x, z, r) { const [a, b] = W(x, z); Terrain.pad(a, b, r * sr); },
+      path(x1, z1, x2, z2, w, color) { const [a, b] = W(x1, z1), [c, d] = W(x2, z2); Terrain.path(a, b, c, d, w * sr, color); },
+      tint(color, snow = 9, spread) { Terrain.tint(cx, cz, color, snow, spread); },
+      ground(x, z) { const [a, b] = W(x, z); return Terrain.height(a, b) / sy; },
+      // a point of the place, h (its units) above its land, on the board
+      at(x, z, h = 0) { const [a, b] = W(x, z); return new T.Vector3(a, Terrain.height(a, b) + h * sy, b); }
+    };
+  }
   // made in steps (each yield is a pause where the page may do other things): see prepare()
   function* buildStatic() {
     root = new T.Group();
     scene.add(root);
-    // the plinth with a gold rim, and a soft shadow on the landscape under it
-    const pl = new T.Mesh(slabGeo(S + 0.9, S + 0.9, 0.5, 0.35, 0.06), [mats.plinthTop, mats.plinthSide]);
-    pl.position.y = -0.5; pl.receiveShadow = true; root.add(pl);
+    landG = new T.Group();                                  // all that grows out of the board when a game starts
+    root.add(landG);
+    // the plinth with a gold rim, standing in the meadow; open in the middle, where the land lies (its lakes and river
+    // beds go deeper than the plinth's top)
+    const pl = new T.Mesh(slabGeo(S + 0.9, S + 0.9, 0.5, 0.35, 0.06, 2 * Terrain.RIM + 0.1), [mats.plinthTop, mats.plinthSide]);
+    pl.position.y = -0.5; pl.receiveShadow = true; pl.castShadow = true; root.add(pl);
     const rim = new T.Mesh(slabGeo(S + 0.98, S + 0.98, 0.07, 0.38, 0.02, S + 0.62), mats.gold);
     rim.position.y = -0.02; root.add(rim);
-    const sc = document.createElement('canvas'); sc.width = sc.height = 128;
-    const sx = sc.getContext('2d'), gr = sx.createRadialGradient(64, 64, 20, 64, 64, 64);
-    gr.addColorStop(0, 'rgba(0,0,0,.55)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
-    sx.fillStyle = gr; sx.fillRect(0, 0, 128, 128);
-    const sh = new T.Mesh(new T.PlaneGeometry(S * 1.7, S * 1.7), new T.MeshBasicMaterial({ map: new T.CanvasTexture(sc), transparent: true, depthWrite: false }));
-    sh.rotation.x = -Math.PI / 2; sh.position.y = -0.62; root.add(sh);
-    // the painting in the middle, in a gold frame
-    const inner = S - 2 * D - 2 * LOT;
-    const tex = new T.TextureLoader().load(ART('g_svan'), tx => { const a = tx.image.width / tx.image.height; if (a > 1) { tx.repeat.set(1 / a, 1); tx.offset.set((1 - 1 / a) / 2, 0); } try { R.initTexture(tx); } catch (e) { } });
-    tex.encoding = T.sRGBEncoding; tex.anisotropy = maxAniso;
-    const pic = new T.Mesh(new T.PlaneGeometry(inner - 0.12, inner - 0.12), new T.MeshLambertMaterial({ map: tex }));
-    pic.rotation.x = -Math.PI / 2; pic.position.y = 0.045; pic.receiveShadow = true; root.add(pic);
-    const fr = new T.Mesh(slabGeo(inner + 0.08, inner + 0.08, 0.08, 0.06, 0.015, inner - 0.12), mats.gold);
-    root.add(fr);
     yield;
     // the squares
     const geoP = slabGeo(TW - 0.06, D - 0.06, TH, 0.07, 0.03), geoC = slabGeo(C - 0.06, C - 0.06, TH, 0.1, 0.03);
-    const grounds = new Models.Builder();
     drawnWithFonts = fontsReady();
     for (let i = 0; i < 40; i++) {
       yield;
@@ -249,60 +345,308 @@ const Board3D = (() => {
       m.receiveShadow = true;
       m.userData.i = i;
       root.add(m); tiles[i] = m;
-      // the lot behind it: its ground and its scenery
-      if (i % 10) {
-        const t = BOARD[i], gc = t.k === 'p' ? Models.GROUND[t.g] : t.k === 'road' ? 0xc9b88e : t.k === 'util' ? 0x9cbc66 : 0xbfc08c;
-        const lc = toWorld(i, 0, -(D / 2 + LOT / 2));
-        grounds.add(new T.BoxGeometry(TW, 0.05, LOT).translate(0, 0.025, 0), gc, lc.x, 0, lc.z, { ry: yawOf(sideOf(i)) });
-        const lg = Models.lot(i);
-        if (lg) {
-          lg.scale(1.18, 1.25, 1.12);
-          const lm = new T.Mesh(lg, mats.scenery);
-          lm.position.set(lc.x, 0.05, lc.z); lm.rotation.y = yawOf(sideOf(i));
-          lm.castShadow = true; lm.receiveShadow = true; lm.userData.i = i;
-          root.add(lm); lotMesh[i] = lm;
-        }
-      } else {
+      if (!(i % 10)) {
         const cg = Models.corner(i);
         if (cg) { const cm = new T.Mesh(cg, mats.scenery); cm.position.set(0, TH, 0); m.add(cm); cm.castShadow = true; cm.receiveShadow = true; cm.userData.i = i; lotMesh[i] = cm; }
       }
     }
+    // the land's shape: every place makes its own piece of the relief, the ring's inside corners theirs, the great
+    // mountain the middle; the waterfall comes last, when the cliff it falls from is there
+    Terrain.reset();
+    for (let i = 0; i < 40; i++) {
+      if (!(i % 10)) continue;
+      const c = toWorld(i, 0, -(D / 2 + LOT / 2));
+      lotF[i] = frameOf(c.x, c.z, yawOf(sideOf(i)), LS);
+      Models.relief(i, lotF[i]);
+    }
+    for (let k = 0; k < 4; k++) {
+      const [ox, oz] = OUT[k], [ax, az] = ALONG[k], a = S / 2 - D - LOT / 2;
+      ringF[k] = frameOf(ox * a - ax * a, oz * a - az * a, yawOf(k), RS);
+      Models.ringRelief(k, ringF[k]);
+    }
+    Models.centerRelief(Terrain);
+    fallFoot = Models.centerWater(Terrain);
+    yield;
+    const lg = yield* Terrain.board(mobile ? 136 : 160);
+    const land = new T.Mesh(lg, mats.scenery);
+    land.castShadow = true; land.receiveShadow = true; land.userData.ground = true;
+    landG.add(land); lotGround.push(land);
+    lg.computeBoundingBox(); landTop = lg.boundingBox.max.y;
+    const wg = Terrain.waterGeo();
+    if (wg) { const wm = new T.Mesh(wg, mats.scenery); wm.receiveShadow = true; landG.add(wm); }
+    yield;
+    // what stands on the land: each lot's scenery, set on its own ground
+    for (let i = 0; i < 40; i++) {
+      if (!(i % 10)) continue;
+      yield;
+      const F = lotF[i], g = Models.lot(i, F.ground);
+      if (!g) continue;
+      g.scale(LS[0], LS[1], LS[2]);
+      const m = new T.Mesh(g, mats.scenery);
+      m.position.set(F.cx, 0, F.cz); m.rotation.y = F.yaw;
+      m.castShadow = true; m.receiveShadow = true; m.userData.i = i;
+      landG.add(m); lotMesh[i] = m;
+    }
     // the inside corners of the ring
     for (let k = 0; k < 4; k++) {
       yield;
-      const [ox, oz] = OUT[k], [ax, az] = ALONG[k], a = S / 2 - D - LOT / 2;
-      const x = ox * a - ax * a, z = oz * a - az * a;
-      grounds.add(new T.BoxGeometry(LOT, 0.05, LOT).translate(0, 0.025, 0), [0x8fb85e, 0x9fa889, 0x96b45a, 0xa8b07c][k], x, 0, z);
-      const ig = Models.inner(k); ig.scale(1.2, 1.3, 1.2);
-      const sm = new T.Mesh(ig, mats.scenery);
-      sm.position.set(x, 0.05, z); sm.rotation.y = yawOf(k); sm.castShadow = true; sm.receiveShadow = true; root.add(sm);
-      lotMesh[100 + k] = sm;
+      const F = ringF[k], g = Models.inner(k, F.ground);
+      g.scale(RS[0], RS[1], RS[2]);
+      const m = new T.Mesh(g, mats.scenery);
+      m.position.set(F.cx, 0, F.cz); m.rotation.y = F.yaw; m.castShadow = true; m.receiveShadow = true;
+      landG.add(m); lotMesh[100 + k] = m;
     }
+    // the great mountain's church, village, forest and lake shore
+    const ctr = Models.center(Terrain.height);
+    for (const step of ctr.steps) { yield; step(); }
     yield;
-    const gmesh = new T.Mesh(grounds.build(), mats.scenery);
-    gmesh.receiveShadow = true; gmesh.userData.ground = true;
-    root.add(gmesh); lotGround.push(gmesh);
+    const cm = new T.Mesh(ctr.B.build(), mats.scenery);
+    cm.castShadow = true; cm.receiveShadow = true;
+    landG.add(cm);
     yield;
+    // the country around the board: meadows, groves, hills, and the far mountains in the haze
+    const om = new T.Mesh(Terrain.outer(mobile ? 34 : 42, mobile ? 80 : 104), mats.scenery);
+    om.receiveShadow = true;
+    root.add(om);
+    yield;
+    const spots = Terrain.groves(mobile ? 320 : 520);
+    for (const pine of [true, false]) {
+      const list = spots.filter(s => s.pine === pine);
+      if (!list.length) continue;
+      const im = new T.InstancedMesh(Models.grove(pine), mats.scenery, list.length);
+      list.forEach((s, k) => { O.position.set(s.x, s.y, s.z); O.rotation.set(0, s.ry, 0); O.scale.setScalar(s.s); O.updateMatrix(); im.setMatrixAt(k, O.matrix); });
+      im.frustumCulled = false;                             // its copies are all around the board, not where its shape is
+      root.add(im);
+      yield;
+    }
     buildingMeshes();
     yield;
-    // the mill's wheel turns
-    const M = Models.shapes, WB = new Models.Builder();
+    // the mill's wheel turns, between the mill and its stream
+    const WB = new Models.Builder();
     WB.add(new T.TorusGeometry(0.1, 0.014, 5, 14), 0x4a3020);
     for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; WB.add(new T.BoxGeometry(0.02, 0.09, 0.05), 0x7a5232, Math.cos(a) * 0.1, Math.sin(a) * 0.1, 0, { rz: a }); }
-    const wg = new T.Mesh(WB.build(), mats.scenery);
-    wg.rotation.y = Math.PI / 2;
-    const wpos = toWorld(12, 0.17, -(D / 2 + LOT / 2) - 0.12, 0.16);
-    wheel = new T.Group(); wheel.add(wg); wheel.position.copy(wpos); wheel.rotation.y = yawOf(1);
-    root.add(wheel);
-    // clouds drifting over the mountains
-    for (let k = 0; k < 0; k++) {
-      const B = new Models.Builder(), r = Models.rng(k + 5);
-      for (let j = 0; j < 5; j++) B.add(M.ball(0.18 + r() * 0.14, 1), 0xffffff, (j - 2) * 0.2, r() * 0.1, (r() - 0.5) * 0.2, { sy: 0.65 });
-      const cm = new T.Mesh(B.build(), new T.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.92 }));
-      cm.userData = { a: k * 1.3, r: 8.2 + r() * 1.8, h: 1.2 + r() * 1.2, sp: 0.02 + r() * 0.02 };
-      cm.castShadow = true;
-      root.add(cm); clouds.push(cm);
+    const wm = new T.Mesh(WB.build(), mats.scenery);
+    wm.rotation.y = Math.PI / 2; wm.castShadow = true;
+    wheel = new T.Group(); wheel.add(wm);
+    wheel.position.copy(lotF[12].at(0.17, -0.11, 0)); wheel.position.y += 0.1; wheel.rotation.y = yawOf(1);
+    landG.add(wheel);
+    yield;
+    yield* buildLife();
+  }
+
+  // ===== life on the board =====
+  // Smoke, sparkles and spray are points that the shader moves by itself (one draw for all of them). The rest are actors:
+  // camels, sheep, guards, boats, the cable car, the customs bar, clouds and eagles, a few copies of a few shapes, put in
+  // place every frame that is drawn. While a game rises out of the board they are not there yet; then they fade in.
+  const life = { ready: false, groups: [], pts: null };
+  const POSE = { p: new T.Vector3(), yaw: 0, roll: 0, pitch: 0, s: 1 }, FLIPZ = new T.Matrix4().makeScale(1, 1, -1), _w = new T.Matrix4(), _lm = new T.Matrix4();
+  const LIFE_ORDER = ['camel', 'sheep', 'guard', 'boat', 'sail', 'gondola', 'bar', 'cloud', 'eagle', 'wing'];
+  const PTS = {
+    v: `attribute float kind;
+      attribute float seed;
+      uniform float uTime;
+      uniform float uFade;
+      uniform float uScale;
+      varying float vA;
+      varying float vK;
+      varying float vR;
+      void main() {
+        vec3 p = position;
+        vR = uTime * 2.3 + seed * 20.0;
+        float a = 1.0, size = 0.05;
+        if ( kind < 0.5 ) {
+          // smoke: puffs rise, drift with the wind, grow and thin out
+          float t = fract( uTime * 0.15 + seed );
+          p += vec3( 0.2 * t + 0.025 * sin( uTime * 1.3 + seed * 30.0 ), 0.6 * t, 0.07 * t + 0.025 * cos( uTime * 1.1 + seed * 20.0 ) );
+          size = 0.05 + 0.15 * t;
+          a = smoothstep( 0.0, 0.1, t ) * ( 1.0 - t ) * 0.5;
+        } else if ( kind < 2.5 ) {
+          // sparkles: gold over treasure, white over the cards, twinkling
+          float an = seed * 6.2832;
+          p += vec3( cos( an ) * 0.13, 0.03 * sin( uTime * 0.8 + an ) + 0.08 * fract( seed * 7.3 ), sin( an ) * 0.11 );
+          a = pow( max( sin( uTime * 2.2 + seed * 41.0 ), 0.0 ), 6.0 );
+          size = 0.05 + 0.06 * a;
+        } else if ( kind < 3.5 ) {
+          // spray where the waterfall lands
+          float t = fract( uTime * 0.33 + seed ), an = seed * 37.0;
+          p += vec3( cos( an ) * 0.22 * t, 0.22 * t, sin( an ) * 0.18 * t );
+          size = 0.07 + 0.2 * t;
+          a = ( 1.0 - t ) * smoothstep( 0.0, 0.1, t ) * 0.42;
+        } else {
+          // leaves drifting down from the trees, turning over
+          float t = fract( uTime * 0.11 + seed ), an = seed * 43.0;
+          p += vec3( cos( an ) * 0.09 + 0.14 * t + 0.03 * sin( uTime * 1.7 + seed * 9.0 ), -0.3 * t, sin( an ) * 0.09 + 0.03 * cos( uTime * 1.3 + seed * 7.0 ) );
+          size = 0.04;
+          a = smoothstep( 0.0, 0.08, t ) * ( 1.0 - smoothstep( 0.82, 1.0, t ) );
+        }
+        vA = a * uFade;
+        vK = kind;
+        vec4 mv = modelViewMatrix * vec4( p, 1.0 );
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = size * uScale / max( 0.1, -mv.z );
+      }`,
+    f: `varying float vA;
+      varying float vK;
+      varying float vR;
+      void main() {
+        vec2 c = gl_PointCoord - 0.5;
+        float d = length( c ), a;
+        vec3 col;
+        if ( vK < 0.5 ) { a = 1.0 - smoothstep( 0.12, 0.5, d ); col = vec3( 0.92, 0.92, 0.9 ); }
+        else if ( vK < 2.5 ) {
+          float star = max( ( 1.0 - smoothstep( 0.0, 0.09, abs( c.x ) ) ) * ( 1.0 - smoothstep( 0.0, 0.5, abs( c.y ) ) ),
+                            ( 1.0 - smoothstep( 0.0, 0.09, abs( c.y ) ) ) * ( 1.0 - smoothstep( 0.0, 0.5, abs( c.x ) ) ) );
+          a = max( star, 1.0 - smoothstep( 0.0, 0.25, d ) );
+          col = vK < 1.5 ? vec3( 1.0, 0.85, 0.42 ) : vec3( 1.0 );
+        } else if ( vK < 3.5 ) { a = ( 1.0 - smoothstep( 0.0, 0.5, d ) ) * 0.8; col = vec3( 0.88, 0.94, 1.0 ); }
+        else {
+          float ca = cos( vR ), sa = sin( vR );
+          vec2 q = vec2( c.x * ca - c.y * sa, c.x * sa + c.y * ca ) * vec2( 1.0, 2.0 + 1.2 * sin( vR * 0.7 ) );
+          a = 1.0 - smoothstep( 0.3, 0.4, length( q ) );
+          col = mix( vec3( 0.85, 0.42, 0.12 ), vec3( 0.95, 0.76, 0.22 ), fract( vR * 0.37 ) );
+        }
+        a *= vA;
+        if ( a < 0.01 ) discard;
+        gl_FragColor = vec4( col, a );
+      }`
+  };
+  // a way between two points of a place (its units), sampled on the land once
+  function wayOf(P, a, b, n = 16) {
+    const pts = [];
+    for (let j = 0; j <= n; j++) { const t = j / n; pts.push(P(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)); }
+    return { pts, n, yaw: Math.atan2(-(pts[n].z - pts[0].z), pts[n].x - pts[0].x), len: Math.hypot(b[0] - a[0], b[1] - a[1]) };
+  }
+  function onWay(w, u, out) { const f = clamp(u, 0, 1) * w.n, j = Math.min(w.n - 1, Math.floor(f)); return out.lerpVectors(w.pts[j], w.pts[j + 1], f - j); }
+  const thereAndBack = u => { const c = u % 2; return c < 1 ? c : 2 - c; };
+  // one actor: where it is at time t (its shape faces +x)
+  function actorOf(a, at, F, tile, ph) {
+    const s = a.s != null ? a.s : tile >= 0 ? 1 : 1.18, onTile = () => (tile >= 0 && tiles[tile] ? tiles[tile].position.y : 0);
+    if (a.k === 'sheep') {                                   // grazing round and round, stopping now and then
+      const n = 24, ring = [];
+      for (let j = 0; j <= n; j++) { const t = j / n * TAU; ring.push(at(a.at[0] + Math.cos(t) * a.r, a.at[1] + Math.sin(t) * a.r)); }
+      return { k: 'sheep', up(t, o) {
+        const th = ((t * 0.2 + ph + 0.7 * Math.sin(t * 0.27 + ph)) % TAU + TAU) % TAU, f = th / TAU * n, j = Math.min(n - 1, Math.floor(f));
+        o.p.lerpVectors(ring[j], ring[j + 1], f - j);
+        o.yaw = Math.atan2(-(ring[j + 1].z - ring[j].z), ring[j + 1].x - ring[j].x); o.s = s;
+      } };
     }
+    if (a.k === 'bar') {                                     // the customs barrier: up, a while, down again
+      const p = at(a.at[0], a.at[1], a.h);
+      return { k: 'bar', up(t, o) {
+        const c = (t * 0.12 + ph) % 1, up = c < 0.1 ? smooth(0, 0.1, c) : c < 0.42 ? 1 : c < 0.52 ? 1 - smooth(0.42, 0.52, c) : 0;
+        o.p.copy(p); o.yaw = F.yaw; o.pitch = up * 1.2; o.s = 1.18;
+      } };
+    }
+    if (a.k === 'gondola') {                                 // up the cable to the fortress and down again
+      const [A, B] = a.cable.map(([x, h, z]) => at(x, z, h)), yaw = Math.atan2(-(B.z - A.z), B.x - A.x);
+      return { k: 'gondola', up(t, o) {
+        const e = 0.08 + 0.84 * smooth(0, 1, thereAndBack(t * 0.05 + ph));
+        o.p.lerpVectors(A, B, e); o.yaw = yaw; o.roll = 0.05 * Math.sin(t * 1.6 + ph); o.s = 1.18;
+      } };
+    }
+    // walking, patrolling, sailing: there and back (into the tunnel: one way, again and again)
+    const boat = a.k === 'boat';
+    const P = boat ? (x, z) => { const p = at(x, z), w = Terrain.waterAt(p.x, p.z); p.y = w != null ? w - 0.004 : p.y + 0.008; return p; }   // a lake's level, or a river's
+      : a.tunnel ? (x, z) => { const p = at(x, z); if (z < -0.06) p.y = at(x, -0.06).y; return p; }
+      : (x, z) => at(x, z, a.h || 0);
+    const way = wayOf(P, a.a, a.b), per = Math.max(1, way.len / (a.speed || 0.05)), k = boat && a.sail ? 'sail' : a.k, start = a.phase != null ? a.phase : ph;
+    return { k, up(t, o) {
+      const q = t / per + start;
+      if (a.tunnel) {
+        const u = q % 1;
+        onWay(way, u, o.p); o.yaw = way.yaw; o.s = s * clamp(Math.min(u / 0.05, (1 - u) / 0.03), 0, 1);
+      } else {
+        const c = q % 2, fwd = c < 1;
+        onWay(way, smooth(0, 1, fwd ? c : 2 - c), o.p); o.yaw = way.yaw + (fwd ? 0 : Math.PI); o.s = s;
+      }
+      if (boat) { o.p.y += 0.004 * Math.sin(t * 1.9 + ph); o.roll = 0.07 * Math.sin(t * 1.3 + ph); }
+      else o.p.y += Math.abs(Math.sin(t * 7 + ph)) * 0.005 * s;
+      o.p.y += onTile();
+    } };
+  }
+  function* buildLife() {
+    const P = [], K = [], Sd = [], groups = {}, rnd = Models.rng(4242);
+    const emit = (p, kind, n) => { const o = rnd(); for (let j = 0; j < n; j++) { P.push(p.x, p.y, p.z); K.push(kind); Sd.push(kind ? rnd() : ((j + o) / n) % 1); } };
+    const add = a => (groups[a.k] || (groups[a.k] = [])).push(a);
+    for (let i = 0; i < 40; i++) {
+      const fx = Models.fx(i);
+      if (!fx) continue;
+      const F = lotF[i] || null, tile = i % 10 ? -1 : i;
+      const at = tile >= 0 ? (x, z, h = 0) => toWorld(i, x, z, TH + h) : (x, z, h = 0) => F.at(x, z, h);
+      for (const [x, z, h] of fx.smoke || []) emit(at(x, z, h), 0, 7);
+      for (const [x, z, h, kind] of fx.sparkle || []) emit(at(x, z, h), kind, 4);
+      for (const [x, z, h] of fx.leaves || []) emit(at(x, z, h), 4, 5);
+      for (const a of fx.actors || []) add(actorOf(a, at, F, tile, rnd() * 20));
+    }
+    yield;
+    // the great mountain: smoke over the village, spray where the waterfall lands, sheep on the church's hill,
+    // clouds round the summit and two eagles circling it
+    const CF = Models.CENTER_FX, ground = (x, z, h = 0) => new T.Vector3(x, Terrain.height(x, z) + h, z);
+    for (const [x, z, h] of CF.smoke) emit(ground(x, z, h), 0, 7);
+    if (fallFoot) emit(new T.Vector3(fallFoot[0], fallFoot[1] + 0.02, fallFoot[2]), 3, 16);
+    else for (const [x, z, h] of CF.mist) emit(ground(x, z, h), 3, 16);
+    for (const [x, z] of CF.sheep) add(actorOf({ k: 'sheep', at: [x, z], r: 0.09, s: 1.35 }, (xx, zz) => ground(xx, zz), null, -1, rnd() * 20));
+    const [px, pz] = Models.CENTER.peak;
+    for (let k = 0; k < 4; k++) {
+      const r = 1.0 + 0.3 * (k % 2) + 0.08 * k, h = landTop * (0.56 + 0.06 * k), w = 0.045 + 0.012 * k, a0 = k * 1.7, cs = 0.6 + 0.12 * (k % 3), ph = k * 2.1;
+      add({ k: 'cloud', up(t, o) { const a = a0 + w * t; o.p.set(px + Math.cos(a) * r, h + 0.05 * Math.sin(t * 0.3 + ph), pz + Math.sin(a) * r); o.yaw = -a - Math.PI / 2; o.s = cs; } });
+    }
+    for (let k = 0; k < 2; k++) {
+      const r = [1.7, 2.35][k], h = landTop * [0.8, 0.64][k], w = [0.24, -0.18][k], a0 = k * 2.6, ph = k * 3.7, dir = Math.sign(w);
+      const e = { k: 'eagle', M: new T.Matrix4(), flap: 0, mat(t, m4, f) {
+        const a = a0 + w * t, vx = -Math.sin(a) * dir, vz = Math.cos(a) * dir, yaw = Math.atan2(-vz, vx);
+        // flying round: the wing on the inside dips (it banks)
+        const inward = Math.sin(yaw) * -Math.cos(a) + Math.cos(yaw) * -Math.sin(a);
+        O.position.set(px + Math.cos(a) * r, h + 0.12 * Math.sin(t * 0.37 + ph), pz + Math.sin(a) * r);
+        O.rotation.set(0.3 * Math.sign(inward), yaw, 0, 'YXZ'); O.scale.setScalar(Math.max(1e-4, 1.3 * f)); O.updateMatrix();
+        e.M.copy(O.matrix); m4.copy(e.M);
+        const beat = smooth(-0.3, 0.5, Math.sin(t * 0.55 + ph));            // now it flaps, now it glides
+        e.flap = 0.1 + beat * 0.55 * Math.sin(t * 6.5 + ph);
+      } };
+      add(e);
+      for (const side of [1, -1]) add({ k: 'wing', mat(t, m4) { _w.makeRotationX(-e.flap); if (side < 0) _w.premultiply(FLIPZ); m4.multiplyMatrices(e.M, _w); } });
+    }
+    yield;
+    for (const k of LIFE_ORDER) {
+      const list = groups[k];
+      if (!list) continue;
+      const im = new T.InstancedMesh(Models.actor(k), k === 'cloud' ? mats.cloud : k === 'wing' ? mats.wing : mats.scenery, list.length);
+      im.frustumCulled = false; im.receiveShadow = k !== 'cloud';
+      root.add(im);
+      life.groups.push({ k, mesh: im, list });
+    }
+    const g = new T.BufferGeometry();
+    g.setAttribute('position', new T.Float32BufferAttribute(P, 3));
+    g.setAttribute('kind', new T.Float32BufferAttribute(K, 1));
+    g.setAttribute('seed', new T.Float32BufferAttribute(Sd, 1));
+    const pm = new T.ShaderMaterial({ uniforms: { uTime: U.time, uFade: U.fade, uScale: U.scale }, vertexShader: PTS.v, fragmentShader: PTS.f, transparent: true, depthWrite: false });
+    life.pts = new T.Points(g, pm);
+    life.pts.frustumCulled = false; life.pts.renderOrder = 2;
+    root.add(life.pts);
+    life.ready = true;
+    lifeStep(0);
+  }
+  // everything alive put in its place for time t
+  function lifeStep(t) {
+    if (!life.ready) return;
+    const f = U.fade.value, on = f > 0.003;
+    for (const g of life.groups) {
+      g.mesh.visible = on;
+      if (!on) continue;
+      for (let k = 0; k < g.list.length; k++) {
+        const a = g.list[k];
+        if (a.mat) a.mat(t, _lm, f);
+        else {
+          POSE.yaw = POSE.roll = POSE.pitch = 0; POSE.s = 1;
+          a.up(t, POSE);
+          O.position.copy(POSE.p); O.rotation.set(POSE.roll, POSE.yaw, POSE.pitch, 'YXZ'); O.scale.setScalar(Math.max(1e-4, POSE.s * f)); O.updateMatrix();
+          _lm.copy(O.matrix);
+        }
+        g.mesh.setMatrixAt(k, _lm);
+      }
+      g.mesh.instanceMatrix.needsUpdate = true;
+    }
+    if (life.pts) life.pts.visible = on;
   }
 
   // ===== owners: the flag on the lot, towers on the colour band, the square's sides in the owner's colour =====
@@ -318,7 +662,7 @@ const Board3D = (() => {
     cloth.position.set(0.012, 0.52, 0);
     cloth.userData.base = Float32Array.from(cg.attributes.position.array);
     g.add(cloth);
-    const p = toWorld(i, 0.38, -(D / 2) + 0.03, 0.05);
+    const p = toWorld(i, 0.38, -(D / 2) + 0.03, 0.03);
     g.position.copy(p); g.rotation.y = yawOf(sideOf(i));
     g.visible = false;
     root.add(g);
@@ -416,7 +760,7 @@ const Board3D = (() => {
     k.m = m;
     layoutBuildings(performance.now());
     labelMat[i].color.set(m ? 0x9b8f7a : 0xffffff);
-    if (lotMesh[i]) lotMesh[i].material = m ? (mats.mortScenery || (mats.mortScenery = new T.MeshLambertMaterial({ vertexColors: true, color: 0x8a8a8a }))) : mats.scenery;
+    if (lotMesh[i]) lotMesh[i].material = m ? (mats.mortScenery || (mats.mortScenery = living(new T.MeshLambertMaterial({ vertexColors: true, color: 0x8a8a8a })))) : mats.scenery;
     const f = flags[i];
     if (f && f.g.visible) {
       const to = topOf(k), from = f.cloth.position.y;
@@ -425,16 +769,17 @@ const Board3D = (() => {
       if (m) f.cloth.material.color.lerp(new T.Color(0x777777), 0.55);
     }
   }
-  // a square's scenery jumps up a little (bought, built on)
+  // a square's scenery jumps (bought, built on, landed on): a lot's leaves its land for a moment, a corner's stretches
   function pop(i, amt = 0.14) {
     const m = lotMesh[i];
     if (!m) return;
-    tween(0.5, e => { const s = 1 + Math.sin(e * Math.PI) * amt; m.scale.set(1, s, 1); }, ease.lin);
+    if (!(i % 10)) tween(0.5, e => { m.scale.set(1, 1 + Math.sin(e * Math.PI) * amt, 1); }, ease.lin);
+    else tween(0.5, e => { m.position.y = Math.sin(e * Math.PI) * amt * 0.8; }, ease.lin);
   }
   // a whole region has one owner: its lots jump one after another and confetti flies
   function celebrate(g, seat) {
     if (!ok) return;
-    GROUP_TILES[g].forEach((i, k) => later(k * 0.18).then(() => { pop(i, 0.28); confetti(toWorld(i, 0, -(D / 2 + LOT / 2), 0.6), seat); }));
+    GROUP_TILES[g].forEach((i, k) => later(k * 0.18).then(() => { pop(i, 0.28); confetti(lotF[i] ? lotF[i].at(0, 0, 0.4) : toWorld(i, 0, -(D / 2 + LOT / 2), 0.6), seat); }));
   }
   let confGeo = null;
   function confetti(p, seat) {
@@ -574,6 +919,7 @@ const Board3D = (() => {
     if (epoch !== my) return;
     pos[seat] = to;
     placeTokens(true);
+    if (to % 10) pop(to, 0.05);                   // the place it came to stirs
   }
   async function fly(seat, to) {
     if (!ok || !toks[seat]) { pos[seat] = to; return; }
@@ -584,6 +930,7 @@ const Board3D = (() => {
     if (epoch !== my) return;
     bounceTile(to);
     placeTokens(true);
+    if (to % 10) pop(to, 0.05);
   }
   function setTurn(seat) {
     turnSeat = seat;
@@ -619,6 +966,8 @@ const Board3D = (() => {
     const ce = Math.cos(camS.el);
     cam.position.set(camS.x + camS.d * ce * Math.sin(camS.yaw), camS.y + camS.d * Math.sin(camS.el), camS.z + camS.d * ce * Math.cos(camS.yaw));
     cam.lookAt(camS.x, camS.y, camS.z);
+    // the haze begins beyond the board, wherever the camera is
+    scene.fog.near = camS.d + 15; scene.fog.far = camS.d * 1.6 + 60;
     // the sun turns with the camera, so the side in front is always lit from the front left
     const a = camS.yaw;
     sun.position.set(-6 * Math.cos(a) + 7 * Math.sin(a), 12, 6 * Math.sin(a) + 7 * Math.cos(a));
@@ -630,9 +979,9 @@ const Board3D = (() => {
     followD = clamp((across / 2) / Math.tan(hf / 2), 7, 40);
     const vis = 2 * followD * Math.tan(vf / 2);
     if (vis < 6.2) followD = 6.2 / (2 * Math.tan(vf / 2));
-    // overview: the whole board fits
+    // overview: the whole board fits, and the mountain's top with it
     elOver = W > H ? 0.95 : 1.08; elFollow = W > H ? 0.74 : 0.8;
-    const pts = [];
+    const pts = [new T.Vector3(Models.CENTER.peak[0], landTop + 0.2, Models.CENTER.peak[1])];
     for (const x of [-S / 2 - 0.5, S / 2 + 0.5]) for (const z of [-S / 2 - 0.5, S / 2 + 0.5]) for (const y of [-0.5, 1.2]) pts.push(new T.Vector3(x, y, z));
     const c2 = cam.clone();
     let lo = 6, hi = 90;
@@ -653,6 +1002,7 @@ const Board3D = (() => {
     if (!modeSet) mode = Math.min(W, H) > 560 ? 'overview' : 'follow';
     R.setSize(W, H, false);
     cam.aspect = W / H; cam.updateProjectionMatrix();
+    U.scale.value = H * R.getPixelRatio() / (2 * Math.tan(cam.fov * Math.PI / 360));      // points sized in the board's units
     distances();
     Dice3D.layout(W, H);
     shadowDirty = true;
@@ -718,24 +1068,26 @@ const Board3D = (() => {
       tk.face.rotation.x = -camS.el * 0.6;
       if (tk.glow.visible) { const s = 1 + Math.sin(t * 4) * 0.08; tk.glow.scale.set(s, s, s); tk.glow.material.opacity = 0.6 + Math.sin(t * 4) * 0.25; }
     }
-    // flags wave, the wheel turns, clouds drift
+    // flags wave, the wheel turns
     for (const f of flags) {
       if (!f || !f.g.visible) continue;
       const p = f.cloth.geometry.attributes.position, b = f.cloth.userData.base;
       for (let k = 0; k < p.count; k++) { const x = b[k * 3]; p.array[k * 3 + 2] = Math.sin(t * 5 + x * 22 + f.g.position.x) * 0.025 * (x / 0.26); }
       p.needsUpdate = true;
     }
-    if (wheel) wheel.children[0].rotation.z = t * 1.4;
+    if (wheel) wheel.children[0].rotation.z = (REDUCED ? 0 : t) * 1.4;
     if (BLD.busy || tweens.length) layoutBuildings(now);
-    for (const c of clouds) { const u = c.userData; u.a += dt * u.sp; c.position.set(Math.cos(u.a) * u.r, u.h, Math.sin(u.a) * u.r); }
     const moving = tweens.length > 0 || BLD.busy > 0;
     const camStill = Math.abs(camT.yaw - camS.yaw) < 0.002 && Math.abs(camT.d - camS.d) < 0.01 && Math.abs(camT.x - camS.x) < 0.005 && Math.abs(camT.z - camS.z) < 0.005;
     const still = !moving && camStill && !Dice3D.busy;
-    if (still && frame % 3) return;          // nothing but flags and glows moving: a third of the frames is enough (a phone stays cool)
+    if (still && frame % (mobile ? 3 : 2)) return;   // only the board's own life moving: fewer frames are enough (a phone stays cool)
     // the shadows are drawn again only when what casts them has moved, or the sun has (it turns with the camera):
-    // not while the dice roll over a board that stands still, nor while nothing happens
+    // not while the dice roll over a board that stands still, nor while only the life of the board goes on
     if (moving || !camStill || shadowDirty) { R.shadowMap.needsUpdate = true; shadowDirty = false; PERF.shadows++; }
     PERF.frames++;
+    const lt = REDUCED ? 3 : t;              // with less motion asked for, the board's life stands still
+    U.time.value = lt;
+    lifeStep(lt);
     draw(dt * speedK);
   }
   function draw(diceDt) {
@@ -752,40 +1104,42 @@ const Board3D = (() => {
   function stop() { running = false; }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') stop(); else if (built) start(); });
 
-  // ===== the rise: the squares come up and the scenery grows when a game appears =====
+  // ===== the rise: when a game appears the squares come up, the land grows out of the board, then it comes to life =====
   // everything goes down at once; it comes up a few frames later, when the first (slow) frame has been drawn
   let riseAt = 0;
   function rise() {
     if (!ok || REDUCED) return;
     shadowDirty = true;
-    for (let i = 0; i < 40; i++) { tiles[i].position.y = -0.6; if (lotMesh[i]) lotMesh[i].scale.set(1, 0.001, 1); }
-    for (let k = 0; k < 4; k++) if (lotMesh[100 + k]) lotMesh[100 + k].scale.set(1, 0.001, 1);
+    for (let i = 0; i < 40; i++) tiles[i].position.y = -0.6;
+    landG.scale.y = 0.001;
+    U.fade.value = 0;
     riseAt = frame + 3;
   }
   function riseGo() {
     riseAt = 0;
     for (let i = 0; i < 40; i++) {
-      const m = tiles[i], l = lotMesh[i], d = (i / 40) * 0.9;
+      const m = tiles[i], d = (i / 40) * 0.9;
       later(d).then(() => tween(0.45, e => { m.position.y = -0.6 + 0.6 * e; }, ease.back));
-      if (l) later(d + 0.25).then(() => tween(0.6, e => l.scale.set(1, Math.max(0.001, e), 1), ease.back));
     }
-    for (let k = 0; k < 4; k++) { const l = lotMesh[100 + k]; if (l) later(0.3 + k * 0.25).then(() => tween(0.7, e => l.scale.set(1, Math.max(0.001, e), 1), ease.back)); }
+    later(0.5)
+      .then(() => { Sound.rumble(); return tween(1.6, e => { landG.scale.y = Math.max(0.001, e); }, ease.back); })
+      .then(() => tween(1.1, e => { U.fade.value = e; }, ease.lin));
   }
 
   // ===== public =====
-  // Making the board takes a while on a phone (the scenery is built piece by piece, the shaders are compiled). So it is
-  // made in small steps while the menu is on screen (prepare), and starting a game finds it ready; init() finishes
-  // at once whatever is still left.
+  // Making the board takes a while on a phone (the land is shaped, the scenery is built piece by piece, the shaders are
+  // compiled). So it is made in small steps while the menu is on screen (prepare), and starting a game finds it ready;
+  // init() finishes at once whatever is still left.
   let prep = null, failed = false, done = false;
   const idle = fn => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 300 }) : setTimeout(fn, 20));
   function* making(el) {
     host = el;
-    if (!T || !Models || /[?&]nogl\b/.test(location.search)) { failed = true; return; }
+    if (!T || !Models || !Terrain || /[?&]nogl\b/.test(location.search)) { failed = true; return; }
     for (const n of LABEL_PICS) pic(n);            // the squares' pictures start loading now
     try {
       R = new T.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
     } catch (e) { console.warn('no WebGL', e); failed = true; return; }
-    const mobile = Math.min(screen.width, screen.height) < 700;
+    mobile = Math.min(screen.width, screen.height) < 700;
     basePR = Math.min(window.devicePixelRatio || 1, mobile ? 2 : 1.75);
     if (/[?&]lq\b/.test(location.search)) { basePR = 1; quality = 0; }
     R.setPixelRatio(basePR);
@@ -800,6 +1154,7 @@ const Board3D = (() => {
     cv.className = 'board3d';
     el.appendChild(cv);
     scene = new T.Scene();
+    scene.fog = new T.Fog(HAZE, 28, 80);
     cam = new T.PerspectiveCamera(32, 1, 0.5, 200);
     scene.add(new T.HemisphereLight(0xe6f2ff, 0x8a6a48, 0.62));
     sun = new T.DirectionalLight(0xfff0d6, 1.0);
@@ -840,6 +1195,7 @@ const Board3D = (() => {
   // game and the first throw of the dice do not stall
   function warm() {
     try {
+      moveCamera(0);
       R.compile(scene, cam);
       for (const t of labelTex) if (t) R.initTexture(t);
       R.shadowMap.needsUpdate = true;
@@ -889,7 +1245,7 @@ const Board3D = (() => {
     placeTokens(false);
     setTurn(st.phase === 'over' ? -1 : st.turn);
     focusSeat = st.phase === 'over' ? -1 : st.turn;
-    if (!built) { built = true; camInit = false; if (animate) rise(); }
+    if (!built) { built = true; camInit = false; landG.scale.y = 1; U.fade.value = 1; if (animate) rise(); }
     start();
   }
   // the state changed without animation (end of the animations, a resync): the same, without the rise
@@ -921,7 +1277,11 @@ const Board3D = (() => {
     setPos(seat, at) { pos[seat] = at; },
     tween, ease, toWorld,
     _screen(i) { const c = centerOf(i).setY(TH); c.project(cam); const r = host.getBoundingClientRect(); return [r.left + (c.x + 1) / 2 * r.width, r.top + (1 - c.y) / 2 * r.height]; },
-    _dbg: () => ({ y: tiles.slice(0, 6).map(t => +t.position.y.toFixed(2)), tw: tweens.length, built, running, frame, quality }),
+    // where a point of the board is on the screen (for tests)
+    _project(x, y, z) { const c = new T.Vector3(x, y, z).project(cam), r = host.getBoundingClientRect(); return [r.left + (c.x + 1) / 2 * r.width, r.top + (1 - c.y) / 2 * r.height]; },
+    _dbg: () => ({ y: tiles.slice(0, 6).map(t => +t.position.y.toFixed(2)), tw: tweens.length, built, running, frame, quality, land: landG ? +landG.scale.y.toFixed(3) : 0, fade: +U.fade.value.toFixed(3), top: +landTop.toFixed(2) }),
+    _scene: () => scene, _gl: () => ({ R, cam, scene }),
+    _life: () => ({ ready: life.ready, groups: life.groups.map(g => [g.k, g.list.length]), points: life.pts ? life.pts.geometry.attributes.position.count : 0, fall: fallFoot }),
     _perf: () => R ? Object.assign({ calls: R.info.render.calls, tris: R.info.render.triangles, programs: R.info.programs.length, textures: R.info.memory.textures, geometries: R.info.memory.geometries, frame, quality, pr: R.getPixelRatio() }, PERF) : PERF
   };
 })();

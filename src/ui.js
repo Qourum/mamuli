@@ -66,6 +66,8 @@ const Sound = (() => {
     turn() { tone(660, 0.14, 'sine', 0.09); tone(880, 0.2, 'sine', 0.09, 0.12); },
     build() { tone(220, 0.08, 'square', 0.05); tone(330, 0.12, 'square', 0.05, 0.08); },
     bad() { tone(160, 0.25, 'sawtooth', 0.05); },
+    // the land growing out of the board: a low rumble
+    rumble() { for (let k = 0; k < 7; k++) noise(0.5, 55 + k * 10, 0.55, k * 0.17); tone(46, 1.3, 'sine', 0.06); },
     card() { tone(740, 0.08, 'sine', 0.06); tone(990, 0.12, 'sine', 0.06, 0.06); }
   };
 })();

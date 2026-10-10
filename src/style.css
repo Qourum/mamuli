@@ -399,8 +399,35 @@ button.qz-b:disabled { cursor: default; opacity: .7; }
 #app[data-world="archipelago"] #scr-lobby { background: linear-gradient(180deg, rgba(13, 16, 22, .55), rgba(13, 16, 22, .9) 45%, var(--ink) 85%), url(art/bg_sea.webp) 50% 0 / cover; }
 .bc-h, .deed-h { background-size: cover; }
 .qz-h { background-size: cover; background-position: right center; }
-.cardpop .card.pic { padding-top: 0; overflow: hidden; }
-.cardpop .card-pic { height: 96px; margin: 0 -16px 8px; background: right center / cover; }
+.card3d { position: relative; overflow: hidden; }
+.card3d canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
+.card3d .card3d-fallback { position: absolute; inset: 12%; width: 76%; height: 76%; object-fit: contain; margin: 0; filter: drop-shadow(0 8px 10px rgba(0, 0, 0, .3)); }
+.card3d.has-3d .card3d-fallback { visibility: hidden; }
+/* Brass, parchment and sea glass: the question stays HTML while its chest opens in 3D. */
+.treasure-head { min-height: 116px; position: relative; padding-left: 127px; background-color: #12343a; }
+.treasure-head .quiz-model { position: absolute; width: 132px; height: 118px; left: -5px; top: 0; }
+.treasure-head .quiz-heading { position: relative; z-index: 1; }
+.bc.treasure-quiz { border-color: #b58b3c; background: linear-gradient(135deg, #fff1ca, #e6d2a9); }
+.treasure-quiz .bc-b { box-shadow: inset 0 0 0 1px rgba(143, 106, 48, .24); margin: 5px; border-radius: 10px; }
+.treasure-quiz .qz-q { color: #1d4650; padding: 4px 0; }
+.treasure-quiz .qz-b { background: #fff9e6; border-color: #c5ab72; box-shadow: 0 3px 0 rgba(107, 67, 25, .15); }
+.treasure-quiz .qz-b i { background: #155361; color: #ffe8a5; box-shadow: inset 0 0 0 2px rgba(255, 222, 143, .3); }
+.treasure-quiz .qz-b.right { background: #e1f4d6; border-color: #3b8a34; }
+.treasure-quiz .qz-b.right i { background: #3b8a34; color: #fff; }
+.treasure-quiz .qz-b.wrong { background: #fbe3df; border-color: #c0473b; }
+.treasure-quiz .qz-b.wrong i { background: #a3261c; color: #fff; }
+/* The property card reads like an illuminated title deed. All prices and actions remain live text. */
+#app[data-world="archipelago"] .buycard .bc:not(.qz) { border-color: #b48e47; background: linear-gradient(120deg, #f9ebc7, #e4cea0); box-shadow: 0 0 0 1px #f6d891, 0 18px 44px #0009; }
+#app[data-world="archipelago"] .buycard .bc-h { position: relative; padding-top: 56px; border-bottom-width: 5px; box-shadow: inset 0 0 0 1px #ffe4a344; }
+#app[data-world="archipelago"] .buycard .bc-h::before { content: '✦'; position: absolute; top: 10px; right: 12px; display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid #ebc576; border-radius: 50%; color: #f7dea2; background: #173e46cc; }
+#app[data-world="archipelago"] .buycard .bc-h h3 { font-size: 27px; text-shadow: 0 2px 2px #072028, 0 3px 14px #000; }
+#app[data-world="archipelago"] .buycard .bc-b { margin: 5px; border: 1px solid #b08d4b55; border-radius: 9px; padding: 10px; }
+#app[data-world="archipelago"] .buycard .story { border-bottom: 1px solid #b48e4766; padding: 0 2px 8px; color: #57402b; }
+#app[data-world="archipelago"] .buycard .bc-rent li { padding: 6px; border-color: #b5905755; }
+#app[data-world="archipelago"] .buycard .bc-rent li:nth-child(odd) { background: #fff6dc55; border-radius: 5px; }
+#app[data-world="archipelago"] .deed-h { position: relative; border-bottom-width: 5px; box-shadow: inset 0 0 0 2px #cfa95b66; }
+#app[data-world="archipelago"] .deed-h::after { content: '✦'; position: absolute; right: 20px; bottom: -18px; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: #973e2b; border: 3px solid #c38346; box-shadow: 0 3px 6px #0006; color: #f6d384; font-size: 23px; }
+#app[data-world="archipelago"] .deed-h ~ .rents { border-color: #b68e4766; background: linear-gradient(110deg, #30404544, #75512822); }
 #app[data-world="archipelago"] .scene {
   background: linear-gradient(180deg, rgba(13, 16, 22, .8) 0, rgba(13, 16, 22, .25) 14%, rgba(13, 16, 22, 0) 30%, rgba(13, 16, 22, .1) 58%, rgba(13, 16, 22, .88) 82%, var(--ink) 100%),
     linear-gradient(180deg, #5aa7dc 0%, #bfe6f5 40%, #39a9c4 54%, #0f5d86 100%); }
@@ -459,16 +486,29 @@ pre.diag { margin: 10px 0 0; padding: 10px; max-height: 52vh; overflow: auto; bo
 .steps { margin: 0 0 12px; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; }
 
 /* the card that was drawn, and whose turn it is: over the table, facing the player */
-.cardpop { position: absolute; inset: 0; display: grid; place-items: center; z-index: 5; background: rgba(13, 16, 22, .35); }
-.cardpop .card { width: min(80%, 330px); padding: 14px 16px 12px; border-radius: 14px; text-align: center; background: var(--paper); color: var(--paper-ink);
-  border: 3px solid var(--gold-lo); box-shadow: 0 0 0 2px var(--paper-2) inset, 0 16px 40px rgba(0, 0, 0, .6); font-size: 15px; }
-.cardpop .card.c { border-color: var(--wood-3); }
-.cardpop .card img { width: 30%; max-width: 80px; margin-top: -4px; }
-.cardpop h3 { margin: 2px 0 6px; font: 900 1.15em var(--f-display); color: #8d2a1f; }
-.cardpop .card.c h3 { color: var(--wood); }
-.cardpop p { margin: 0 0 6px; font-weight: 600; line-height: 1.4; }
-.cardpop small { color: var(--paper-dim); font-weight: 700; }
+.cardpop { position: absolute; inset: 0; display: grid; place-items: center; z-index: 5; padding: 10px; background: rgba(6, 21, 29, .58); }
+.cardpop .card { --event-color: #875823; position: relative; width: min(94%, 370px); max-height: 100%; overflow-y: auto; padding: 0 16px 12px; border-radius: 18px; text-align: center; color: #3b2b1b;
+  background: radial-gradient(ellipse at 28% 0, #fff7d7, transparent 60%), linear-gradient(145deg, #eddbb2, #ddc292); border: 2px solid #b9914f; box-shadow: 0 0 0 2px #f8e1a2 inset, 0 20px 50px #0009; font-size: 15px; }
+.cardpop .card.nautical { --event-color: #165365; }
+.cardpop .card.effect-reward { --event-color: #59762b; }
+.cardpop .card.effect-payment { --event-color: #9b562c; }
+.cardpop .card.effect-danger { --event-color: #8c342c; }
+.cardpop .card-model { height: 170px; margin: 0 -16px; background: radial-gradient(ellipse at 50% 68%, #a9dcd388, transparent 64%); border-radius: 16px 16px 0 0; }
+.cardpop .royal .card-model { background: radial-gradient(ellipse at 50% 68%, #d7a55655, transparent 64%); }
+.card-close { position: absolute; top: 8px; right: 8px; z-index: 2; width: 32px; height: 32px; padding: 0; border-radius: 50%; background: #fff2d0c9; border: 1px solid #a2814b88; color: #5c442d; font: 400 25px/1 sans-serif; cursor: pointer; }
+.card-close:focus-visible { outline: 3px solid #1b6476; outline-offset: 2px; }
+.card-insignia { display: inline-flex; align-items: center; gap: 6px; margin: -7px 0 10px; position: relative; padding: 4px 12px; border-radius: 99px; background: var(--event-color); color: #fff1cb; border: 1px solid #e0ba6c; box-shadow: 0 2px 5px #57361933; font-size: 11px; font-weight: 800; }
+.card-insignia svg { width: 19px; height: 19px; }
+.card-letter { padding: 12px 13px; border: 1px solid #98713e66; border-radius: 9px; box-shadow: 0 0 0 3px #fff3d844 inset; background: #fff5d355; }
+.cardpop h3 { margin: 0 0 8px; font: 900 1.2em var(--f-display); color: var(--event-color); }
+.cardpop p { margin: 0; font-weight: 700; line-height: 1.55; text-wrap: pretty; }
+.card-reader { position: relative; display: flex; justify-content: center; align-items: center; gap: 7px; margin: 12px 20px 6px; min-height: 31px; }
+.card-reader img { width: 28px; height: 28px; border-radius: 50%; border: 1px solid #947447; }
+.card-reader small { font-size: 12px; color: #674f32; font-weight: 800; }
+.card-seal { display: grid; place-items: center; width: 29px; height: 29px; border-radius: 50%; background: #943f2b; color: #f7dca0; border: 2px solid #b66840; box-shadow: 0 2px 4px #6b3c2833; font-size: 17px; }
+.card-dismiss { color: #786242; font-size: 10px; font-weight: 600; }
 .cardpop.go .card { animation: cardIn .38s cubic-bezier(.2, 1.4, .4, 1); }
+@media (max-height: 580px) { .cardpop .card-model { height: 115px; } .cardpop .card { font-size: 13px; } .card-letter { padding: 8px 10px; } .card-reader { margin-top: 8px; } }
 @keyframes cardIn { from { transform: translateY(30px) rotate(-6deg) scale(.7); opacity: 0; } to { transform: none; opacity: 1; } }
 .banner { position: absolute; left: 50%; top: 42%; z-index: 6; display: flex; align-items: center; gap: 10px; padding: 8px 18px 8px 8px; border-radius: 99px;
   background: linear-gradient(180deg, var(--wood-3), var(--wood-2)); border: 2px solid var(--gold); box-shadow: 0 10px 30px rgba(0, 0, 0, .6);
@@ -576,4 +616,25 @@ pre.diag { margin: 10px 0 0; padding: 10px; max-height: 52vh; overflow: auto; bo
   .btn.roll::after { animation: none !important; }
   .banner.go { animation: none; }
   .seat.wait > i { animation: none; }
+}
+
+/* ----- money transfers: the gold is world geometry; these labels keep its amount readable ----- */
+.currency-world-label { position: absolute; z-index: 3; transform: translate(-50%, -100%); pointer-events: none;
+  padding: 4px 11px; border: 1px solid #ffe29a; border-radius: 99px; color: #fff0b6; white-space: nowrap;
+  background: linear-gradient(180deg, rgba(77, 49, 12, .94), rgba(25, 22, 14, .96));
+  font: 400 clamp(17px, 2.5vw, 23px)/1.1 var(--f-num); text-shadow: 0 1px 2px #241603;
+  box-shadow: 0 0 0 2px rgba(53, 33, 8, .4), 0 0 18px rgba(255, 198, 58, .42); }
+.currency-world-label.bank { font-size: clamp(13px, 1.9vw, 17px); color: #ffe6ad; }
+.pl.cash-in { animation: cashReceive .72s ease-out; }
+.pl.cash-out { animation: cashSpend .58s ease-out; }
+.pl .cash-delta { right: 5px; bottom: -6px; z-index: 2; padding: 2px 8px; border-radius: 99px;
+  border: 1px solid rgba(255, 221, 127, .75); font-size: 17px; color: #fff0ae;
+  background: linear-gradient(180deg, #856126, #392610); box-shadow: 0 2px 8px #0008; animation: cashDelta 1.05s ease-out forwards; }
+.pl .cash-delta.down { color: #ffddd1; border-color: #dc8c6d; background: linear-gradient(180deg, #6a3825, #301d15); }
+@keyframes cashReceive { 0%, 100% { filter: brightness(1); } 28% { filter: brightness(1.6); box-shadow: 0 0 22px #ffd15c88; } }
+@keyframes cashSpend { 0%, 100% { filter: brightness(1); } 28% { filter: brightness(1.35); box-shadow: 0 0 17px #d6784870; } }
+@keyframes cashDelta { 0% { transform: translateY(4px) scale(.85); opacity: 0; } 15%, 70% { transform: translateY(-4px) scale(1); opacity: 1; } 100% { transform: translateY(-16px) scale(.98); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .pl.cash-in, .pl.cash-out, .pl .cash-delta { animation: none; }
+  .currency-world-label.reduced { box-shadow: 0 2px 8px #0005; }
 }

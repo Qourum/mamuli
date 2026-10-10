@@ -33,6 +33,7 @@ const Board3D = (() => {
   // the world on the board: the land (models.js) or the archipelago's sea (sea.js), as the room's theme says; made again
   // when the theme changes (see retheme)
   let MOD = Models, worldBuilt = null, hemi = null, seaMesh = null;
+  let marineLife = null;
   const animatedModels = [];
   let modelDelta = 0;
   const wantWorld = () => (typeof THEME !== 'undefined' && THEME.world === 'sea' && typeof SeaModels !== 'undefined' && SeaModels) ? 'sea' : 'land';
@@ -223,7 +224,17 @@ const Board3D = (() => {
         transformed.xz += swell * ${gf(a * 0.32)} * vec2( ${gf(x)}, ${gf(z)} ) * cos( ph${k} );`).join('\n        ');
   const seaTilt = SEA_WAVES.map(([x, z, len, a, c], k) => `seaWave( p, vec2( ${gf(x)}, ${gf(z)} ), ${gf(len)}, ${gf(a)} * calm${k > 1 ? ' * fine' : ''}, ${gf(c)}, h, g );`).join('\n        ');
   const LIVING = {
-    vp: '#include <common>\nattribute vec2 anim;\nuniform float uTime;\nvarying vec3 vWP;\nvarying float vWater;\nvarying float vShore;',
+    vp: `#include <common>
+attribute vec2 anim;
+uniform float uTime;
+varying vec3 vWP;
+varying float vWater;
+varying float vShore;
+#ifdef SEA
+uniform mat4 uSeaTextureMatrix;
+varying vec4 vSeaReflection;
+varying vec4 vSeaScreen;
+#endif`,
     v: `#include <begin_vertex>
       vec4 wp4 = vec4( position, 1.0 );
       #ifdef USE_INSTANCING
@@ -238,6 +249,9 @@ const Board3D = (() => {
         float open = smoothstep( 6.2, 7.2, max( abs( wp4.x ), abs( wp4.z ) ) );
         float swell = mix( 0.48, 1.0, open ) * ( 1.0 - anim.x ) * ( 1.0 - smoothstep( 18.0, 38.0, length( wp4.xz ) ) );
         ${seaMove}
+        vec4 seaWorld = modelMatrix * vec4( transformed, 1.0 );
+        vSeaReflection = uSeaTextureMatrix * seaWorld;
+        vSeaScreen = projectionMatrix * viewMatrix * seaWorld;
       #else
         if ( anim.x > 0.0 ) {
           float ph = wp4.x * 1.9 + wp4.z * 1.3;
@@ -252,6 +266,17 @@ uniform sampler2D uDetail;
 varying vec3 vWP;
 varying float vWater;
 varying float vShore;
+#ifdef SEA
+uniform sampler2D uSeaReflection;
+uniform sampler2D uSeaTransmission;
+uniform sampler2D uSeaDepth;
+uniform float uSeaReflectionReady;
+uniform float uSeaCaptureReady;
+uniform float uSeaHasDepth;
+uniform vec2 uSeaCameraRange;
+varying vec4 vSeaReflection;
+varying vec4 vSeaScreen;
+#endif
 // one train of the sea's waves: its height and its slope here, added to h and g
 void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, inout vec2 g ) {
   float k = 6.28318 / len, ph = k * ( dot( d, p ) - speed * uTime );
@@ -259,6 +284,10 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   g += amp * k * cos( ph ) * d;
 }`,
     f: `#include <emissivemap_fragment>
+      #ifdef SEA
+      float seaFresnel = 0.0, seaFoam = 0.0;
+      vec2 seaSlope = vec2( 0.0 );
+      #endif
       #ifdef SEA
       {
         // Calm, clear water: depth colour comes from the seabed, reflections from the view angle, and highlights from
@@ -275,6 +304,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
         seaWave( p, vec2( 0.19612, 0.98058 ), 0.11, 0.00052 * fine * calm, 0.072, h, g );
         normal = normalize( mat3( viewMatrix ) * vec3( -g.x, 1.0, -g.y ) );
         float fres = pow( 1.0 - clamp( dot( normal, normalize( vViewPosition ) ), 0.0, 1.0 ), 5.0 );
+        seaFresnel = fres;
+        seaSlope = g;
         diffuseColor.rgb *= 0.98 + 0.085 * clamp( broadHeight / 0.0677, -1.0, 1.0 );
         diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.16, 0.34, 0.43 ), fres * 0.28 );
         float shallow = 1.0 - smoothstep( 0.015, 0.16, depth );
@@ -290,6 +321,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
           float grain = texture2D( uDetail, p * 4.5 + uTime * vec2( 0.015, -0.009 ) ).r;
           float lap = 0.5 + 0.5 * sin( uTime * 1.35 - vShore * 8.0 + dot( p, vec2( 1.7, 1.1 ) ) );
           float foam = shore * ( 0.34 + 0.35 * smoothstep( 0.58, 0.96, lap ) ) * ( 0.65 + 0.35 * grain );
+          seaFoam = foam;
           diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.65, 0.83, 0.8 ), foam );
           specularStrength *= 1.0 - foam;
         }
@@ -319,14 +351,183 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       }
       #endif`
   };
+  const SEA_OPTICS = `
+    #ifdef SEA
+    {
+      // Actual camera capture supplies the sand, submerged rocks and hulls. Beer-Lambert absorption removes red first;
+      // the view-depth difference supplies the water column, not a painted circular shoreline or noise overlay.
+      vec2 screenUV = vSeaScreen.xy / max( 0.0001, vSeaScreen.w ) * 0.5 + 0.5;
+      float waterViewDepth = max( 0.0, vViewPosition.z );
+      float column = max( 0.0, vWater - 4.0 );
+      if ( uSeaHasDepth > 0.5 ) {
+        float bedZ = -perspectiveDepthToViewZ( texture2D( uSeaDepth, screenUV ).x, uSeaCameraRange.x, uSeaCameraRange.y );
+        column = max( 0.0, bedZ - waterViewDepth );
+      }
+      vec2 refractUV = clamp( screenUV + seaSlope * 0.035 * smoothstep( 0.0, 0.35, column ), vec2( 0.001 ), vec2( 0.999 ) );
+      if ( uSeaHasDepth > 0.5 ) {
+        float bentZ = -perspectiveDepthToViewZ( texture2D( uSeaDepth, refractUV ).x, uSeaCameraRange.x, uSeaCameraRange.y );
+        if ( bentZ < waterViewDepth + 0.002 ) refractUV = screenUV; // do not drag a foreground palm or cliff into the water
+      }
+      vec3 transmitted = texture2D( uSeaTransmission, refractUV ).rgb;
+      vec3 absorption = exp( -min( column, 12.0 ) * vec3( 4.3, 1.35, 0.85 ) );
+      vec3 throughWater = transmitted * absorption + outgoingLight * ( vec3( 1.0 ) - absorption );
+      outgoingLight = mix( outgoingLight, throughWater, uSeaCaptureReady * ( 1.0 - seaFoam ) );
+      // An oblique clipped mirrored camera renders the island, moving ships and sky. The animated slope bends that
+      // projective reflection, while Schlick Fresnel strengthens it towards a grazing view.
+      vec2 reflectedUV = vSeaReflection.xy / max( 0.0001, vSeaReflection.w );
+      float inFrame = step( 0.0, reflectedUV.x ) * step( reflectedUV.x, 1.0 ) * step( 0.0, reflectedUV.y ) * step( reflectedUV.y, 1.0 ) * step( 0.0001, vSeaReflection.w );
+      reflectedUV = clamp( reflectedUV + seaSlope * 0.04, vec2( 0.001 ), vec2( 0.999 ) );
+      vec3 mirrored = texture2D( uSeaReflection, reflectedUV ).rgb;
+      float reflected = ( 0.045 + 0.955 * seaFresnel ) * ( 1.0 - seaFoam ) * uSeaReflectionReady * inFrame;
+      outgoingLight = mix( outgoingLight, mirrored, min( 0.94, reflected ) );
+    }
+    #endif
+    #include <output_fragment>`;
+  // Bounded scene captures make the water optical: the two sea levels have their own reflected cameras; both use one
+  // main-camera colour/depth capture for clear shallow water. The oblique mirror projection follows Three r149 Water
+  // (MIT, mrdoob/three.js/examples/jsm/objects/Water.js); only the actual water surfaces are excluded from captures.
+  const SEA_REFRACTION = {
+    target: null, size: 0, mapU: { value: null }, depthU: { value: null }, readyU: { value: 0 }, hasDepthU: { value: 0 },
+    rangeU: { value: new T.Vector2(0.5, 200) }
+  };
+  const seaMirrors = [];
+  let seaCaptureAt = -Infinity, seaCaptureIndex = 0, seaCapturing = false, seaShadowAt = -1;
+  const seaCameraAt = new T.Matrix4(), seaProjectionAt = new T.Matrix4();
+  function seaTarget(size, depthTexture) {
+    const target = new T.WebGLRenderTarget(size, size, { minFilter: T.LinearFilter, magFilter: T.LinearFilter, depthBuffer: true, stencilBuffer: false });
+    target.texture.generateMipmaps = false;
+    target.texture.encoding = T.LinearEncoding;
+    if (depthTexture) {
+      target.depthTexture = new T.DepthTexture(size, size, T.UnsignedShortType);
+      target.depthTexture.format = T.DepthFormat;
+      target.depthTexture.minFilter = target.depthTexture.magFilter = T.NearestFilter;
+    }
+    return target;
+  }
+  function seaSurface(mesh, height) {
+    const state = {
+      mesh, height, target: null, size: 0, camera: new T.PerspectiveCamera(), plane: new T.Plane(new T.Vector3(0, 1, 0), -height),
+      matrixU: { value: new T.Matrix4() }, mapU: { value: null }, readyU: { value: 0 }
+    };
+    // Per-plane materials keep independent projective uniforms; all textures still share the same compiled program.
+    const material = mats.sea.clone();
+    material.userData.seaReflection = state;
+    mesh.material = living(material, true);
+    seaMirrors.push(state);
+    seaCaptureAt = -Infinity;
+  }
+  function disposeSeaCaptures() {
+    for (const state of seaMirrors) { if (state.target) state.target.dispose(); state.mapU.value = null; state.readyU.value = 0; }
+    seaMirrors.length = 0;
+    if (SEA_REFRACTION.target) SEA_REFRACTION.target.dispose();
+    SEA_REFRACTION.target = null; SEA_REFRACTION.size = 0;
+    SEA_REFRACTION.mapU.value = SEA_REFRACTION.depthU.value = null;
+    SEA_REFRACTION.readyU.value = SEA_REFRACTION.hasDepthU.value = 0;
+    seaCaptureAt = -Infinity; seaCaptureIndex = 0; seaShadowAt = -1;
+  }
+  function seaCaptureTargets() {
+    const size = mobile ? (prStep > 1 || quality === 0 ? 128 : 256) : (prStep > 1 || quality === 0 ? 256 : 512);
+    if (SEA_REFRACTION.size === size) return;
+    const hasDepth = R.capabilities.isWebGL2 || R.extensions.has('WEBGL_depth_texture');
+    if (SEA_REFRACTION.target) SEA_REFRACTION.target.dispose();
+    SEA_REFRACTION.target = seaTarget(size, hasDepth);
+    SEA_REFRACTION.size = size; SEA_REFRACTION.mapU.value = SEA_REFRACTION.target.texture;
+    SEA_REFRACTION.depthU.value = SEA_REFRACTION.target.depthTexture || null;
+    SEA_REFRACTION.hasDepthU.value = hasDepth ? 1 : 0;
+    SEA_REFRACTION.readyU.value = 0;
+    for (const state of seaMirrors) {
+      if (state.target) state.target.dispose();
+      state.target = seaTarget(size, false); state.size = size;
+      state.mapU.value = state.target.texture; state.readyU.value = 0;
+    }
+    seaCaptureAt = -Infinity;
+  }
+  function mirroredSeaCamera(state) {
+    cam.updateMatrixWorld();
+    const mirror = state.camera, position = new T.Vector3().setFromMatrixPosition(cam.matrixWorld);
+    if (position.y <= state.height) return false;
+    const look = cam.getWorldDirection(new T.Vector3()).add(position);
+    mirror.position.copy(position); mirror.position.y = 2 * state.height - position.y;
+    look.y = 2 * state.height - look.y;
+    mirror.up.copy(cam.up).reflect(state.plane.normal);
+    mirror.lookAt(look); mirror.near = cam.near; mirror.far = cam.far;
+    mirror.updateMatrixWorld(); mirror.projectionMatrix.copy(cam.projectionMatrix);
+    state.matrixU.value.set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1)
+      .multiply(mirror.projectionMatrix).multiply(mirror.matrixWorldInverse);
+    const plane = state.plane.clone().applyMatrix4(mirror.matrixWorldInverse);
+    const clip = new T.Vector4(plane.normal.x, plane.normal.y, plane.normal.z, plane.constant), p = mirror.projectionMatrix.elements;
+    const q = new T.Vector4((Math.sign(clip.x) + p[8]) / p[0], (Math.sign(clip.y) + p[9]) / p[5], -1, (1 + p[10]) / p[14]);
+    if (Math.abs(clip.dot(q)) < 1e-6) return false;
+    clip.multiplyScalar(2 / clip.dot(q));
+    p[2] = clip.x; p[6] = clip.y; p[10] = clip.z + 1 - 0.0005; p[14] = clip.w;
+    mirror.projectionMatrixInverse.copy(mirror.projectionMatrix).invert();
+    return true;
+  }
+  function seaCapture(force = false) {
+    if (!R || seaCapturing || worldBuilt !== 'sea' || !seaMirrors.length) return;
+    seaCaptureTargets();
+    cam.updateMatrixWorld();
+    const cameraMoved = cam.matrixWorld.elements.some((v, k) => Math.abs(v - seaCameraAt.elements[k]) > 0.00002)
+      || cam.projectionMatrix.elements.some((v, k) => Math.abs(v - seaProjectionAt.elements[k]) > 0.00002);
+    const now = performance.now(), cadence = mobile ? (prStep > 1 ? 240 : 125) : (prStep > 1 ? 125 : 66);
+    if (!force && now - seaCaptureAt < cadence) return;
+    if (!force && REDUCED && !cameraMoved && seaShadowAt === PERF.shadows && SEA_REFRACTION.readyU.value && seaMirrors.every(s => s.readyU.value)) return;
+    const old = {
+      target: R.getRenderTarget(), cube: R.getActiveCubeFace(), mip: R.getActiveMipmapLevel(), viewport: R.getViewport(new T.Vector4()),
+      scissor: R.getScissor(new T.Vector4()), scissorTest: R.getScissorTest(), xr: R.xr.enabled, shadowAuto: R.shadowMap.autoUpdate,
+      shadowNeeds: R.shadowMap.needsUpdate, autoClear: R.autoClear, color: R.getClearColor(new T.Color()).clone(), alpha: R.getClearAlpha(),
+      background: scene.background, toneMapping: R.toneMapping
+    };
+    const visibility = seaMirrors.map(s => [s.mesh, s.mesh.visible]);
+    seaCapturing = true;
+    try {
+      for (const [mesh] of visibility) mesh.visible = false;
+      R.xr.enabled = false; R.shadowMap.autoUpdate = false; R.shadowMap.needsUpdate = false; R.autoClear = true;
+      R.toneMapping = T.NoToneMapping; scene.background = scene.fog.color;
+      R.setScissorTest(false); R.setClearColor(scene.fog.color, 1);
+      R.state.buffers.depth.setMask(true);
+      // A real depth capture supplies the lagoon's clear water. Native coast textures stay in the scene beneath it.
+      R.setRenderTarget(SEA_REFRACTION.target);
+      R.clear(); R.render(scene, cam);
+      SEA_REFRACTION.rangeU.value.set(cam.near, cam.far); SEA_REFRACTION.readyU.value = 1;
+      // Alternate the two reflected planes, limiting work to one reflected scene pass per update.
+      const candidates = force ? seaMirrors : [seaMirrors[seaCaptureIndex++ % seaMirrors.length]];
+      for (const state of candidates) {
+        if (!mirroredSeaCamera(state)) continue;
+        R.setRenderTarget(state.target); R.clear(); R.render(scene, state.camera); state.readyU.value = 1;
+      }
+      seaCaptureAt = now; seaCameraAt.copy(cam.matrixWorld); seaProjectionAt.copy(cam.projectionMatrix);
+      seaShadowAt = PERF.shadows;
+      PERF.waterCaptures = (PERF.waterCaptures || 0) + 1;
+    } finally {
+      for (const [mesh, visible] of visibility) mesh.visible = visible;
+      scene.background = old.background; R.toneMapping = old.toneMapping; R.xr.enabled = old.xr;
+      R.shadowMap.autoUpdate = old.shadowAuto; R.shadowMap.needsUpdate = old.shadowNeeds; R.autoClear = old.autoClear;
+      R.setClearColor(old.color, old.alpha); R.setRenderTarget(old.target, old.cube, old.mip);
+      R.setViewport(old.viewport); R.setScissor(old.scissor); R.setScissorTest(old.scissorTest);
+      seaCapturing = false;
+    }
+  }
   // (the sea has a shader of its own: the land's and the scenery's carries none of its work, nor the sea's theirs)
   function living(m, sea) {
     m.onBeforeCompile = sh => {
       sh.uniforms.uTime = U.time; sh.uniforms.uDetail = U.detail;
+      if (sea) {
+        const state = m.userData.seaReflection;
+        sh.uniforms.uSeaTextureMatrix = state ? state.matrixU : { value: new T.Matrix4() };
+        sh.uniforms.uSeaReflection = state ? state.mapU : { value: null };
+        sh.uniforms.uSeaReflectionReady = state ? state.readyU : { value: 0 };
+        sh.uniforms.uSeaTransmission = SEA_REFRACTION.mapU;
+        sh.uniforms.uSeaDepth = SEA_REFRACTION.depthU;
+        sh.uniforms.uSeaCaptureReady = SEA_REFRACTION.readyU;
+        sh.uniforms.uSeaHasDepth = SEA_REFRACTION.hasDepthU;
+        sh.uniforms.uSeaCameraRange = SEA_REFRACTION.rangeU;
+      }
       sh.vertexShader = sh.vertexShader.replace('#include <common>', LIVING.vp).replace('#include <begin_vertex>', LIVING.v);
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', LIVING.fp).replace('#include <emissivemap_fragment>', LIVING.f);
+      if (sea) sh.fragmentShader = sh.fragmentShader.replace('#include <output_fragment>', SEA_OPTICS);
     };
-    m.customProgramCacheKey = sea ? () => 'livingsea-gerstner' : () => 'living';
+    m.customProgramCacheKey = sea ? () => 'livingsea-optical' : () => 'living';
     if (sea) m.defines = Object.assign({}, m.defines, { SEA: '' });
     return m;
   }
@@ -522,7 +723,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (wg) { const wm = new T.Mesh(wg, mats.scenery); wm.receiveShadow = true; landG.add(wm); }
     yield;
     // the archipelago's lagoon: not part of the land that grows (the islands rise out of it)
-    if (MOD.world === 'sea') { seaMesh = new T.Mesh(yield* Terrain.seaGeo(mobile ? 72 : 96), mats.sea); seaMesh.receiveShadow = true; root.add(seaMesh); yield; }
+    if (MOD.world === 'sea') { seaMesh = new T.Mesh(yield* Terrain.seaGeo(mobile ? 72 : 96), mats.sea); seaSurface(seaMesh, Terrain.SEA_Y); seaMesh.receiveShadow = true; root.add(seaMesh); yield; }
     // what stands on the land: each lot's scenery, set on its own ground
     for (let i = 0; i < 40; i++) {
       if (!(i % 10)) continue;
@@ -558,6 +759,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     yield;
     // the country around the board: meadows, groves, hills, and the far mountains in the haze
     const om = new T.Mesh(Terrain.outer(mobile ? 34 : 42, mobile ? 80 : 104), MOD.world === 'sea' ? mats.sea : mats.scenery);
+    if (MOD.world === 'sea') seaSurface(om, Terrain.OCEAN_Y);
     om.receiveShadow = true;
     root.add(om);
     if (MOD.far) { const fm = new T.Mesh(MOD.far(), mats.scenery); root.add(fm); }       // the islands far off in the ocean
@@ -577,6 +779,21 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (MOD.world === 'land') millWheel();
     yield;
     yield* buildLife();
+    if (MOD.world === 'sea' && typeof Marine3D !== 'undefined' && Marine3D) {
+      marineLife = Marine3D.create({
+        parent: root, oceanY: Terrain.OCEAN_Y, reducedMotion: REDUCED,
+        focus: () => {
+          const seat = turnSeat >= 0 ? turnSeat : st && st.turn;
+          const at = seat != null && pos[seat] != null ? pos[seat] : 0;
+          const p = centerOf(at), out = OUT[sideOf(at)];
+          return { x: p.x + out[0] * 1.7, z: p.z + out[1] * 1.7 };
+        },
+        waterHeight: (x, z, t) => {
+          const swell = (1 - smooth(18, 38, Math.hypot(x, z))) * (0.48 + 0.52 * smooth(6.2, 7.2, Math.max(Math.abs(x), Math.abs(z))));
+          return Terrain.OCEAN_Y + swell * SEA_WAVES.slice(0, 2).reduce((h, w) => h + w[3] * Math.sin(Math.PI * 2 / w[2] * (w[0] * x + w[1] * z - w[4] * t)), 0);
+        }
+      });
+    }
   }
   // a place's model from its file, set in the lot's frame with its water line on the sea's (if the board is made again
   // before the file is read, the new board asks for its own)
@@ -1281,28 +1498,117 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       }, ease.lin).then(() => { root.remove(m); m.material.dispose(); });
     }
   }
-  // money changing hands: coins fly from one figure to another (or up into the air: to the treasury)
-  let coinGeo = null, coinMat = null;
-  function coins(from, to, amount) {
-    if (!ok || REDUCED || !toks[from]) return;
-    coinGeo = coinGeo || new T.CylinderGeometry(0.07, 0.07, 0.02, 14);
-    coinMat = coinMat || new T.MeshLambertMaterial({ color: 0xf0c050 });
-    const a = toks[from].g.position.clone().add(new T.Vector3(0, 0.6, 0));
-    const b = to >= 0 && toks[to] && toks[to].g.visible ? toks[to].g.position.clone().add(new T.Vector3(0, 0.6, 0)) : a.clone().add(new T.Vector3(0, 2.4, 0));
-    const n = Math.min(9, 3 + Math.round(amount / 60));
-    for (let k = 0; k < n; k++) {
-      const m = new T.Mesh(coinGeo, coinMat);
-      m.position.copy(a); m.visible = false; root.add(m);
-      const lift = 1 + Math.random() * 0.6, jx = (Math.random() - 0.5) * 0.4, jz = (Math.random() - 0.5) * 0.4;
-      later(k * 0.06).then(() => {
-        m.visible = true;
-        return tween(0.65, e => {
-          m.position.set(a.x + (b.x - a.x) * e + jx * Math.sin(Math.PI * e), a.y + (b.y - a.y) * e + lift * Math.sin(Math.PI * e), a.z + (b.z - a.z) * e + jz * Math.sin(Math.PI * e));
-          m.rotation.set(e * 9, e * 4, 0);
-          const s = e > 0.85 ? (1 - e) / 0.15 : 1; m.scale.setScalar(Math.max(0.001, s));
-        }, ease.inOut);
-      }).then(() => root.remove(m));
+  // Minted coins and ingots travel between the actual figures and the bank. The archipelago's bank is its central
+  // treasure cave; the land's is the start square. Every transfer uses the same small geometry/material cache.
+  let coinGeo = null, coinMat = null, currencyAssets = null;
+  const currencyFlights = new Set();
+  function currencyCache() {
+    if (currencyAssets) return currencyAssets;
+    coinGeo = new T.CylinderGeometry(0.105, 0.105, 0.026, 24);
+    coinMat = new T.MeshStandardMaterial({ color: 0xffd367, metalness: 0.64, roughness: 0.24, emissive: 0x6c3a04, emissiveIntensity: 0.14 });
+    const edge = new T.MeshStandardMaterial({ color: 0xd99b24, metalness: 0.72, roughness: 0.28 });
+    const glow = new T.MeshBasicMaterial({ color: 0xffe4a2, transparent: true, opacity: 0.64, depthWrite: false });
+    const shape = new T.Shape();
+    shape.moveTo(-0.13, -0.05); shape.lineTo(0.13, -0.05); shape.lineTo(0.105, 0.045); shape.lineTo(-0.105, 0.045); shape.closePath();
+    const bar = new T.ExtrudeGeometry(shape, { depth: 0.12, bevelEnabled: true, bevelThickness: 0.009, bevelSize: 0.009, bevelSegments: 1, steps: 1 });
+    bar.translate(0, 0, -0.06);
+    currencyAssets = { body: coinGeo, rim: new T.TorusGeometry(0.084, 0.006, 4, 20), stamp: new T.CylinderGeometry(0.025, 0.025, 0.004, 6), bar,
+      bead: new T.OctahedronGeometry(0.037), ring: new T.TorusGeometry(0.25, 0.014, 4, 28), gold: coinMat, edge, glow };
+    for (const asset of Object.values(currencyAssets)) asset.userData.keep = true;
+    return currencyAssets;
+  }
+  function currencyAnchor(seat) {
+    if (seat >= 0) return toks[seat] && toks[seat].g.visible ? toks[seat].g.position.clone().add(new T.Vector3(0, MOD.world === 'sea' ? 0.75 : 0.57, 0)) : null;
+    if (MOD.world === 'sea') {
+      for (const { model } of animatedModels) {
+        const treasure = model.getObjectByName('Treasure_Glint_00');
+        if (treasure) return treasure.getWorldPosition(new T.Vector3()).add(new T.Vector3(0, 0.18, 0));
+      }
+      return new T.Vector3(0.7, Math.max(0.65, Terrain.SEA_Y + 0.8), 1.15);
     }
+    return toWorld(0, 0.18, -0.2, TH + 0.65);
+  }
+  function currencyLabel(p, to, amount) {
+    const label = document.createElement('div');
+    label.className = 'currency-world-label' + (to < 0 ? ' bank' : '') + (REDUCED ? ' reduced' : '');
+    label.textContent = (to < 0 ? 'ბანკი · ' : '+') + String(Math.round(amount)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    label.style.opacity = REDUCED ? 1 : 0;
+    host.appendChild(label);
+    const projected = new T.Vector3();
+    const place = (lift = 0) => {
+      projected.copy(p); projected.y += 0.34 + lift; projected.project(cam);
+      label.hidden = projected.z > 1 || projected.z < -1;
+      label.style.left = ((projected.x + 1) * 0.5 * W) + 'px';
+      label.style.top = ((1 - projected.y) * 0.5 * H) + 'px';
+    };
+    place();
+    return { label, place };
+  }
+  function coins(from, to, amount) {
+    if (!ok || !root || !Number.isFinite(amount) || amount <= 0 || from === to) return Promise.resolve();
+    const a = currencyAnchor(from), b = currencyAnchor(to);
+    if (!a || !b) return Promise.resolve();
+    const board = root, generation = epoch, fx = new T.Group(), tag = currencyLabel(b, to, amount);
+    fx.name = 'Currency_Transfer'; fx.userData = { from, to, amount };
+    let finished = false;
+    const remove = () => {
+      if (finished) return;
+      finished = true; board.remove(fx); tag.label.remove(); currencyFlights.delete(remove);
+    };
+    // A burst of simultaneous payments still has a fixed ceiling. No delayed callback can add coins to a new world.
+    if (currencyFlights.size >= 4) currencyFlights.values().next().value();
+    currencyFlights.add(remove);
+    if (REDUCED) return tween(0.18, () => { if (epoch !== generation || root !== board) remove(); else tag.place(); }, ease.lin).then(remove);
+    const cache = currencyCache(), n = Math.min(20, 10 + Math.round(Math.sqrt(amount) * 0.45));
+    const distance = a.distanceTo(b), lift = Math.min(2.4, 0.75 + distance * 0.14), list = [];
+    for (let k = 0; k < n; k++) {
+      const g = new T.Group(), ingot = amount >= 250 && k % 7 === 6;
+      g.name = ingot ? 'Gold_Ingot' : 'Gold_Coin';
+      if (ingot) g.add(new T.Mesh(cache.bar, cache.gold));
+      else {
+        g.add(new T.Mesh(cache.body, [cache.edge, cache.gold, cache.gold]));
+        const rim = new T.Mesh(cache.rim, cache.gold); rim.rotation.x = Math.PI / 2; rim.position.y = 0.017;
+        const stamp = new T.Mesh(cache.stamp, cache.edge); stamp.position.y = 0.016;
+        g.add(rim, stamp);
+      }
+      const trails = [];
+      if (k % 5 === 0) for (let j = 0; j < 3; j++) { const bead = new T.Mesh(cache.bead, cache.glow); fx.add(bead); trails.push(bead); }
+      g.position.copy(a); g.visible = false; fx.add(g);
+      list.push({ g, trails, delay: k / (n - 1) * 0.22, phase: k * 2.39996 });
+    }
+    const halo = new T.Mesh(cache.ring, cache.glow); halo.rotation.x = Math.PI / 2; halo.position.copy(b); halo.visible = false; fx.add(halo);
+    const sparks = [];
+    for (let k = 0; k < 8; k++) { const m = new T.Mesh(cache.bead, cache.gold); fx.add(m); sparks.push(m); }
+    board.add(fx);
+    const point = (p, u, phase) => {
+      const arc = Math.sin(Math.PI * u), spread = Math.sin(phase) * 0.22;
+      p.set(a.x + (b.x - a.x) * u + Math.cos(phase) * 0.22 * arc,
+        a.y + (b.y - a.y) * u + (lift + spread) * arc, a.z + (b.z - a.z) * u + spread * arc);
+    };
+    return tween(0.94, e => {
+      if (finished || epoch !== generation || root !== board || e === 1) { remove(); return; }
+      for (const item of list) {
+        const raw = (e * 0.94 - item.delay) / 0.61, u = clamp(raw, 0, 1);
+        item.g.visible = raw >= 0 && raw < 1;
+        point(item.g.position, u, item.phase);
+        item.g.rotation.set(item.phase + u * 10, item.phase * 0.3 + u * 7, u * 4);
+        item.g.scale.setScalar(u > 0.9 ? Math.max(0.001, (1 - u) / 0.1) : 0.88 + Math.sin(Math.PI * u) * 0.2);
+        item.trails.forEach((trail, j) => {
+          const follow = clamp(u - (j + 1) * 0.065, 0, 1);
+          trail.visible = raw > 0.05 && raw < 1;
+          point(trail.position, follow, item.phase); trail.scale.setScalar((1 - j * 0.24) * Math.sin(Math.PI * u));
+        });
+      }
+      const arrival = clamp((e - 0.62) / 0.38, 0, 1), burst = Math.sin(Math.PI * arrival);
+      halo.visible = arrival > 0; halo.scale.setScalar(0.4 + arrival * 2.1);
+      sparks.forEach((spark, k) => {
+        const angle = k / sparks.length * TAU;
+        spark.visible = arrival > 0; spark.scale.setScalar(burst);
+        spark.position.set(b.x + Math.cos(angle) * arrival * 0.5, b.y + burst * 0.3, b.z + Math.sin(angle) * arrival * 0.5);
+      });
+      tag.label.style.opacity = e < 0.5 ? 0 : e > 0.86 ? (1 - e) / 0.14 : Math.min(1, (e - 0.5) / 0.1);
+      tag.place(arrival * 0.17);
+    }, ease.lin).then(remove);
   }
   function bounceTile(i) {
     const m = tiles[i];
@@ -1471,7 +1777,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   function distances() {
     const vf = cam.fov * Math.PI / 180, aspect = W / H, hf = 2 * Math.atan(Math.tan(vf / 2) * aspect);
     // follow: about this many squares across the screen (fewer on a phone, so the writing can be read)
-    const across = clamp(W / 80, 4.6, 12);
+    const across = clamp(W / (MOD.world === 'sea' ? 95 : 80), MOD.world === 'sea' ? 4.2 : 4.6, 12);
     followD = clamp((across / 2) / Math.tan(hf / 2), 7, 40);
     const vis = 2 * followD * Math.tan(vf / 2);
     if (vis < 6.2) followD = 6.2 / (2 * Math.tan(vf / 2));
@@ -1563,6 +1869,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     stepTweens(dt * speedK);
     moveCamera(dt * speedK);
     const t = now / 1000;
+    if (marineLife) marineLife.update(REDUCED ? 3 : t, dt);
     pinFrame(t);
     // the figures face the camera; the one whose turn it is glows
     for (const tk of toks) {
@@ -1611,6 +1918,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     // Render throttling saves power, but native clips still advance by all elapsed time between drawn frames.
     if (modelDelta) { for (const { mixer } of animatedModels) mixer.update(modelDelta); modelDelta = 0; }
     R.setViewport(0, 0, W, H); R.setScissorTest(false);
+    seaCapture();
     R.clear();
     R.render(scene, cam);
     Dice3D.frame(R, diceDt);
@@ -1703,6 +2011,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     });
     cv.addEventListener('webglcontextrestored', () => {
       Diag.note('3d', `graphics back after ${Math.round(performance.now() - lostAt)} ms`); lostAt = 0;
+      seaCaptureAt = -Infinity; SEA_REFRACTION.readyU.value = 0; for (const state of seaMirrors) state.readyU.value = 0;
       shadowDirty = true; relabelSoon(); if (built) start();
     });
     if (document.fonts) {
@@ -1737,7 +2046,9 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   function* remaking() {
     const t0 = performance.now();
     stop(); halt();
+    if (marineLife) { marineLife.dispose(); marineLife = null; }
     clearAnimatedModels();
+    disposeSeaCaptures();
     if (root) { disposeAll(root); scene.remove(root); }
     root = landG = seaMesh = wheel = fallFoot = null;
     tiles.length = lotMesh.length = lotGround.length = flags.length = mark.length = toks.length = 0;
@@ -1783,6 +2094,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       R.shadowMap.needsUpdate = true;
       R.setViewport(0, 0, W, H); R.setScissorTest(false); R.clear();
       R.render(scene, cam);                        // the shadow pass compiles its own shaders on its first run
+      seaCapture(true);
       Dice3D.warm(R);
       R.clear();
       shadowDirty = true;

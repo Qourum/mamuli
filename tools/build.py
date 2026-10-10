@@ -17,7 +17,7 @@ import base64, hashlib, json, os, shutil, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'src')
 METEKHI = os.environ.get('METEKHI', os.path.join(os.path.dirname(ROOT), 'qourum', 'metekhi'))
-JS = ['diag.js', 'data.js', 'themes.js', 'engine.js', 'net.js', 'voice.js', 'terrain.js', 'models.js', 'sea.js', 'glb.js', 'board3d.js', 'dice3d.js', 'pictures.js', 'ui.js', 'app.js']
+JS = ['diag.js', 'data.js', 'themes.js', 'engine.js', 'net.js', 'voice.js', 'terrain.js', 'models.js', 'sea.js', 'glb.js', 'marine.js', 'board3d.js', 'dice3d.js', 'pictures.js', 'card3d.js', 'ui.js', 'app.js']
 THREE_CDN = 'https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js'
 HEROES = ['david', 'tamar', 'gorgasali', 'erekle', 'kakutsa', 'tariel', 'avtandil', 'gurdjieff', 'abrag', 'amirani', 'mikha', 'prometheus']
 PIRATES = ['blackbeard', 'bonny', 'read', 'chingshih', 'omalley', 'morgan', 'kidd', 'roberts', 'barbarossa', 'bellamy', 'labuse', 'stortebeker']
@@ -26,7 +26,7 @@ SEA_ART = ([f'por_p_{p}' for p in PIRATES] + ['bg_sea'] + [f'sc_{n}' for n in ['
            'qar', 'whydah', 'galley', 'fortune', 'lighthouse', 'shipyard', 'customs', 'whirlpool', 'port', 'isle', 'tavern', 'kraken', 'chest', 'bottle']])
 # the archipelago's 3D models, made from the Higgsfield pictures with tools/glb_prep.mjs (art/m_*.glb; sea.js says where)
 MODELS = ['m_heligoland_animated', 'm_cocos_animated', 'm_volcano_animated', 'm_gotland_animated', 'm_customs_animated', 'm_gramvousa_animated', 'm_lighthouse_animated', 'm_shipyard_animated', 'm_cheungchau_animated', 'm_oak_animated',
-          'm_port_animated', 'm_castaway_animated', 'm_tavern_animated', 'm_kraken_animated', 'm_qar_animated', 'm_whydah_animated', 'm_galley_animated', 'm_fortune_animated', 'm_whirlpool_animated']
+          'm_port_animated', 'm_castaway_animated', 'm_tavern_animated', 'm_kraken_animated', 'm_qar_animated', 'm_whydah_animated', 'm_galley_animated', 'm_fortune_animated', 'm_whirlpool_animated', 'm_shark', 'm_orca', 'm_bluewhale', 'm_dolphin']
 ART = ([f'por_h_{h}' for h in HEROES] + [f'h_{h}' for h in HEROES if h != 'david'] + ['h_davidride'] + SEA_ART +
        ['t_archer_2', 's_fort', 's_camp', 't_palisade', 'ui_page', 'ui_chest_wood', 'ui_chest_wood_o', 'ui_coin', 'ui_coinbag',
         'ui_book', 'ui_feather', 'g_svan', 'g_elbrus', 'g_pass', 'g_stone', 'g_tbilisi'])

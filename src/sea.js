@@ -620,31 +620,31 @@ const SeaModels = (() => {
   // their side and towards their square)
   // (own: the model is a town without its island: it stands on the island made here, y above the water)
   const MODELS = {
-    1: { url: 'art/m_heligoland_animated.glb', animated: true, s: 0.98, x: -0.26, z: 0.09 },
-    3: { url: 'art/m_gotland_animated.glb', animated: true, s: 0.78, y: 0.122, own: true },
-    4: { url: 'art/m_customs_animated.glb', animated: true, s: 0.90, z: 0.03 },
-    9: { url: 'art/m_gramvousa_animated.glb', animated: true, s: 1.02, x: 0.20, z: 0.09 },
-    12: { url: 'art/m_lighthouse_animated.glb', animated: true, s: 0.76 },
-    28: { url: 'art/m_shipyard_animated.glb', animated: true, s: 0.98, z: 0.03 },
-    31: { url: 'art/m_cheungchau_animated.glb', animated: true, s: 1.02, x: -0.20, z: 0.09 },
-    37: { url: 'art/m_oak_animated.glb', animated: true, s: 1.05 },
-    39: { url: 'art/m_cocos_animated.glb', animated: true, s: 1.02, x: 0.20, z: 0.09 }
+    1: { url: 'art/m_heligoland_animated.glb', animated: true, s: 1.18, x: -0.16, z: -0.02 },
+    3: { url: 'art/m_gotland_animated.glb', animated: true, s: 0.95, y: 0.122, own: true },
+    4: { url: 'art/m_customs_animated.glb', animated: true, s: 1.10, z: -0.02 },
+    9: { url: 'art/m_gramvousa_animated.glb', animated: true, s: 1.22, x: 0.12, z: -0.02 },
+    12: { url: 'art/m_lighthouse_animated.glb', animated: true, s: 0.93 },
+    28: { url: 'art/m_shipyard_animated.glb', animated: true, s: 1.18, z: -0.02 },
+    31: { url: 'art/m_cheungchau_animated.glb', animated: true, s: 1.22, x: -0.12, z: -0.02 },
+    37: { url: 'art/m_oak_animated.glb', animated: true, s: 1.22 },
+    39: { url: 'art/m_cocos_animated.glb', animated: true, s: 1.22, x: 0.12, z: -0.02 }
   };
   const shelf = (R, d) => { tint(R, 0xe3cf98, 0xb8a27a); isle(R, d.x || 0, d.z || 0, 0.36 * (d.s || 1), 0.34 * (d.s || 1), -0.035, 0, 0.6); };
   // the corner squares' models: little dioramas standing on the square (in the square's frame, on its top)
   const CORNER_MODELS = {
-    0: { url: 'art/m_port_animated.glb', animated: true, s: 1.08, x: 0.06, z: -0.33 },
-    10: { url: 'art/m_castaway_animated.glb', animated: true, s: 1.06, x: 0.06, z: -0.33 },
-    20: { url: 'art/m_tavern_animated.glb', animated: true, s: 1.12, x: 0.06, z: -0.33 },
-    30: { url: 'art/m_kraken_animated.glb', animated: true, s: 1.10, x: 0.06, z: -0.33 }
+    0: { url: 'art/m_port_animated.glb', animated: true, s: 1.32, x: 0.02, z: -0.38 },
+    10: { url: 'art/m_castaway_animated.glb', animated: true, s: 1.30, x: 0.02, z: -0.38 },
+    20: { url: 'art/m_tavern_animated.glb', animated: true, s: 1.35, x: 0.02, z: -0.38 },
+    30: { url: 'art/m_kraken_animated.glb', animated: true, s: 1.32, x: 0.02, z: -0.38 }
   };
   // the ships' models (they ride at anchor in their lot's water: see FX), and the whirlpool's swirl, which turns: s their
   // size, y how far their water line is above their file's bottom, ry which way their bow points in it
   const SHIP_MODEL = {
-    5: { url: 'art/m_qar_animated.glb', animated: true, s: 0.68, y: -0.045, ry: Math.PI },
-    15: { url: 'art/m_whydah_animated.glb', animated: true, s: 0.72, y: -0.05, ry: Math.PI },
-    25: { url: 'art/m_galley_animated.glb', animated: true, s: 0.71, y: -0.035, ry: Math.PI },
-    35: { url: 'art/m_fortune_animated.glb', animated: true, s: 0.66, y: -0.05, ry: Math.PI }
+    5: { url: 'art/m_qar_animated.glb', animated: true, s: 0.82, y: -0.045, ry: Math.PI },
+    15: { url: 'art/m_whydah_animated.glb', animated: true, s: 0.85, y: -0.05, ry: Math.PI },
+    25: { url: 'art/m_galley_animated.glb', animated: true, s: 0.85, y: -0.035, ry: Math.PI },
+    35: { url: 'art/m_fortune_animated.glb', animated: true, s: 0.81, y: -0.05, ry: Math.PI }
   };
   const SWIRL_MODEL = { url: 'art/m_whirlpool_animated.glb', animated: true, s: 0.85, sy: 0.12, y: 0.004 };
 

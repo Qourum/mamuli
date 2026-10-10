@@ -159,6 +159,7 @@ const View = (() => {
     expectThrow(target);
     caughtUp(shown.evn);
     gen++;
+    hideEventCard();
     if (gl && Board3D.ok) Board3D.halt();
     if (Dice3D.busy) Dice3D.skip();
     pos = shown.players.map(p => p.pos);
@@ -179,7 +180,7 @@ const View = (() => {
     if (!gl) { stage.innerHTML = '<p class="nogl">ამ ბრაუზერში 3D დაფა ვერ ჩაირთო. სცადე სხვა ბრაუზერი (Chrome, Safari) ან განაახლე ეს.</p>'; return; }
     Board3D.onPick(i => Sheet.open('deed', i));
   }
-  function leaveBoard() { built = false; if (Board3D.ok) { Board3D.pins([]); Board3D.leave(); } if (Dice3D.busy) Dice3D.skip(); const pb = $('#pins'); if (pb) pb.innerHTML = ''; pinsKey = ''; }
+  function leaveBoard() { hideEventCard(); hideCard(); built = false; if (Board3D.ok) { Board3D.pins([]); Board3D.leave(); } if (Dice3D.busy) Dice3D.skip(); const pb = $('#pins'); if (pb) pb.innerHTML = ''; pinsKey = ''; }
   function clear() { target = shown = null; q = []; playing = false; lastEv = 0; gen++; leaveBoard(); Sheet.close(); hideBuy(); }
   // roughly how long events take on screen (only a hint for tests and the like: the computer players wait for the screen itself)
   function estimate(list) {
@@ -237,6 +238,7 @@ const View = (() => {
   }
   function finishPlay() {
     gen++;
+    hideEventCard();
     current = null;
     playing = false;
     idleAt = Date.now();
@@ -271,19 +273,25 @@ const View = (() => {
       case 'free': bubble(e.s, esc(W.freed), 'good'); break;
       case 'stay': bubble(e.s, esc(W.stays), ''); break;
       case 'debt': bubble(e.s, `ვალი ${coin(e.a)}`, 'bad'); break;
-      case 'salary': case 'gain': money(e.s, e.a); Sound.coin(); await wait(260); break;
+      case 'salary': case 'gain': {
+        money(e.s, e.a); Sound.coin();
+        await Promise.all([wait(260), gl ? Board3D.coins(-1, e.s, e.a) : Promise.resolve()]); break;
+      }
       case 'pay': {
         money(e.s, -e.a); if (e.to >= 0) money(e.to, e.a);
-        if (gl) Board3D.coins(e.s, e.to, e.a);
+        const flight = gl ? Board3D.coins(e.s, e.to, e.a) : Promise.resolve();
         if (e.why === 'rent') {                    // the notes by the two chips tell everyone; the toast only those who paid or got it
           if (controls(e.s) || controls(e.to)) toastEv(`${esc(pName(st, e.s))} → ${esc(pName(st, e.to))}: ქირა ${coin(e.a)}`, controls(e.to) ? 'good' : 'bad');
           bubble(e.s, `ქირა → ${esc(pName(st, e.to))}`, 'bad'); bubble(e.to, 'მიიღო ქირა', 'good');
         }
         else if (e.why === 'tax') { if (controls(e.s)) toastEv(`${esc(tName(e.i))}: ${coin(e.a)}`, 'bad'); bubble(e.s, esc(tName(e.i)), 'bad'); }
         else bubble(e.s, e.why === 'fine' ? esc(W.fine) : e.why === 'repair' ? 'შეკეთება' : 'გადაიხადა', 'bad');
-        Sound.pay(); await wait(450); break;
+        Sound.pay(); await Promise.all([wait(450), flight]); break;
       }
-      case 'buy': Board3D.setOwner(e.i, e.s, true); money(e.s, -e.a); bubble(e.s, `იყიდა: ${esc(tName(e.i))}`, 'good'); Sound.coin(); await wait(450); whole(st, e.s, [e.i]); break;
+      case 'buy': {
+        Board3D.setOwner(e.i, e.s, true); money(e.s, -e.a); bubble(e.s, `იყიდა: ${esc(tName(e.i))}`, 'good'); Sound.coin();
+        await Promise.all([wait(450), gl ? Board3D.coins(e.s, -1, e.a) : Promise.resolve()]); whole(st, e.s, [e.i]); break;
+      }
       case 'skip': bubble(e.s, `აუქციონზე: ${esc(tName(e.i))}`, ''); break;
       // the auction: its card is drawn from the state; the events only add sound, the notes and the town's owner
       case 'auction': Sheet.close(true); Board3D.focus(e.s); Board3D.pop(e.i, 0.08); Sound.gavel(); await wait(250); break;
@@ -292,12 +300,25 @@ const View = (() => {
       case 'won': {
         Board3D.setOwner(e.i, e.s, true); money(e.s, -e.a); Sound.gavel(); bubble(e.s, `იყიდა: ${esc(tName(e.i))}`, 'good');
         toastEv(`${esc(pName(st, e.s))}: ${esc(tName(e.i))} აუქციონზე · ${coin(e.a)}`, controls(e.s) ? 'good' : '');
-        await wait(600); whole(st, e.s, [e.i]); break;
+        await Promise.all([wait(600), gl ? Board3D.coins(e.s, -1, e.a) : Promise.resolve()]); whole(st, e.s, [e.i]); break;
       }
       case 'unsold': toastEv(`${esc(tName(e.i))}: აუქციონზე არავინ იყიდა`); await wait(300); break;
-      case 'build': case 'sell': Board3D.setLevel(e.i, e.lv, true); money(e.s, e.k === 'build' ? -Engine.buildCost(e.i) : Engine.buildCost(e.i) / 2); bubble(e.s, e.k === 'build' ? `${LEVEL_NAMES[e.lv]}: ${esc(tName(e.i))}` : `${esc(W.soldTower)}: ${esc(tName(e.i))}`, e.k === 'build' ? 'good' : ''); Sound.build(); await wait(380); break;
-      case 'mort': Board3D.setMort(e.i, true, true); money(e.s, Engine.mortValue(e.i)); bubble(e.s, `დააგირავა: ${esc(tName(e.i))}`, 'bad'); await wait(240); break;
-      case 'unmort': Board3D.setMort(e.i, false, true); money(e.s, -Engine.unmortCost(e.i)); bubble(e.s, `გამოისყიდა: ${esc(tName(e.i))}`, 'good'); await wait(240); break;
+      case 'build': case 'sell': {
+        const payout = e.k === 'sell', amount = Engine.buildCost(e.i) * (payout ? 0.5 : 1);
+        Board3D.setLevel(e.i, e.lv, true); money(e.s, payout ? amount : -amount);
+        bubble(e.s, e.k === 'build' ? `${LEVEL_NAMES[e.lv]}: ${esc(tName(e.i))}` : `${esc(W.soldTower)}: ${esc(tName(e.i))}`, e.k === 'build' ? 'good' : ''); Sound.build();
+        await Promise.all([wait(380), gl ? Board3D.coins(payout ? -1 : e.s, payout ? e.s : -1, amount) : Promise.resolve()]); break;
+      }
+      case 'mort': {
+        const amount = Engine.mortValue(e.i);
+        Board3D.setMort(e.i, true, true); money(e.s, amount); bubble(e.s, `დააგირავა: ${esc(tName(e.i))}`, 'bad');
+        await Promise.all([wait(240), gl ? Board3D.coins(-1, e.s, amount) : Promise.resolve()]); break;
+      }
+      case 'unmort': {
+        const amount = Engine.unmortCost(e.i);
+        Board3D.setMort(e.i, false, true); money(e.s, -amount); bubble(e.s, `გამოისყიდა: ${esc(tName(e.i))}`, 'good');
+        await Promise.all([wait(240), gl ? Board3D.coins(e.s, -1, amount) : Promise.resolve()]); break;
+      }
       case 'card': bubble(e.s, esc(e.d === 's' ? W.scroll : W.chest), ''); await showCard(e); break;
       // the chest's question: its card is drawn from the state; the answers come in as notes; then the answer
       case 'quiz': bubble(e.s, esc(W.chest), ''); Board3D.focus(e.s); Sound.card(); await wait(350); break;
@@ -318,8 +339,12 @@ const View = (() => {
       case 'trade': {
         for (const i of e.give.p) Board3D.setOwner(i, e.to, true);
         for (const i of e.get.p) Board3D.setOwner(i, e.from, true);
+        const difference = e.get.c - e.give.c, flights = [];
+        money(e.from, difference); money(e.to, -difference);
+        if (gl && e.give.c > 0) flights.push(Board3D.coins(e.from, e.to, e.give.c));
+        if (gl && e.get.c > 0) flights.push(Board3D.coins(e.to, e.from, e.get.c));
         whole(st, e.to, e.give.p); whole(st, e.from, e.get.p);
-        toastEv(`${esc(pName(st, e.from))} ⇄ ${esc(pName(st, e.to))}: გარიგება შედგა`, 'good'); Sound.coin(); await wait(500); break;
+        toastEv(`${esc(pName(st, e.from))} ⇄ ${esc(pName(st, e.to))}: გარიგება შედგა`, 'good'); Sound.coin(); await Promise.all([wait(500), ...flights]); break;
       }
       case 'bankrupt': toastEv(`${esc(pName(st, e.s))} გაკოტრდა`, 'bad'); bubble(e.s, 'გაკოტრდა', 'bad'); Sound.bad(); await wait(700); break;
     }
@@ -335,18 +360,41 @@ const View = (() => {
     }
   }
   // ----- small things that happen around the board -----
+  const cashTicks = [];
+  function cashStep(s, chip, amount, from, to) {
+    if (cashTicks[s]) cancelAnimationFrame(cashTicks[s]);
+    const text = [...amount.childNodes].find(n => n.nodeType === 3);
+    if (!text) return;
+    const generation = gen, started = performance.now(), duration = REDUCED ? 0 : 340 / rate;
+    const step = now => {
+      if (gen !== generation || !chip.isConnected) { cashTicks[s] = 0; return; }
+      const t = duration ? Math.min(1, (now - started) / duration) : 1;
+      text.nodeValue = fmt(from + (to - from) * (1 - Math.pow(1 - t, 3)));
+      if (t < 1) cashTicks[s] = requestAnimationFrame(step);
+      else { cashTicks[s] = 0; amount.setAttribute('aria-label', fmt(to)); }
+    };
+    step(started);
+  }
   function money(s, d) {
     if (!d || !shown || !shown.players[s]) return;
-    cash[s] = (cash[s] || 0) + d;
+    const before = cash[s] != null ? cash[s] : shown.players[s].cash;
+    cash[s] = before + d;
     const chip = $(`#players .pl[data-s="${s}"]`);
     if (chip) {
-      const b = chip.querySelector('.pc');
-      if (b) { b.innerHTML = coin(cash[s]); playersHTML = ''; }       // (the strip is drawn whole again next time)
+      const b = chip.querySelector('.pc .amt');
+      if (b) { cashStep(s, chip, b, before, cash[s]); playersHTML = ''; }
+      chip.classList.remove('cash-in', 'cash-out'); void chip.offsetWidth;
+      chip.classList.add(d > 0 ? 'cash-in' : 'cash-out');
       const f = document.createElement('span');
-      f.className = 'float ' + (d > 0 ? 'up' : 'down');
+      f.className = 'float cash-delta ' + (d > 0 ? 'up' : 'down');
       f.textContent = (d > 0 ? '+' : '−') + fmt(Math.abs(d));
+      f.setAttribute('role', 'status'); f.setAttribute('aria-live', 'polite');
+      chip.querySelectorAll('.cash-delta').forEach(old => old.remove());
       chip.appendChild(f);
-      setTimeout(() => f.remove(), 1300);
+      setTimeout(() => {
+        const current = chip.querySelector('.cash-delta') === f;
+        f.remove(); if (current) chip.classList.remove('cash-in', 'cash-out');
+      }, REDUCED ? 700 : 1100);
     }
   }
   // a short note by a player's picture at the top of the screen: what just happened to them (everyone sees it)
@@ -380,20 +428,51 @@ const View = (() => {
     b.classList.remove('go'); void b.offsetWidth; b.classList.add('go');
   }
   function toastEv(msg, kind) { UI.toast(msg, 4200, kind); }
+  let cardSession = null;
+  const cardGlyph = kind => {
+    const paths = {
+      travel: '<circle cx="12" cy="12" r="8"/><path d="m15 9-2 4-4 2 2-4z"/>',
+      reward: '<circle cx="10" cy="10" r="6"/><path d="M15 8a6 6 0 1 1-7 9M10 7v6M8 9h4"/>',
+      payment: '<path d="M4 7h16v12H4zM4 7l12-3v3M16 11h4v4h-4z"/>',
+      danger: '<path d="M5 4v16M12 4v16M19 4v16M3 7h18M3 17h18"/>',
+      fortune: '<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9z"/>'
+    };
+    return `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${paths[kind] || paths.fortune}</svg>`;
+  };
+  function hideEventCard() {
+    const session = cardSession; cardSession = null;
+    if (session && session.visual) session.visual.dispose();
+    const box = $('#cardpop');
+    if (box) { box.hidden = true; box.onclick = box.onkeydown = null; }
+    if (session && session.focus && session.focus.isConnected && document.activeElement && box && box.contains(document.activeElement)) session.focus.focus({ preventScroll: true });
+  }
   async function showCard(e) {
     const c = Engine.deckOf(target)[e.d][e.id], box = $('#cardpop');
     if (!box) return;
-    const title = e.d === 's' ? W.scroll : W.chest;
-    const pic = sea() && e.d === 's' ? `<div class="card-pic" style="background-image:url(${ART('sc_bottle')})"></div>` : `<img src="${ART(e.d === 's' ? 'ui_page' : 'ui_chest_wood_o')}" alt="">`;
-    box.innerHTML = `<div class="card ${e.d}${pic.startsWith('<div') ? ' pic' : ''}">${pic}<h3>${title}</h3><p>${esc(c.t)}</p><small>${esc(pName(target, e.s))}</small></div>`;
+    hideEventCard();
+    const g0 = gen, nautical = sea(), title = e.d === 's' ? W.scroll : W.chest;
+    const category = c.k === 'cash' ? c.n > 0 ? 'reward' : 'payment' : ['move', 'back', 'near'].includes(c.k) ? 'travel' : c.k === 'repair' ? 'payment' : c.k === 'jail' ? 'danger' : c.k === 'feather' ? 'reward' : 'fortune';
+    const labels = { reward: nautical ? 'ნაპოვნი განძი' : 'ჯილდო', payment: 'ხარჯი', travel: nautical ? 'ახალი კურსი' : 'მოგზაურობა', danger: 'განსაცდელი', fortune: 'ბედის ნიშანი' };
+    const art = nautical && e.d === 's' ? 'sc_bottle' : e.d === 's' ? 'ui_page' : 'ui_chest_wood_o';
+    box.innerHTML = `<article class="card ${e.d} ${nautical ? 'nautical' : 'royal'} effect-${category}" role="dialog" aria-labelledby="drawnCardTitle" aria-describedby="drawnCardText">
+      <button class="card-close" type="button" aria-label="ბარათის დახურვა">×</button>
+      <div class="card3d card-model" aria-hidden="true"><img class="card3d-fallback" src="${ART(art)}" alt=""></div>
+      <div class="card-insignia">${cardGlyph(category)}<span>${esc(labels[category])}</span></div>
+      <div class="card-letter"><h3 id="drawnCardTitle">${esc(title)}</h3><p id="drawnCardText">${esc(c.t)}</p></div>
+      <div class="card-reader"><img src="${por(target.players[e.s].hero)}" alt=""><small>${esc(pName(target, e.s))}</small><span class="card-seal" aria-hidden="true">✦</span></div>
+      <span class="card-dismiss">შეეხე გასაგრძელებლად</span></article>`;
     box.hidden = false;
     box.classList.remove('go'); void box.offsetWidth; box.classList.add('go');
+    const session = cardSession = { closed: false, focus: document.activeElement, visual: null };
+    if (typeof Card3D !== 'undefined') session.visual = Card3D.mount($('.card-model', box), nautical && e.d === 's' ? 'bottle' : e.d === 'c' ? 'chest' : 'scroll');
     Sound.card();
-    let closed = false;
-    box.onclick = () => { closed = true; };
+    box.onclick = () => { session.closed = true; };
+    box.onkeydown = ev => { if (ev.key === 'Escape') { ev.preventDefault(); session.closed = true; } };
+    $('.card-close', box).focus({ preventScroll: true });
     const until = Date.now() + Math.max(3200, 4500 / rate);       // (long enough to read, even when the screen hurries)
-    while (!closed && Date.now() < until) await sleep(80);
-    box.hidden = true;
+    try {
+      while (!session.closed && gen === g0 && cardSession === session && document.visibilityState !== 'hidden' && Date.now() < until) await sleep(80);
+    } finally { if (cardSession === session) hideEventCard(); }
   }
   function fit() { board(); if (gl) Board3D.resize(); }
 
@@ -606,11 +685,24 @@ const View = (() => {
   }
   // ----- the treasure chest's question: the same card on every screen, its clock, who has answered; the answers for
   // whoever answers from this device (on a phone shared by several people, one after another) -----
-  let quizKey = '', quizAt = 0;
+  let quizKey = '', quizAt = 0, quizVisual = null, quizVisualKey = '';
   const LETTERS = ['ა', 'ბ', 'გ'];
   const quizItem = (st, q) => { const Q = themeOf(st).quiz; return Q && Q[q]; };
   function quizHead(st, s) {
-    return `<div class="qz-h" style="background-image:linear-gradient(90deg,rgba(44,27,16,.96) 30%,rgba(44,27,16,.55) 62%,rgba(44,27,16,.15)),url(${ART('sc_chest')})"><img src="${ART('ui_chest_wood_o')}" alt=""><div><b>${esc(W.chest)}</b><small>გახსნა ${esc(pName(st, s))} · სწორ პასუხზე მას ${coin(QUIZ_WIN)}, სხვებს ${coin(QUIZ_SHARE)}</small></div></div>`;
+    return `<div class="qz-h${sea() ? ' treasure-head' : ''}" style="background-image:linear-gradient(90deg,rgba(44,27,16,.96) 30%,rgba(44,27,16,.55) 62%,rgba(44,27,16,.15)),url(${ART('sc_chest')})">${sea() ? `<div class="card3d quiz-model" aria-hidden="true"><img class="card3d-fallback" src="${ART('ui_chest_wood_o')}" alt=""></div>` : `<img src="${ART('ui_chest_wood_o')}" alt="">`}<div class="quiz-heading"><b>${esc(W.chest)}</b><small>გახსნა ${esc(pName(st, s))} · სწორ პასუხზე მას ${coin(QUIZ_WIN)}, სხვებს ${coin(QUIZ_SHARE)}</small></div></div>`;
+  }
+  function keepQuizModel(box, key) {
+    const old = box.querySelector('.quiz-model');
+    if (old && quizVisual && quizVisualKey === key) { old.remove(); return old; }
+    if (quizVisual) quizVisual.dispose();
+    quizVisual = null; quizVisualKey = key;
+    return null;
+  }
+  function showQuizModel(box, old) {
+    const slot = box.querySelector('.quiz-model');
+    if (!slot) return;
+    if (old) slot.replaceWith(old);
+    else if (typeof Card3D !== 'undefined') quizVisual = Card3D.mount(slot, 'chest');
   }
   function renderQuiz() {
     const st = shown, box = $('#buycard'), Q = st && st.quiz, item = Q && quizItem(st, Q.q);
@@ -627,10 +719,12 @@ const View = (() => {
     const who = seats.map(s => `<span class="qz-p${Q.ans[s] != null ? ' in' : ''}" style="--c:${SEAT_COLORS[s]}" title="${esc(st.players[s].name)}"><img src="${por(st.players[s].hero)}" alt="${esc(st.players[s].name)}"></span>`).join('');
     const lead = now >= 0 && here.length > 1 ? `<p class="qz-now"><img src="${por(st.players[now].hero)}" alt="" style="--c:${SEAT_COLORS[now]}">${esc(st.players[now].name)}, შენი პასუხი</p>` : '';
     const foot = now >= 0 ? '' : mine != null ? '<p class="hint">პასუხი მიღებულია. ველოდებით სხვებს…</p>' : '<p class="hint">უყურებ: პასუხობენ</p>';
-    box.innerHTML = `<div class="bc qz">${quizHead(st, Q.s)}
+    const model = keepQuizModel(box, key);
+    box.innerHTML = `<div class="bc qz${sea() ? ' treasure-quiz' : ''}">${quizHead(st, Q.s)}
       <div class="bc-b"><p class="qz-q">${esc(item.q)}</p>
       <div class="au-clock"><i style="animation-duration:${dur}s;animation-delay:-${gone.toFixed(2)}s"></i></div>
       ${lead}<div class="qz-as">${answers}</div><div class="au-who">${who}</div>${foot}</div></div>`;
+    showQuizModel(box, model);
     if (box.hidden || box.dataset.k !== 'quiz') { box.hidden = false; box.dataset.k = 'quiz'; box.classList.remove('go'); void box.offsetWidth; box.classList.add('go'); }
     if (busy) $$('[data-a]', box).forEach(b => { b.disabled = true; });
     return true;
@@ -645,18 +739,22 @@ const View = (() => {
     const won = seats.filter(s => ans[s] === e.c);
     const gains = won.length ? won.map(s => `<span class="qz-g" style="--c:${SEAT_COLORS[s]}"><img src="${por(st.players[s].hero)}" alt="">${esc(st.players[s].name)} <b>+${s === e.s ? QUIZ_WIN : QUIZ_SHARE}</b></span>`).join('')
       : '<p class="hint">ამჯერად ვერავინ გამოიცნო</p>';
-    box.innerHTML = `<div class="bc qz reveal">${quizHead(st, e.s)}<div class="bc-b"><p class="qz-q">${esc(item.q)}</p><div class="qz-as">${rows}</div>
+    const model = keepQuizModel(box, st.tn + ':' + st.rolls + ':' + e.q);
+    box.innerHTML = `<div class="bc qz reveal${sea() ? ' treasure-quiz' : ''}">${quizHead(st, e.s)}<div class="bc-b"><p class="qz-q">${esc(item.q)}</p><div class="qz-as">${rows}</div>
       <p class="qz-x">${esc(item.x)}</p><div class="qz-gs">${gains}</div></div></div>`;
+    showQuizModel(box, model);
     box.hidden = false; box.dataset.k = 'reveal'; box.classList.remove('go'); void box.offsetWidth; box.classList.add('go');
     if (won.some(s => controls(s))) Sound.coin(); else Sound.card();
+    const g0 = gen;
     let closed = false;
     box.onclick = () => { closed = true; };
     const until = Date.now() + Math.max(4500, 6500 / rate);
-    while (!closed && Date.now() < until && document.visibilityState !== 'hidden') await sleep(80);
+    while (!closed && gen === g0 && Date.now() < until && document.visibilityState !== 'hidden') await sleep(80);
+    if (gen !== g0) return;
     box.onclick = null;
     hideCard();
   }
-  function hideCard() { const b = $('#buycard'); if (b) { b.hidden = true; b.dataset.k = ''; } }
+  function hideCard() { if (quizVisual) quizVisual.dispose(); quizVisual = null; quizVisualKey = ''; const b = $('#buycard'); if (b) { b.hidden = true; b.dataset.k = ''; b.onclick = null; } }
   function hideBuy() { hideCard(); const w = $('#watch'); if (w) { w.hidden = true; w.dataset.k = ''; } }
   // the button over the board: the whole board, or back to the figure
   function viewBtn() {

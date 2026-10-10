@@ -31,7 +31,8 @@ self.addEventListener('fetch', e => {
 async function page(r) {
   const c = await caches.open(PAGE);
   try {
-    const res = await fetch(r);
+    // asked of the server itself each time (the browser may keep an old copy for minutes): a new version arrives at once
+    const res = await fetch(r, { cache: 'no-cache' });
     if (res.ok) c.put(r, res.clone());
     return res;
   } catch (err) {

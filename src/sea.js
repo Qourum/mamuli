@@ -447,7 +447,19 @@ const SeaModels = (() => {
   // its treasure (1), a waterfall from a cliff into the sea (2), the lookout tower and a pirates' camp (3).
   const CENTER = { peak: [0.05, -0.15], bay: [0.45, 2.15], skull: [-2.05, 0.3], fall: [0.2, -1.75], lake: [0.25, -2.6], camp: [2.0, 0.15] };
   const UPC = 0.18;
+  // the middle's own model, made from the Higgsfield picture (see glb.js): when there is one, the volcano made here gives
+  // way to it, and a shallow shelf lies round it. s its size, sy how much lower it is made (the board must still be seen
+  // past it), crater where its smoke rises from (in the file's units, as tools/glb_prep.mjs left them), lava whether it has
+  // some that glows
+  const CENTER_MODEL = { url: 'art/m_volcano.glb', s: 4.6, sy: 0.8, ry: 0, crater: [-0.152, 0.343, -0.169], lava: true };
+  if (CENTER_MODEL) {
+    const k = CENTER_MODEL.s, [x, y, z] = CENTER_MODEL.crater;
+    CENTER_MODEL.top = 0.47 * k * CENTER_MODEL.sy;
+    CENTER.peak = [x * k, z * k];
+    CENTER_MODEL.smoke = [[x * k, z * k, y * k * CENTER_MODEL.sy + 0.04], [x * k + 0.06, z * k - 0.03, y * k * CENTER_MODEL.sy + 0.02]];
+  }
   function centerRelief(R) {
+    if (CENTER_MODEL) { R.tint(0, 0, 0xe3cf98, 9, 2.4, 0xb8a27a); R.mesa(0.0, 0.0, 2.25, 2.15, UPC - 0.035, 0.6); return; }
     R.tint(0, 0, 0x4f9a42, 9, 2.4, 0x6a5e52);
     R.tint(CENTER.peak[0], CENTER.peak[1], 0x6f7a4a, 9, 0.75, 0x4a423c);
     R.mesa(0.0, 0.0, 2.75, 2.6, UPC + 0.1, 0.42);                              // the island's low land, its beaches
@@ -461,6 +473,7 @@ const SeaModels = (() => {
   }
   // the waterfall: off the cliff's lip, down to the sea; where it lands, for the spray
   function centerWater(R) {
+    if (CENTER_MODEL) return null;
     const [fx, fz] = CENTER.fall, [lx, lz] = CENTER.lake, wl = Terrain.SEA_Y;
     const N = 140, step = Math.hypot(lx - fx, lz - fz) / N, pt = t => [fx + (lx - fx) * t, fz + (lz - fz) * t];
     let prev = R.height(fx, fz), lip = null, lipY = 0, foot = null;
@@ -477,6 +490,7 @@ const SeaModels = (() => {
   function center(ground) {
     const B = new Builder();
     B.ground = ground; B.wl = Terrain.SEA_Y;
+    if (CENTER_MODEL) return { B, steps: [] };
     const r = rng(505);
     const steps = [
       () => {         // palms along the beaches: out from the middle until the land comes down to the sea
@@ -635,7 +649,18 @@ const SeaModels = (() => {
     20: { smoke: [[-0.1, -0.46, 0.45]] },
     30: { actors: [[-0.2, -0.36, 0.4], [0.12, -0.38, -0.6], [-0.05, -0.16, 2.6], [0.1, -0.22, -2.2], [-0.24, -0.2, 1.5]].map(([x, z, ry], k) => ({ k: 'tentacle', sway: true, at: [x, z], ry, phase: k * 1.3 })) }
   };
-  const CENTER_FX = {
+  const CENTER_FX = CENTER_MODEL ? {
+    // the model's: smoke from its crater, birds round it, ships sailing round the island
+    smoke: CENTER_MODEL.smoke, mist: [], sheep: [],
+    birds: [{ at: CENTER.peak, r: 1.4, h: CENTER_MODEL.top + 0.35, w: 0.22 }, { at: CENTER.peak, r: 2.0, h: CENTER_MODEL.top - 0.1, w: -0.17 }],
+    actors: [
+      { k: 'galleon', orbit: true, at: [0, 0], r: 2.95, w: 0.05, s: 1.25, phase: 1 },
+      { k: 'sloop', orbit: true, at: [0, 0], r: 2.8, w: -0.07, s: 1.3, phase: 4 },
+      { k: 'junk', orbit: true, at: [0, 0], r: 3.05, w: 0.045, s: 1.2, phase: 3.6 },
+      { k: 'dolphin', jump: true, at: [2.2, 2.4], b: [2.9, 1.3], s: 1.3 },
+      { k: 'dolphin', jump: true, at: [-2.8, -1.7], b: [-1.8, -2.8], s: 1.3, phase: 0.5 }
+    ]
+  } : {
     smoke: [[0.05, -0.15, 0.08], [0.12, -0.1, 0.06], [-0.02, -0.2, 0.07], [CENTER.camp[0] - 0.04, CENTER.camp[1] + 0.02, 0.04]],
     mist: [[0.24, -2.4, 0.05]],
     sheep: [],
@@ -711,9 +736,19 @@ const SeaModels = (() => {
     return B.build();
   }
 
+  // ----- the places that have a model of their own, made from the Higgsfield pictures (art/m_*.glb, see glb.js): it
+  // stands in its water instead of the island made here, whose relief is then only a shallow shelf round it. s is its
+  // size (a lot is 1 wide), ry how far it is turned, x and z where it stands in the lot, y how high its water line is
+  // (each file's own, from tools/glb_prep.mjs, is at its y = 0) -----
+  // (the lots by a corner share their inner corner with the next side's lot: their models stand away from it, along
+  // their side and towards their square)
+  const MODELS = { 1: { url: 'art/m_heligoland.glb', s: 0.75, x: -0.36, z: 0.2 }, 39: { url: 'art/m_cocos.glb', s: 0.8, x: 0.3, z: 0.2 } };
+  const shelf = (R, d) => { tint(R, 0xe3cf98, 0xb8a27a); isle(R, d.x || 0, d.z || 0, 0.36 * (d.s || 1), 0.34 * (d.s || 1), -0.035, 0, 0.6); };
+
   // ----- public -----
-  function relief(i, R) { if (L[i] && L[i].r) L[i].r(R); else R.tint(0x5aa34a, 9); }
+  function relief(i, R) { if (MODELS[i]) shelf(R, MODELS[i]); else if (L[i] && L[i].r) L[i].r(R); else R.tint(0x5aa34a, 9); }
   function lot(i, ground) {
+    if (MODELS[i]) return null;
     const B = new Builder();
     B.ground = ground; B.wl = WL_LOT;
     if (L[i] && L[i].b) L[i].b(B);
@@ -741,7 +776,7 @@ const SeaModels = (() => {
     return B.build();
   }
   return {
-    world: 'sea', relief, lot, corner, ringRelief, inner, centerRelief, centerWater, center, far, CENTER, CENTER_FX, actor, tokenShip,
+    world: 'sea', relief, lot, corner, ringRelief, inner, centerRelief, centerWater, center, far, CENTER, CENTER_FX, actor, tokenShip, models: MODELS, centerModel: CENTER_MODEL,
     fx: i => FX[i] || null,
     tower: () => hutCache || (hutCache = hutParts()),
     castle: () => fortCache || (fortCache = seaFortParts()),

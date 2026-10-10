@@ -17,13 +17,15 @@ import hashlib, json, os, shutil, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'src')
 METEKHI = os.environ.get('METEKHI', os.path.join(os.path.dirname(ROOT), 'qourum', 'metekhi'))
-JS = ['diag.js', 'data.js', 'themes.js', 'engine.js', 'net.js', 'terrain.js', 'models.js', 'sea.js', 'board3d.js', 'dice3d.js', 'pictures.js', 'ui.js', 'app.js']
+JS = ['diag.js', 'data.js', 'themes.js', 'engine.js', 'net.js', 'terrain.js', 'models.js', 'sea.js', 'glb.js', 'board3d.js', 'dice3d.js', 'pictures.js', 'ui.js', 'app.js']
 THREE_CDN = 'https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js'
 HEROES = ['david', 'tamar', 'gorgasali', 'erekle', 'kakutsa', 'tariel', 'avtandil', 'gurdjieff', 'abrag', 'amirani', 'mikha', 'prometheus']
 PIRATES = ['blackbeard', 'bonny', 'read', 'chingshih', 'omalley', 'morgan', 'kidd', 'roberts', 'barbarossa', 'bellamy', 'labuse', 'stortebeker']
 # the archipelago's pictures: its pirates' portraits and its places, made from the Higgsfield references (they live in art/)
 SEA_ART = ([f'por_p_{p}' for p in PIRATES] + ['bg_sea'] + [f'sc_{n}' for n in ['north', 'gotland', 'med', 'atlantic', 'antilles', 'caribbean', 'indian', 'pacific', 'oak', 'cocos',
            'qar', 'whydah', 'galley', 'fortune', 'lighthouse', 'shipyard', 'customs', 'whirlpool', 'port', 'isle', 'tavern', 'kraken', 'chest', 'bottle']])
+# the archipelago's 3D models, made from the Higgsfield pictures with tools/glb_prep.mjs (art/m_*.glb; sea.js says where)
+MODELS = ['m_heligoland', 'm_cocos', 'm_volcano']
 ART = ([f'por_h_{h}' for h in HEROES] + [f'h_{h}' for h in HEROES if h != 'david'] + ['h_davidride'] + SEA_ART +
        ['t_archer_2', 's_fort', 's_camp', 't_palisade', 'ui_page', 'ui_chest_wood', 'ui_chest_wood_o', 'ui_coin', 'ui_coinbag',
         'ui_book', 'ui_feather', 'g_svan', 'g_elbrus', 'g_pass', 'g_stone', 'g_tbilisi'])
@@ -64,8 +66,14 @@ def read(name):
         return f.read()
 
 
+FILES = [n + '.webp' for n in ART] + [m + '.glb' for m in MODELS]
+
+
 def sync_art(dest):
     os.makedirs(dest, exist_ok=True)
+    for m in MODELS:
+        if not os.path.exists(os.path.join(dest, m + '.glb')):
+            sys.exit(f'missing model {m}.glb')
     for n in ART:
         d = os.path.join(dest, n + '.webp')
         if not os.path.exists(d):
@@ -93,8 +101,8 @@ def main():
     if '--preview' in sys.argv:
         out = sys.argv[sys.argv.index('--preview') + 1]
         os.makedirs(os.path.join(out, 'art'), exist_ok=True)
-        for n in ART:
-            shutil.copyfile(os.path.join(art, n + '.webp'), os.path.join(out, 'art', n + '.webp'))
+        for f in FILES:
+            shutil.copyfile(os.path.join(art, f), os.path.join(out, 'art', f))
         build, html = page(False)
         with open(os.path.join(out, 'index.html'), 'w', encoding='utf-8') as f:
             f.write(html)
@@ -104,10 +112,10 @@ def main():
     with open(os.path.join(ROOT, 'index.html'), 'w', encoding='utf-8') as f:
         f.write(html)
     # the offline helper: a new version with every new page, so the old page's copy is replaced
-    sw = read('sw.js').replace("'__VERSION__'", json.dumps(build)).replace('__ARTS__', json.dumps([n + '.webp' for n in ART]))
+    sw = read('sw.js').replace("'__VERSION__'", json.dumps(build)).replace('__ARTS__', json.dumps(FILES))
     with open(os.path.join(ROOT, 'sw.js'), 'w', encoding='utf-8') as f:
         f.write(sw)
-    print(f'site {build}: index.html {len(html) // 1024} KB, sw.js, {len(ART)} pictures')
+    print(f'site {build}: index.html {len(html) // 1024} KB, sw.js, {len(ART)} pictures, {len(MODELS)} models')
 
 
 if __name__ == '__main__':

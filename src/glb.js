@@ -1,0 +1,133 @@
+// ===== the archipelago's 3D models, made from its Higgsfield pictures (art/m_*.glb, written by tools/glb_prep.mjs) =====
+// A small reader for exactly what that tool writes: a GLB of one mesh with one texture (webp), its numbers maybe stored
+// as small integers. It gives the mesh's shape (in the model's own units, every node's place applied) and its material,
+// lit like the rest of the board. Each file is read once; a board made again uses what was read.
+
+const GLB = (() => {
+  const T = window.THREE;
+  if (!T) return null;
+  const KIND = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array };
+  const SIZE = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
+  const TOP = { 5120: 127, 5121: 255, 5122: 32767, 5123: 65535 };
+  const cache = new Map();
+
+  function chunks(buf) {
+    const dv = new DataView(buf);
+    if (buf.byteLength < 20 || dv.getUint32(0, true) !== 0x46546c67) throw new Error('not a GLB');
+    let json = null, bin = null;
+    for (let at = 12; at + 8 <= buf.byteLength;) {
+      const len = dv.getUint32(at, true), type = dv.getUint32(at + 4, true);
+      if (type === 0x4e4f534a) json = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, at + 8, len)));
+      else if (type === 0x004e4942) bin = buf.slice(at + 8, at + 8 + len);
+      at += 8 + len;
+    }
+    if (!json || !bin) throw new Error('a GLB without its parts');
+    return { json, bin };
+  }
+  // an accessor's numbers: integers stored for floats (normalized) come back as floats, indices as they are
+  function read(g, k, asFloat) {
+    const a = g.json.accessors[k], v = g.json.bufferViews[a.bufferView], A = KIND[a.componentType], n = SIZE[a.type];
+    if (!A || !n) throw new Error('an accessor of an unknown kind');
+    const off = (v.byteOffset || 0) + (a.byteOffset || 0), size = A.BYTES_PER_ELEMENT * n, stride = v.byteStride || size;
+    let raw;
+    if (stride === size) raw = new A(g.bin, off, a.count * n);
+    else {                                  // each element padded (small integers are) or among others: one by one
+      const step = stride / A.BYTES_PER_ELEMENT, all = new A(g.bin, off, ((a.count - 1) * stride + size) / A.BYTES_PER_ELEMENT);
+      raw = new A(a.count * n);
+      for (let j = 0; j < a.count; j++) for (let c = 0; c < n; c++) raw[j * n + c] = all[j * step + c];
+    }
+    if (!asFloat || A === Float32Array) return { a: raw, n };
+    const out = new Float32Array(raw.length), top = a.normalized ? TOP[a.componentType] : 1;
+    for (let j = 0; j < raw.length; j++) out[j] = a.normalized ? Math.max(raw[j] / top, -1) : raw[j];
+    return { a: out, n };
+  }
+  // where each mesh stands: the nodes' places multiplied down the tree
+  function placed(json) {
+    const out = [], M = n => {
+      const m = new T.Matrix4();
+      if (n.matrix) m.fromArray(n.matrix);
+      else m.compose(new T.Vector3().fromArray(n.translation || [0, 0, 0]), new T.Quaternion().fromArray(n.rotation || [0, 0, 0, 1]), new T.Vector3().fromArray(n.scale || [1, 1, 1]));
+      return m;
+    };
+    const walk = (k, up) => {
+      const n = json.nodes[k], m = up.clone().multiply(M(n));
+      if (n.mesh != null) out.push({ mesh: n.mesh, m });
+      for (const c of n.children || []) walk(c, m);
+    };
+    const sc = json.scenes ? json.scenes[json.scene || 0] : { nodes: json.nodes.map((n, k) => k) };
+    for (const k of sc.nodes || []) walk(k, new T.Matrix4());
+    return out;
+  }
+  async function picture(g, tex) {
+    const t = g.json.textures[tex.index], src = t.extensions && t.extensions.EXT_texture_webp ? t.extensions.EXT_texture_webp.source : t.source;
+    const im = g.json.images[src], v = g.json.bufferViews[im.bufferView];
+    const blob = new Blob([new Uint8Array(g.bin, v.byteOffset || 0, v.byteLength)], { type: im.mimeType || 'image/webp' });
+    const url = URL.createObjectURL(blob), img = new Image();
+    img.src = url;
+    try { await img.decode(); } finally { URL.revokeObjectURL(url); }
+    const tx = new T.Texture(img);
+    tx.flipY = false;                       // (a glTF picture's first row is the top of its UVs)
+    tx.encoding = T.sRGBEncoding;
+    tx.anisotropy = 4;
+    tx.needsUpdate = true;
+    return tx;
+  }
+  async function make(buf) {
+    const g = chunks(buf), parts = [];
+    let mat = null;
+    for (const { mesh, m } of placed(g.json)) {
+      for (const p of g.json.meshes[mesh].primitives) {
+        if (p.mode != null && p.mode !== 4) continue;            // triangles only
+        const geo = new T.BufferGeometry(), at = p.attributes;
+        const pos = read(g, at.POSITION, true);
+        geo.setAttribute('position', new T.BufferAttribute(pos.a, 3));
+        if (at.NORMAL != null) geo.setAttribute('normal', new T.BufferAttribute(read(g, at.NORMAL, true).a, 3));
+        if (at.TEXCOORD_0 != null) geo.setAttribute('uv', new T.BufferAttribute(read(g, at.TEXCOORD_0, true).a, 2));
+        if (p.indices != null) geo.setIndex(new T.BufferAttribute(read(g, p.indices, false).a, 1));
+        geo.applyMatrix4(m);
+        if (at.NORMAL == null) geo.computeVertexNormals();
+        parts.push(geo);
+        if (!mat && p.material != null) mat = g.json.materials[p.material];
+      }
+    }
+    if (!parts.length) throw new Error('a GLB without a mesh');
+    const geometry = parts.length === 1 ? parts[0] : merge(parts);
+    geometry.computeBoundingBox(); geometry.computeBoundingSphere();
+    const pbr = (mat && mat.pbrMetallicRoughness) || {}, f = pbr.baseColorFactor || [1, 1, 1, 1];
+    const map = pbr.baseColorTexture ? await picture(g, pbr.baseColorTexture) : null;
+    const material = new T.MeshLambertMaterial({ map, color: new T.Color(f[0], f[1], f[2]) });
+    return { geometry, material };
+  }
+  // several pieces into one (they have the same numbers: the tool writes them so)
+  function merge(list) {
+    const names = Object.keys(list[0].attributes), out = new T.BufferGeometry();
+    let nv = 0, ni = 0;
+    for (const g of list) { nv += g.attributes.position.count; ni += g.index ? g.index.count : g.attributes.position.count; }
+    for (const nm of names) {
+      const n = list[0].attributes[nm].itemSize, a = new Float32Array(nv * n);
+      let at = 0;
+      for (const g of list) { a.set(g.attributes[nm].array, at); at += g.attributes[nm].array.length; }
+      out.setAttribute(nm, new T.BufferAttribute(a, n));
+    }
+    const idx = nv > 65535 ? new Uint32Array(ni) : new Uint16Array(ni);
+    let at = 0, base = 0;
+    for (const g of list) {
+      const c = g.attributes.position.count;
+      if (g.index) for (let j = 0; j < g.index.count; j++) idx[at++] = g.index.array[j] + base;
+      else for (let j = 0; j < c; j++) idx[at++] = j + base;
+      base += c;
+    }
+    out.setIndex(new T.BufferAttribute(idx, 1));
+    return out;
+  }
+  // a model, read once: a promise of { geometry, material }
+  function load(url) {
+    if (!cache.has(url)) {
+      const p = fetch(url).then(r => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.arrayBuffer(); }).then(make);
+      p.catch(e => { cache.delete(url); console.warn('model', url, e); });
+      cache.set(url, p);
+    }
+    return cache.get(url);
+  }
+  return { load, _parse: make };
+})();

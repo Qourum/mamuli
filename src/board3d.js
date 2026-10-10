@@ -276,6 +276,53 @@ const Board3D = (() => {
     m.customProgramCacheKey = () => 'living';
     return m;
   }
+  // a model from a file (glb.js) has no 'anim' numbers: its water is found by its colour (bluer than it is red, and not
+  // greener than blue, as the pictures paint the sea, the pools and the falls), falling where its surface is steep, lying
+  // still where it is flat; the same clock as the board's
+  const MODEL_WATER = {
+    vp: '#include <common>\nvarying vec3 vWP;\nvarying vec3 vWN;',
+    v: `#include <begin_vertex>
+      vWP = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;
+      vWN = normalize( mat3( modelMatrix ) * objectNormal );`,
+    fp: '#include <common>\nuniform float uTime;\nvarying vec3 vWP;\nvarying vec3 vWN;',
+    f: `#include <map_fragment>
+      {
+        vec3 c = diffuseColor.rgb;
+        float wet = smoothstep( 0.1, 0.24, c.b - c.r ) * smoothstep( -0.06, 0.04, c.b - c.g );
+        float steep = 1.0 - smoothstep( 0.5, 0.8, abs( normalize( vWN ).y ) );
+        float fall = wet * steep, pool = wet * ( 1.0 - steep );
+        // falling water: bright streaks run down it, two sets at their own speeds
+        float s1 = fract( vWP.y * 10.0 + uTime * 2.4 + sin( vWP.x * 41.0 + vWP.z * 37.0 ) * 0.45 );
+        float s2 = fract( vWP.y * 6.0 + uTime * 1.7 + sin( vWP.x * 23.0 - vWP.z * 29.0 ) * 0.6 );
+        float streak = max( smoothstep( 0.62, 1.0, s1 ), 0.7 * smoothstep( 0.7, 1.0, s2 ) );
+        diffuseColor.rgb = mix( c, vec3( 0.88, 0.96, 1.0 ), fall * 0.6 * streak );
+        totalEmissiveRadiance += vec3( 0.12, 0.14, 0.15 ) * fall * streak;
+        // still water: little waves glitter in the sun
+        float w1 = sin( vWP.x * 21.0 + uTime * 1.2 + sin( vWP.z * 8.0 + uTime * 0.6 ) * 1.7 );
+        float w2 = sin( vWP.z * 17.0 - uTime * 0.95 + sin( vWP.x * 6.5 - uTime * 0.4 ) * 1.4 );
+        diffuseColor.rgb *= 1.0 + pool * 0.12 * ( w1 * 0.5 - 0.25 );
+        totalEmissiveRadiance += vec3( 0.16, 0.19, 0.2 ) * smoothstep( 0.55, 0.95, w1 * w2 ) * pool;
+        #ifdef LAVA
+          // a volcano's lava (orange, as no gold or sand is): it glows, and the glow wanders along its cracks
+          float hot = smoothstep( 0.35, 0.6, c.r - c.b ) * smoothstep( 0.06, 0.16, c.g ) * ( 1.0 - smoothstep( 0.42, 0.55, c.g ) );
+          float flick = 0.6 + 0.4 * sin( uTime * 2.3 + vWP.y * 9.0 + sin( vWP.x * 13.0 + uTime * 0.7 ) * 1.5 );
+          totalEmissiveRadiance += vec3( 1.0, 0.42, 0.08 ) * hot * flick * 0.9;
+        #endif
+      }`
+  };
+  const modelWaterPatch = sh => {
+    sh.uniforms.uTime = U.time;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', MODEL_WATER.vp).replace('#include <begin_vertex>', MODEL_WATER.v);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', MODEL_WATER.fp).replace('#include <map_fragment>', MODEL_WATER.f);
+  };
+  const modelWaterKey = () => 'modelwater', modelLavaKey = () => 'modellava';
+  // (lava only where the model says it has some: elsewhere an orange sail would glow)
+  function modelWater(m, lava) {
+    m.onBeforeCompile = modelWaterPatch;
+    m.customProgramCacheKey = lava ? modelLavaKey : modelWaterKey;
+    if (lava) m.defines = Object.assign({}, m.defines, { LAVA: '' });
+    return m;
+  }
 
   // the land's grain: a small noise picture that tiles (its lattice wraps round), at a few sizes summed
   function detailTexture() {
@@ -424,6 +471,8 @@ const Board3D = (() => {
       m.castShadow = true; m.receiveShadow = true; m.userData.i = i;
       landG.add(m); lotMesh[i] = m;
     }
+    // the places with a model of their own (from a file): each stands in its water when it has been read
+    if (MOD.models && typeof GLB !== 'undefined' && GLB) for (const i of Object.keys(MOD.models)) placeModel(+i, MOD.models[i]);
     // the inside corners of the ring
     for (let k = 0; k < 4; k++) {
       yield;
@@ -433,6 +482,8 @@ const Board3D = (() => {
       m.position.set(F.cx, 0, F.cz); m.rotation.y = F.yaw; m.castShadow = true; m.receiveShadow = true;
       landG.add(m); lotMesh[100 + k] = m;
     }
+    // the middle's own model, when there is one (then nothing is made for it here)
+    if (MOD.centerModel && typeof GLB !== 'undefined' && GLB) { placeCenter(MOD.centerModel); landTop = Math.max(landTop, MOD.centerModel.top); }
     // the great mountain's church, village, forest and lake shore
     const ctr = MOD.center(Terrain.height);
     for (const step of ctr.steps) { yield; step(); }
@@ -462,6 +513,40 @@ const Board3D = (() => {
     if (MOD.world === 'land') millWheel();
     yield;
     yield* buildLife();
+  }
+  // a place's model from its file, set in the lot's frame with its water line on the sea's (if the board is made again
+  // before the file is read, the new board asks for its own)
+  function placeModel(i, d) {
+    const F = lotF[i], land = landG;
+    GLB.load(d.url).then(({ geometry, material }) => {
+      if (landG !== land || !F) return;
+      geometry.userData.keep = material.userData.keep = true;           // (kept for a board made again)
+      modelWater(material);
+      const g = new T.Group(), p = F.at(d.x || 0, d.z || 0, 0);
+      g.position.set(p.x, Terrain.SEA_Y + (d.y || 0), p.z); g.rotation.y = F.yaw + (d.ry || 0); g.scale.setScalar((d.s || 1) * TW);
+      const m = new T.Mesh(geometry, material);
+      m.castShadow = true; m.receiveShadow = true; m.userData.i = i; m.userData.model = true;
+      g.add(m); landG.add(g);
+      if (!lotMesh[i]) lotMesh[i] = m;
+      if (mark[i] && mark[i].m) setMort(i, true, false);
+      shadowDirty = true;
+      Diag.note('3d', `model ${d.url}: ${geometry.index ? geometry.index.count / 3 : 0} triangles`);
+    }).catch(e => Diag.note('3d', `model ${d.url} not read: ${e && e.message}`));
+  }
+  // the middle's model: in the board's middle, its water line on the sea's, made lower by sy
+  function placeCenter(d) {
+    const land = landG;
+    GLB.load(d.url).then(({ geometry, material }) => {
+      if (landG !== land) return;
+      geometry.userData.keep = material.userData.keep = true;
+      modelWater(material, d.lava);
+      const m = new T.Mesh(geometry, material);
+      m.position.set(0, Terrain.SEA_Y, 0); m.rotation.y = d.ry || 0; m.scale.set(d.s, d.s * (d.sy || 1), d.s);
+      m.castShadow = true; m.receiveShadow = true;
+      landG.add(m);
+      shadowDirty = true;
+      Diag.note('3d', `model ${d.url}: ${geometry.index ? geometry.index.count / 3 : 0} triangles`);
+    }).catch(e => Diag.note('3d', `model ${d.url} not read: ${e && e.message}`));
   }
   // the mill's wheel turns, between the mill and its stream
   function millWheel() {
@@ -859,7 +944,12 @@ const Board3D = (() => {
     k.m = m;
     layoutBuildings(performance.now());
     labelMat[i].color.set(m ? 0x9b8f7a : 0xffffff);
-    if (lotMesh[i]) lotMesh[i].material = m ? (mats.mortScenery || (mats.mortScenery = living(new T.MeshLambertMaterial({ vertexColors: true, color: 0x8a8a8a })))) : mats.scenery;
+    const lm = lotMesh[i];
+    if (lm && lm.userData.model) {                         // a model from a file: its own material, greyed
+      const u = lm.userData;
+      if (!u.base) { u.base = lm.material; u.grey = modelWater(u.base.clone()); u.grey.color.multiplyScalar(0.55); u.grey.userData.keep = true; }
+      lm.material = m ? u.grey : u.base;
+    } else if (lm) lm.material = m ? (mats.mortScenery || (mats.mortScenery = living(new T.MeshLambertMaterial({ vertexColors: true, color: 0x8a8a8a })))) : mats.scenery;
     const f = flags[i];
     if (f && f.g.visible) {
       const to = topOf(k), from = f.cloth.position.y;
@@ -1340,8 +1430,8 @@ const Board3D = (() => {
     const keep = new Set([mats.poleGeo, dustGeo, confGeo, coinGeo].filter(Boolean));
     const shared = new Set(Object.values(mats).concat(ownerMats, [goldRim, coinMat]).filter(Boolean));
     o.traverse(m => {
-      if (m.geometry && !keep.has(m.geometry)) m.geometry.dispose();
-      for (const x of Array.isArray(m.material) ? m.material : m.material ? [m.material] : []) if (!shared.has(x)) { if (x.map) x.map.dispose(); x.dispose(); }
+      if (m.geometry && !keep.has(m.geometry) && !m.geometry.userData.keep) m.geometry.dispose();
+      for (const x of Array.isArray(m.material) ? m.material : m.material ? [m.material] : []) if (!shared.has(x) && !x.userData.keep) { if (x.map) x.map.dispose(); x.dispose(); }
     });
   }
   function* remaking() {

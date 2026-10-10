@@ -25,8 +25,8 @@ PIRATES = ['blackbeard', 'bonny', 'read', 'chingshih', 'omalley', 'morgan', 'kid
 SEA_ART = ([f'por_p_{p}' for p in PIRATES] + ['bg_sea'] + [f'sc_{n}' for n in ['north', 'gotland', 'med', 'atlantic', 'antilles', 'caribbean', 'indian', 'pacific', 'oak', 'cocos',
            'qar', 'whydah', 'galley', 'fortune', 'lighthouse', 'shipyard', 'customs', 'whirlpool', 'port', 'isle', 'tavern', 'kraken', 'chest', 'bottle']])
 # the archipelago's 3D models, made from the Higgsfield pictures with tools/glb_prep.mjs (art/m_*.glb; sea.js says where)
-MODELS = ['m_heligoland', 'm_cocos', 'm_volcano', 'm_gotland', 'm_customs', 'm_gramvousa', 'm_lighthouse', 'm_shipyard', 'm_cheungchau', 'm_oak',
-          'm_port', 'm_castaway', 'm_tavern', 'm_kraken', 'm_qar', 'm_whydah', 'm_galley', 'm_fortune', 'm_whirlpool']
+MODELS = ['m_heligoland_animated', 'm_cocos_animated', 'm_volcano_animated', 'm_gotland_animated', 'm_customs_animated', 'm_gramvousa_animated', 'm_lighthouse_animated', 'm_shipyard_animated', 'm_cheungchau_animated', 'm_oak_animated',
+          'm_port_animated', 'm_castaway_animated', 'm_tavern_animated', 'm_kraken_animated', 'm_qar_animated', 'm_whydah_animated', 'm_galley_animated', 'm_fortune_animated', 'm_whirlpool_animated']
 ART = ([f'por_h_{h}' for h in HEROES] + [f'h_{h}' for h in HEROES if h != 'david'] + ['h_davidride'] + SEA_ART +
        ['t_archer_2', 's_fort', 's_camp', 't_palisade', 'ui_page', 'ui_chest_wood', 'ui_chest_wood_o', 'ui_coin', 'ui_coinbag',
         'ui_book', 'ui_feather', 'g_svan', 'g_elbrus', 'g_pass', 'g_stone', 'g_tbilisi'])
@@ -90,8 +90,8 @@ def page(site):
     build = hashlib.sha1((css + body + code).encode()).hexdigest()[:10]
     js = f'const BUILD = "{build}";\nconst SITE = {"true" if site else "false"};\n' + code
     if site:
-        return build, f'{SITE_HEAD}<style>\n{css}</style>\n</head>\n<body>\n{body}<script src="vendor/three.min.js"></script>\n<script>\n{js}</script>\n</body>\n</html>\n'
-    return build, f'<title>შენი ჯერი</title>\n{FONTS}\n<style>\n{css}</style>\n{body}<script src="{THREE_CDN}"></script>\n<script>\n{js}</script>\n'
+        return build, f'{SITE_HEAD}<style>\n{css}</style>\n</head>\n<body>\n{body}<script src="vendor/three.min.js"></script>\n<script src="vendor/GLTFLoader.min.js"></script>\n<script>\n{js}</script>\n</body>\n</html>\n'
+    return build, f'<title>შენი ჯერი</title>\n{FONTS}\n<style>\n{css}</style>\n{body}<script src="{THREE_CDN}"></script>\n<script src="vendor/GLTFLoader.min.js"></script>\n<script>\n{js}</script>\n'
 
 
 def main():
@@ -102,6 +102,8 @@ def main():
     if '--preview' in sys.argv:
         out = sys.argv[sys.argv.index('--preview') + 1]
         os.makedirs(os.path.join(out, 'art'), exist_ok=True)
+        os.makedirs(os.path.join(out, 'vendor'), exist_ok=True)
+        shutil.copyfile(os.path.join(ROOT, 'vendor', 'GLTFLoader.min.js'), os.path.join(out, 'vendor', 'GLTFLoader.min.js'))
         for f in FILES:
             if f.endswith('.glb'):         # (Claude's viewer serves no .glb files: they go as text, base64, glb.js reads them so)
                 with open(os.path.join(art, f), 'rb') as src, open(os.path.join(out, 'art', f + '.txt'), 'w') as dst:

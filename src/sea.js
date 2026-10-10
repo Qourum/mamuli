@@ -447,19 +447,17 @@ const SeaModels = (() => {
   // its treasure (1), a waterfall from a cliff into the sea (2), the lookout tower and a pirates' camp (3).
   const CENTER = { peak: [0.05, -0.15], bay: [0.45, 2.15], skull: [-2.05, 0.3], fall: [0.2, -1.75], lake: [0.25, -2.6], camp: [2.0, 0.15] };
   const UPC = 0.18;
-  // the middle's own model, made from the Higgsfield picture (see glb.js): when there is one, the volcano made here gives
-  // way to it, and a shallow shelf lies round it. s its size, sy how much lower it is made (the board must still be seen
-  // past it), crater where its smoke rises from (in the file's units, as tools/glb_prep.mjs left them), lava whether it has
-  // some that glows
-  const CENTER_MODEL = { url: 'art/m_volcano.glb', s: 4.6, sy: 0.8, ry: 0, crater: [-0.152, 0.343, -0.169], lava: true };
-  if (CENTER_MODEL) {
+  // The large central island keeps its authored PBR materials, proportions and native animation.
+  // width is measured across the static island; its animated ocean is replaced by the board's sea.
+  const CENTER_MODEL = { url: 'art/m_volcano_animated.glb', animated: true, width: 6.1, waterline: 0.055, ry: 0, top: 4.05 };
+  if (CENTER_MODEL && !CENTER_MODEL.animated) {
     const k = CENTER_MODEL.s, [x, y, z] = CENTER_MODEL.crater;
     CENTER_MODEL.top = 0.47 * k * CENTER_MODEL.sy;
     CENTER.peak = [x * k, z * k];
     CENTER_MODEL.smoke = [[x * k, z * k, y * k * CENTER_MODEL.sy + 0.04], [x * k + 0.06, z * k - 0.03, y * k * CENTER_MODEL.sy + 0.02]];
   }
   function centerRelief(R) {
-    if (CENTER_MODEL) { R.tint(0, 0, 0xe3cf98, 9, 2.4, 0xb8a27a); R.mesa(0.0, 0.0, 2.25, 2.15, UPC - 0.035, 0.6); return; }
+    if (CENTER_MODEL) { R.tint(0, 0, 0xe3cf98, 9, 2.4, 0xb8a27a); R.mesa(0.0, 0.0, 2.8, 2.7, SEA - 0.07, 0.6); return; }
     R.tint(0, 0, 0x4f9a42, 9, 2.4, 0x6a5e52);
     R.tint(CENTER.peak[0], CENTER.peak[1], 0x6f7a4a, 9, 0.75, 0x4a423c);
     R.mesa(0.0, 0.0, 2.75, 2.6, UPC + 0.1, 0.42);                              // the island's low land, its beaches
@@ -622,33 +620,33 @@ const SeaModels = (() => {
   // their side and towards their square)
   // (own: the model is a town without its island: it stands on the island made here, y above the water)
   const MODELS = {
-    1: { url: 'art/m_heligoland.glb', s: 0.75, x: -0.36, z: 0.2 },
-    3: { url: 'art/m_gotland.glb', s: 0.6, y: 0.122, own: true },
-    4: { url: 'art/m_customs.glb', s: 0.7, z: 0.04 },
-    9: { url: 'art/m_gramvousa.glb', s: 0.8, x: 0.3, z: 0.16 },
-    12: { url: 'art/m_lighthouse.glb', s: 0.58 },
-    28: { url: 'art/m_shipyard.glb', s: 0.76, z: 0.04 },
-    31: { url: 'art/m_cheungchau.glb', s: 0.8, x: -0.3, z: 0.16 },
-    37: { url: 'art/m_oak.glb', s: 0.82 },
-    39: { url: 'art/m_cocos.glb', s: 0.8, x: 0.3, z: 0.2 }
+    1: { url: 'art/m_heligoland_animated.glb', animated: true, s: 0.98, x: -0.26, z: 0.09 },
+    3: { url: 'art/m_gotland_animated.glb', animated: true, s: 0.78, y: 0.122, own: true },
+    4: { url: 'art/m_customs_animated.glb', animated: true, s: 0.90, z: 0.03 },
+    9: { url: 'art/m_gramvousa_animated.glb', animated: true, s: 1.02, x: 0.20, z: 0.09 },
+    12: { url: 'art/m_lighthouse_animated.glb', animated: true, s: 0.76 },
+    28: { url: 'art/m_shipyard_animated.glb', animated: true, s: 0.98, z: 0.03 },
+    31: { url: 'art/m_cheungchau_animated.glb', animated: true, s: 1.02, x: -0.20, z: 0.09 },
+    37: { url: 'art/m_oak_animated.glb', animated: true, s: 1.05 },
+    39: { url: 'art/m_cocos_animated.glb', animated: true, s: 1.02, x: 0.20, z: 0.09 }
   };
   const shelf = (R, d) => { tint(R, 0xe3cf98, 0xb8a27a); isle(R, d.x || 0, d.z || 0, 0.36 * (d.s || 1), 0.34 * (d.s || 1), -0.035, 0, 0.6); };
   // the corner squares' models: little dioramas standing on the square (in the square's frame, on its top)
   const CORNER_MODELS = {
-    0: { url: 'art/m_port.glb', s: 0.66, x: 0.18, z: -0.3 },
-    10: { url: 'art/m_castaway.glb', s: 0.62, x: 0.18, z: -0.3 },
-    20: { url: 'art/m_tavern.glb', s: 0.7, x: 0.15, z: -0.3 },
-    30: { url: 'art/m_kraken.glb', s: 0.66, x: 0.15, z: -0.3 }
+    0: { url: 'art/m_port_animated.glb', animated: true, s: 1.08, x: 0.06, z: -0.33 },
+    10: { url: 'art/m_castaway_animated.glb', animated: true, s: 1.06, x: 0.06, z: -0.33 },
+    20: { url: 'art/m_tavern_animated.glb', animated: true, s: 1.12, x: 0.06, z: -0.33 },
+    30: { url: 'art/m_kraken_animated.glb', animated: true, s: 1.10, x: 0.06, z: -0.33 }
   };
   // the ships' models (they ride at anchor in their lot's water: see FX), and the whirlpool's swirl, which turns: s their
   // size, y how far their water line is above their file's bottom, ry which way their bow points in it
   const SHIP_MODEL = {
-    5: { url: 'art/m_qar.glb', s: 0.52, y: -0.045, ry: Math.PI },
-    15: { url: 'art/m_whydah.glb', s: 0.56, y: -0.05, ry: Math.PI },
-    25: { url: 'art/m_galley.glb', s: 0.56, y: -0.035, ry: Math.PI },
-    35: { url: 'art/m_fortune.glb', s: 0.5, y: -0.05, ry: Math.PI }
+    5: { url: 'art/m_qar_animated.glb', animated: true, s: 0.68, y: -0.045, ry: Math.PI },
+    15: { url: 'art/m_whydah_animated.glb', animated: true, s: 0.72, y: -0.05, ry: Math.PI },
+    25: { url: 'art/m_galley_animated.glb', animated: true, s: 0.71, y: -0.035, ry: Math.PI },
+    35: { url: 'art/m_fortune_animated.glb', animated: true, s: 0.66, y: -0.05, ry: Math.PI }
   };
-  const SWIRL_MODEL = { url: 'art/m_whirlpool.glb', s: 0.66, sy: 0.12, y: 0.004 };
+  const SWIRL_MODEL = { url: 'art/m_whirlpool_animated.glb', animated: true, s: 0.85, sy: 0.12, y: 0.004 };
 
   const ride = (x, z, ry, k = 'galleon', model = null) => ({ k, moor: true, at: [x, z], ry, model });
   const FX = {
@@ -687,7 +685,9 @@ const SeaModels = (() => {
     20: CORNER_MODELS[20] ? null : { smoke: [[-0.1, -0.46, 0.45]] },
     30: CORNER_MODELS[30] ? null : { actors: [[-0.2, -0.36, 0.4], [0.12, -0.38, -0.6], [-0.05, -0.16, 2.6], [0.1, -0.22, -2.2], [-0.24, -0.2, 1.5]].map(([x, z, ry], k) => ({ k: 'tentacle', sway: true, at: [x, z], ry, phase: k * 1.3 })) }
   };
-  const CENTER_FX = CENTER_MODEL ? {
+  const CENTER_FX = CENTER_MODEL && CENTER_MODEL.animated ? {
+    smoke: [], mist: [], sheep: [], birds: [], actors: []
+  } : CENTER_MODEL ? {
     // the model's: smoke from its crater, birds round it, ships sailing round the island
     smoke: CENTER_MODEL.smoke, mist: [], sheep: [],
     birds: [{ at: CENTER.peak, r: 1.4, h: CENTER_MODEL.top + 0.35, w: 0.22 }, { at: CENTER.peak, r: 2.0, h: CENTER_MODEL.top - 0.1, w: -0.17 }],

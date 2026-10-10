@@ -274,7 +274,7 @@ const Terrain = (() => {
   // ----- the archipelago's lagoon: the water inside the ring of squares, coloured by how deep it is (pale turquoise
   // over sand, blue where it is deep), with the foam lapping each shore (the board's shader moves it: anim.y = 4 and how
   // deep it is, anim.x how near the shore). Where land stands well above it, there is none. -----
-  const DEEP = [[0, 0x8fe6dc], [0.03, 0x3cc9cf], [0.09, 0x1fa2c4], [0.17, 0x1a7db6], [0.3, 0x15609a]].map(([d, c]) => [d, new T.Color(c)]);
+  const DEEP = [[0, 0x72d6c7], [0.03, 0x25bdbb], [0.09, 0x119fae], [0.17, 0x0c849f], [0.3, 0x086e91]].map(([d, c]) => [d, new T.Color(c)]);
   function depthColor(d, out) {
     if (d <= DEEP[0][0]) return out.copy(DEEP[0][1]);
     for (let k = 1; k < DEEP.length; k++) if (d < DEEP[k][0]) return out.copy(DEEP[k - 1][1]).lerp(DEEP[k][1], (d - DEEP[k - 1][0]) / (DEEP[k][0] - DEEP[k - 1][0]));
@@ -318,7 +318,7 @@ const Terrain = (() => {
   // where the woods are (the trees grow there, and the ground under them is darker)
   const woods = (x, z) => smooth(-0.12, 0.22, fbm(x * 0.24 + 2, z * 0.24 - 1));
   function ocean(rings, seg) {
-    const r0 = 6.25, r1 = 70, pos = [], col = [], anim = [], idx = [], NEAR = new T.Color(0x2593bd), MID = new T.Color(0x1b76a8), FAR = new T.Color(0x2a6f98);
+    const r0 = 6.25, r1 = 70, pos = [], col = [], anim = [], idx = [], NEAR = new T.Color(0x138fa7), MID = new T.Color(0x107c9b), FAR = new T.Color(0x1a698a);
     for (let k = 0; k <= rings; k++) {
       const r = r0 * Math.pow(r1 / r0, k / rings);
       for (let s = 0; s < seg; s++) {

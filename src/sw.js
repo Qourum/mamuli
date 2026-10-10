@@ -6,7 +6,7 @@ const VERSION = '__VERSION__';
 const ARTS = __ARTS__;
 const PAGE = 'mamuli-page-' + VERSION, FILES = 'mamuli-files', FONTS = 'mamuli-fonts';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'icon-512-maskable.png', 'rt.js'];
-const LIB = ['vendor/three.min.js'];
+const LIB = ['vendor/three.min.js', 'vendor/GLTFLoader.min.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(Promise.all([caches.open(PAGE).then(c => c.addAll(SHELL)), caches.open(FILES).then(c => c.addAll(LIB))]).then(() => self.skipWaiting()));

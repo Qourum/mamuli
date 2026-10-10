@@ -1,7 +1,8 @@
 // ===== the archipelago's 3D models, made from its Higgsfield pictures (art/m_*.glb, written by tools/glb_prep.mjs) =====
 // A small reader for exactly what that tool writes: a GLB of one mesh with one texture (webp), its numbers maybe stored
 // as small integers. It gives the mesh's shape (in the model's own units, every node's place applied) and its material,
-// lit like the rest of the board. Each file is read once; a board made again uses what was read.
+// lit like the rest of the board. Animated assets use the matching official glTF reader instead: their node hierarchy,
+// PBR materials and native clips stay intact. Each file is read once; a board made again gets its own scene instance.
 
 const GLB = (() => {
   const T = window.THREE;
@@ -10,6 +11,7 @@ const GLB = (() => {
   const SIZE = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
   const TOP = { 5120: 127, 5121: 255, 5122: 32767, 5123: 65535 };
   const cache = new Map();
+  const scenes = new Map();
 
   function chunks(buf) {
     const dv = new DataView(buf);
@@ -156,13 +158,54 @@ const GLB = (() => {
   // files: the preview has each written out as text, base64, next to where it would be.)
   const asText = typeof SITE !== 'undefined' && !SITE;
   const bytes = s => { const b = atob(s.trim()), a = new Uint8Array(b.length); for (let k = 0; k < b.length; k++) a[k] = b.charCodeAt(k); return a.buffer; };
+  function fetchBytes(url) {
+    const request = () => fetch(asText ? url + '.txt' : url);
+    // A cold board can request many pictures and models together. Retry a transient connection failure once.
+    return request().catch(() => new Promise(resolve => setTimeout(resolve, 250)).then(request)).then(r => {
+      if (!r.ok) throw new Error(`${url}: ${r.status}`);
+      return asText ? r.text().then(bytes) : r.arrayBuffer();
+    });
+  }
   function load(url) {
     if (!cache.has(url)) {
-      const p = fetch(asText ? url + '.txt' : url).then(r => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return asText ? r.text().then(bytes) : r.arrayBuffer(); }).then(make);
+      const p = fetchBytes(url).then(make);
       p.catch(e => { cache.delete(url); console.warn('model', url, e); });
       cache.set(url, p);
     }
     return cache.get(url);
   }
-  return { load, _parse: make };
+  function parseScene(buf, path = '') {
+    if (!window.MamuliGLTFLoader) return Promise.reject(new Error('the animated GLB reader is unavailable'));
+    return new Promise((resolve, reject) => new window.MamuliGLTFLoader().parse(buf, path, resolve, reject));
+  }
+  function retainScene(scene) {
+    scene.traverse(o => {
+      if (o.geometry) o.geometry.userData.keep = true;
+      for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : []) {
+        m.userData.keep = true;
+        for (const value of Object.values(m)) if (value && value.isTexture) value.userData.keep = true;
+      }
+    });
+  }
+  function sceneInstance(gltf) {
+    // SkeletonUtils also clones bones. Mesh.clone gives every instance its own morph weights; geometry, textures,
+    // materials and immutable clips are shared. One island's mixer can never change another island's pose.
+    let skinned = false;
+    gltf.scene.traverse(o => { if (o.isSkinnedMesh) skinned = true; });
+    if (skinned && !window.MamuliSkeletonClone) throw new Error('the animated skeleton reader is unavailable');
+    const scene = window.MamuliSkeletonClone ? window.MamuliSkeletonClone(gltf.scene) : gltf.scene.clone(true);
+    return { scene, animations: gltf.animations || [] };
+  }
+  function loadScene(url) {
+    if (!scenes.has(url)) {
+      const p = fetchBytes(url).then(buf => parseScene(buf, url.slice(0, url.lastIndexOf('/') + 1))).then(gltf => {
+        retainScene(gltf.scene);
+        return gltf;
+      });
+      p.catch(e => { scenes.delete(url); console.warn('animated model', url, e); });
+      scenes.set(url, p);
+    }
+    return scenes.get(url).then(sceneInstance);
+  }
+  return { load, loadScene, _parse: make, _parseScene: parseScene };
 })();

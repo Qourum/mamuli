@@ -33,6 +33,8 @@ const Board3D = (() => {
   // the world on the board: the land (models.js) or the archipelago's sea (sea.js), as the room's theme says; made again
   // when the theme changes (see retheme)
   let MOD = Models, worldBuilt = null, hemi = null, seaMesh = null;
+  const animatedModels = [];
+  let modelDelta = 0;
   const wantWorld = () => (typeof THEME !== 'undefined' && THEME.world === 'sea' && typeof SeaModels !== 'undefined' && SeaModels) ? 'sea' : 'land';
   const O = new T.Object3D();                              // for putting matrices together
 
@@ -212,14 +214,14 @@ const Board3D = (() => {
   // the higher it is above its ground), y what kind of surface it is (1 water lying still, 2 falling water, 3 the land
   // itself, which gets the fine grain of soil, grass and rock from a small noise picture). One clock for all of it.
   const U = { time: { value: 0 }, fade: { value: 1 }, scale: { value: 800 }, detail: { value: null } };
-  // The archipelago's sea (anim.y = 4 and how deep it is there, anim.x how near a shore): swells roll over it from the
-  // open ocean, four trains of waves, each its own way, length, height and speed. The two long ones lift the water; all
-  // four tilt it, so the sun and the sky light their slopes and the light on the water moves with them.
-  const SEA_WAVES = [[0.8, 0.6, 3.2, 0.05, 1.05], [0.31, 0.95, 1.75, 0.024, 0.8], [0.97, -0.24, 0.95, 0.011, 0.62], [-0.447, 0.894, 0.55, 0.0055, 0.48]];
+  // Two gentle Gerstner swells move the actual water mesh. Smaller crossing ripples tilt its normals, catching the
+  // scene's sunlight without bright stripes painted across the sea. Wavelength / height / speed are board units.
+  const SEA_WAVES = [[0.8, 0.6, 3.7, 0.042, 0.62], [0.31, 0.95074, 2.15, 0.018, 0.44], [0.97014, -0.24254, 0.64, 0.0053, 0.21], [-0.44721, 0.89443, 0.34, 0.0024, 0.16]];
   const gf = v => (Math.round(v * 1e5) / 1e5).toFixed(5);
-  const seaLift = SEA_WAVES.slice(0, 2).map(([x, z, len, a, c]) => `${gf(a)} * sin( ${gf(Math.PI * 2 / len)} * ( dot( vec2( ${gf(x)}, ${gf(z)} ), wp4.xz ) - ${gf(c)} * uTime ) )`).join(' + ');
+  const seaMove = SEA_WAVES.slice(0, 2).map(([x, z, len, a, c], k) => `float ph${k} = ${gf(Math.PI * 2 / len)} * ( dot( vec2( ${gf(x)}, ${gf(z)} ), wp4.xz ) - ${gf(c)} * uTime );
+        transformed.y += swell * ${gf(a)} * sin( ph${k} );
+        transformed.xz += swell * ${gf(a * 0.32)} * vec2( ${gf(x)}, ${gf(z)} ) * cos( ph${k} );`).join('\n        ');
   const seaTilt = SEA_WAVES.map(([x, z, len, a, c], k) => `seaWave( p, vec2( ${gf(x)}, ${gf(z)} ), ${gf(len)}, ${gf(a)} * calm${k > 1 ? ' * fine' : ''}, ${gf(c)}, h, g );`).join('\n        ');
-  const seaTall = (n, fine) => SEA_WAVES.slice(0, n).reduce((s, w) => s + w[3], 0).toFixed(5) + (fine ? ` + ${SEA_WAVES.slice(n).reduce((s, w) => s + w[3], 0).toFixed(5)} * fine` : '');
   const LIVING = {
     vp: '#include <common>\nattribute vec2 anim;\nuniform float uTime;\nvarying vec3 vWP;\nvarying float vWater;\nvarying float vShore;',
     v: `#include <begin_vertex>
@@ -232,9 +234,10 @@ const Board3D = (() => {
       vWater = anim.y;
       vShore = anim.x;
       #ifdef SEA
-        // the swell lifts the sea (less inside the ring of squares, and none at a shore)
+        // The shore stays attached to land; sparse distant rings do not need displaced waves.
         float open = smoothstep( 6.2, 7.2, max( abs( wp4.x ), abs( wp4.z ) ) );
-        transformed.y += mix( 0.42, 1.0, open ) * ( 1.0 - anim.x ) * ( ${seaLift} );
+        float swell = mix( 0.48, 1.0, open ) * ( 1.0 - anim.x ) * ( 1.0 - smoothstep( 18.0, 38.0, length( wp4.xz ) ) );
+        ${seaMove}
       #else
         if ( anim.x > 0.0 ) {
           float ph = wp4.x * 1.9 + wp4.z * 1.3;
@@ -258,36 +261,38 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     f: `#include <emissivemap_fragment>
       #ifdef SEA
       {
-        // the sea. Its waves (see SEA_WAVES) tilt it, so the sun and the sky light their slopes; the sky shows in those
-        // turned away; out on the ocean the crests break white here and there; in the shallows the sun's light, bent by
-        // the waves, dances on the sand; little waves glitter; foam laps each shore, coming and going
+        // Calm, clear water: depth colour comes from the seabed, reflections from the view angle, and highlights from
+        // the same directional light as the islands. Foam is confined to shallow land contacts, never the open ocean.
         vec2 p = vWP.xz;
         float depth = vWater - 4.0, open = smoothstep( 6.2, 7.2, max( abs( p.x ), abs( p.y ) ) );
-        float calm = mix( 0.55, 1.0, open ), fine = 1.0 - smoothstep( 14.0, 40.0, length( vViewPosition ) );
+        float fine = 1.0 - smoothstep( 16.0, 42.0, length( vViewPosition ) );
+        float calm = mix( 0.48, 1.0, open ) * ( 1.0 - 0.78 * vShore );
         float h = 0.0;
         vec2 g = vec2( 0.0 );
         ${seaTilt}
-        normal = normalize( mat3( viewMatrix ) * vec3( -g.x, 1.0, -g.y ) );       // (in the camera's space, as the lights want it)
-        float crest = h / ( ( ${seaTall(2, true)} ) * calm );
-        float fres = 1.0 - clamp( dot( normal, normalize( vViewPosition ) ), 0.0, 1.0 );
-        fres *= fres * fres;
-        diffuseColor.rgb = mix( diffuseColor.rgb * ( 0.97 + 0.09 * crest ), vec3( 0.68, 0.87, 0.95 ), fres * 0.42 );
-        // (the whitecaps' patches are long along the crests of the longest waves, and drift)
-        float m = texture2D( uDetail, vec2( dot( p, vec2( 0.8, 0.6 ) ) * 0.5, dot( p, vec2( -0.6, 0.8 ) ) * 0.14 ) + uTime * vec2( 0.006, -0.009 ) ).r;
-        float cap = smoothstep( 0.42, 0.92, crest ) * smoothstep( 0.52, 0.7, m ) * ( 0.15 + 0.85 * open );
-        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.93, 0.97, 0.98 ), cap * 0.72 );
-        float shallow = 1.0 - smoothstep( 0.01, 0.26, depth );
+        float broadHeight = h;
+        seaWave( p, vec2( 0.70711, -0.70711 ), 0.18, 0.00085 * fine * calm, 0.095, h, g );
+        seaWave( p, vec2( 0.19612, 0.98058 ), 0.11, 0.00052 * fine * calm, 0.072, h, g );
+        normal = normalize( mat3( viewMatrix ) * vec3( -g.x, 1.0, -g.y ) );
+        float fres = pow( 1.0 - clamp( dot( normal, normalize( vViewPosition ) ), 0.0, 1.0 ), 5.0 );
+        diffuseColor.rgb *= 0.98 + 0.085 * clamp( broadHeight / 0.0677, -1.0, 1.0 );
+        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.16, 0.34, 0.43 ), fres * 0.28 );
+        float shallow = 1.0 - smoothstep( 0.015, 0.16, depth );
         if ( shallow * fine > 0.0 ) {
-          vec2 q = p * 0.5 + g * 0.6;
+          // Subtle refracted light over shallow sand; a low bound keeps this from becoming a glowing white texture.
+          vec2 q = p * 0.8 + g * 0.45;
           float n1 = texture2D( uDetail, q + uTime * vec2( 0.019, 0.011 ) ).r;
           float n2 = texture2D( uDetail, q * 1.37 + vec2( 0.31, 0.57 ) - uTime * vec2( 0.012, 0.021 ) ).r;
-          totalEmissiveRadiance += vec3( 0.36, 0.48, 0.42 ) * pow( 1.0 - abs( n1 - n2 ), 12.0 ) * shallow * shallow * fine;
+          diffuseColor.rgb += vec3( 0.012, 0.022, 0.018 ) * pow( 1.0 - abs( n1 - n2 ), 14.0 ) * shallow * shallow * fine;
         }
-        float w1 = sin( p.x * 6.3 + uTime * 1.1 + h * 38.0 + g.y * 3.0 ), w2 = sin( p.y * 5.7 - uTime * 0.85 + h * 21.0 + g.x * 6.0 );   // (bent by the swell)
-        totalEmissiveRadiance += vec3( 0.11, 0.13, 0.14 ) * smoothstep( 0.82, 0.995, w1 * w2 ) * fine * ( 0.7 + 0.3 * crest );
-        float lap = 0.5 + 0.5 * sin( vShore * 14.0 - uTime * 1.8 + ( vWP.x + vWP.z ) * 2.5 );
-        float foam = smoothstep( 0.74, 0.97, vShore ) + smoothstep( 0.4, 0.76, vShore ) * smoothstep( 0.78, 0.97, lap ) * 0.75;
-        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.95, 0.98, 0.97 ), clamp( foam * ( 0.7 + 0.6 * m ), 0.0, 1.0 ) * 0.85 );
+        float shore = smoothstep( 0.8, 0.985, vShore ) * ( 1.0 - smoothstep( 0.035, 0.07, depth ) );
+        if ( shore > 0.0 ) {
+          float grain = texture2D( uDetail, p * 4.5 + uTime * vec2( 0.015, -0.009 ) ).r;
+          float lap = 0.5 + 0.5 * sin( uTime * 1.35 - vShore * 8.0 + dot( p, vec2( 1.7, 1.1 ) ) );
+          float foam = shore * ( 0.34 + 0.35 * smoothstep( 0.58, 0.96, lap ) ) * ( 0.65 + 0.35 * grain );
+          diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.65, 0.83, 0.8 ), foam );
+          specularStrength *= 1.0 - foam;
+        }
       }
       #else
       if ( vWater > 4.5 ) {
@@ -321,7 +326,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       sh.vertexShader = sh.vertexShader.replace('#include <common>', LIVING.vp).replace('#include <begin_vertex>', LIVING.v);
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', LIVING.fp).replace('#include <emissivemap_fragment>', LIVING.f);
     };
-    m.customProgramCacheKey = sea ? () => 'livingsea' : () => 'living';
+    m.customProgramCacheKey = sea ? () => 'livingsea-gerstner' : () => 'living';
     if (sea) m.defines = Object.assign({}, m.defines, { SEA: '' });
     return m;
   }
@@ -420,7 +425,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     U.detail.value = detailTexture();
     mats = {
       scenery: living(new T.MeshLambertMaterial({ vertexColors: true })),
-      sea: living(new T.MeshLambertMaterial({ vertexColors: true }), true),
+      sea: living(new T.MeshPhongMaterial({ vertexColors: true, shininess: 95, specular: 0x5a9aaa }), true),
       cloud: new T.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.86 }),
       wing: new T.MeshLambertMaterial({ vertexColors: true, side: T.DoubleSide }),
       plinthTop: new T.MeshLambertMaterial({ color: 0x4a2e1a }),
@@ -575,8 +580,49 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   }
   // a place's model from its file, set in the lot's frame with its water line on the sea's (if the board is made again
   // before the file is read, the new board asks for its own)
+  function nativeModel({ scene: model, animations }, i) {
+    model.userData.nativeScene = true;
+    model.traverse(o => {
+      if (!o.isMesh) return;
+      o.castShadow = !/Mist|Glint|Waterfall_Moving/.test(o.name); o.receiveShadow = true;
+      if (i != null) o.userData.i = i;
+      for (const mat of Array.isArray(o.material) ? o.material : [o.material]) {
+        if (mat && mat.map) mat.map.anisotropy = maxAniso;
+      }
+    });
+    const mixer = new T.AnimationMixer(model);
+    for (const clip of animations) mixer.clipAction(clip).setLoop(T.LoopRepeat, Infinity).play();
+    mixer.update(0);
+    animatedModels.push({ model, mixer });
+    return model;
+  }
+  function clearAnimatedModels() {
+    for (const { model, mixer } of animatedModels) {
+      mixer.stopAllAction(); mixer.uncacheRoot(model);
+      model.traverse(o => {
+        if (!o.userData.nativeGrey) return;
+        for (const m of o.userData.nativeGrey) m.dispose();
+        o.material = o.userData.nativeBase;
+      });
+    }
+    animatedModels.length = 0; modelDelta = 0;
+  }
   function placeModel(i, d) {
     const F = lotF[i], land = landG;
+    if (d.animated) {
+      GLB.loadScene(d.url).then(pack => {
+        if (landG !== land || !F) return;
+        const g = new T.Group(), p = F.at(d.x || 0, d.z || 0, 0);
+        g.position.set(p.x, Terrain.SEA_Y + (d.y || 0), p.z); g.rotation.y = F.yaw + (d.ry || 0); g.scale.setScalar((d.s || 1) * TW);
+        if (d.own) g.position.y = Math.max(g.position.y, p.y);
+        const model = nativeModel(pack, i);
+        g.add(model); land.add(g);
+        if (!lotMesh[i]) lotMesh[i] = model;
+        if (mark[i] && mark[i].m) setMort(i, true, false);
+        shadowDirty = true;
+      }).catch(e => Diag.note('3d', `animated model ${d.url} not read: ${e && e.message}`));
+      return;
+    }
     GLB.load(d.url).then(({ geometry, material }) => {
       if (landG !== land || !F) return;
       geometry.userData.keep = material.userData.keep = true;           // (kept for a board made again)
@@ -596,6 +642,15 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   // a corner square's model, standing on the square
   function placeCorner(i, tile, d) {
     const land = landG;
+    if (d.animated) {
+      GLB.loadScene(d.url).then(pack => {
+        if (landG !== land) return;
+        const g = new T.Group(), model = nativeModel(pack, i);
+        g.position.set(d.x || 0, TH, d.z || 0); g.rotation.y = d.ry || 0; g.scale.setScalar(d.s || 1);
+        g.add(model); tile.add(g); lotMesh[i] = model; shadowDirty = true;
+      }).catch(e => Diag.note('3d', `animated model ${d.url} not read: ${e && e.message}`));
+      return;
+    }
     GLB.load(d.url).then(({ geometry, material }) => {
       if (landG !== land) return;
       geometry.userData.keep = material.userData.keep = true;
@@ -611,6 +666,31 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   // the middle's model: in the board's middle, its water line on the sea's, made lower by sy
   function placeCenter(d) {
     const land = landG;
+    if (d.animated) {
+      GLB.loadScene(d.url).then(pack => {
+        if (landG !== land) return;
+        // The board already owns the sea. Its surface continues around the native island and its ship.
+        const ocean = pack.scene.getObjectByName('Ocean_Surface');
+        if (ocean && ocean.parent) ocean.parent.remove(ocean);
+        pack.scene.updateMatrixWorld(true);
+        const base = pack.scene.getObjectByName(d.fitNode || 'Island_High_Detail_PBR') || pack.scene;
+        const box = new T.Box3().setFromObject(base), size = box.getSize(new T.Vector3()), middle = box.getCenter(new T.Vector3());
+        const scale = d.width ? d.width / Math.max(size.x, size.z) : (d.s || 1);
+        const waterline = d.waterline || 0;
+        const g = new T.Group(), model = nativeModel(pack);
+        // A wrapper keeps fitting transforms separate from all animated node transforms, including the ship and birds.
+        g.position.set(0, Terrain.SEA_Y + (d.y || 0), 0); g.rotation.y = d.ry || 0; g.scale.setScalar(scale);
+        model.position.set(-middle.x, -waterline, -middle.z);
+        g.add(model); land.add(g);
+        landTop = Math.max(landTop, g.position.y + (box.max.y - waterline) * scale);
+        if (cam) distances();
+        shadowDirty = true;
+        let triangles = 0;
+        model.traverse(o => { if (o.isMesh) triangles += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3; });
+        Diag.note('3d', `animated model ${d.url}: ${Math.round(triangles)} triangles, ${pack.animations.length} clips, width ${(Math.max(size.x, size.z) * scale).toFixed(2)}`);
+      }).catch(e => Diag.note('3d', `animated model ${d.url} not read: ${e && e.message}`));
+      return;
+    }
     GLB.load(d.url).then(({ geometry, material }) => {
       if (landG !== land) return;
       geometry.userData.keep = material.userData.keep = true;
@@ -862,7 +942,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     for (const [x, z] of CF.sheep) add(actorOf({ k: 'sheep', at: [x, z], r: 0.09, s: 1.35 }, (xx, zz) => ground(xx, zz), null, -1, rnd() * 20));
     for (const a of CF.actors || []) add(actorOf(a, ground, null, -1, rnd() * 20));
     const [px, pz] = MOD.CENTER.peak, isl = MOD.world === 'sea';       // the volcano's clouds: fewer, smaller and higher
-    for (let k = 0; k < (isl ? 3 : 4); k++) {
+    for (let k = 0; k < (isl && MOD.centerModel && MOD.centerModel.animated ? 0 : isl ? 3 : 4); k++) {
       const r = (isl ? 1.45 : 1.0) + 0.3 * (k % 2) + 0.08 * k, h = landTop * (isl ? 0.86 + 0.08 * k : 0.56 + 0.06 * k), w = 0.045 + 0.012 * k, a0 = k * 1.7, cs = (isl ? 0.4 : 0.6) + 0.12 * (k % 3), ph = k * 2.1;
       add({ k: 'cloud', up(t, o) { const a = a0 + w * t; o.p.set(px + Math.cos(a) * r, h + 0.05 * Math.sin(t * 0.3 + ph), pz + Math.sin(a) * r); o.yaw = -a - Math.PI / 2; o.s = cs; } });
     }
@@ -892,6 +972,15 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   function modelActor(act, d) {
     const rec = { act, d, mesh: null }, land = landG;
     life.models.push(rec);
+    if (d.animated) {
+      GLB.loadScene(d.url).then(pack => {
+        if (landG !== land) return;
+        const g = new T.Group(); g.rotation.order = 'YXZ';
+        g.add(nativeModel(pack)); root.add(g); rec.mesh = g;
+        lifeStep(U.time.value); shadowDirty = true;
+      }).catch(e => Diag.note('3d', `animated model ${d.url} not read: ${e && e.message}`));
+      return;
+    }
     GLB.load(d.url).then(({ geometry, material }) => {
       if (landG !== land) return;
       geometry.userData.keep = material.userData.keep = true;
@@ -1137,7 +1226,21 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     layoutBuildings(performance.now());
     labelMat[i].color.set(m ? 0x9b8f7a : 0xffffff);
     const lm = lotMesh[i];
-    if (lm && lm.userData.model) {                         // a model from a file: its own material, greyed
+    if (lm && lm.userData.nativeScene) {
+      lm.traverse(o => {
+        if (!o.isMesh) return;
+        const u = o.userData;
+        if (!u.nativeBase) {
+          u.nativeBase = o.material;
+          u.nativeGrey = (Array.isArray(o.material) ? o.material : [o.material]).map(mat => {
+            const grey = mat.clone(); delete grey.userData.keep;
+            if (grey.color) grey.color.multiplyScalar(0.55);
+            return grey;
+          });
+        }
+        o.material = m ? (Array.isArray(u.nativeBase) ? u.nativeGrey : u.nativeGrey[0]) : u.nativeBase;
+      });
+    } else if (lm && lm.userData.model) {                   // a model from a file: its own material, greyed
       const u = lm.userData;
       if (!u.base) { u.base = lm.material; u.grey = modelWater(u.base.clone()); u.grey.color.multiplyScalar(0.55); u.grey.userData.keep = true; }
       lm.material = m ? u.grey : u.base;
@@ -1414,7 +1517,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     const v = new T.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(v, cam);
     const objs = [...tiles, ...lotGround, ...lotMesh.filter(Boolean)];
-    const hit = ray.intersectObjects(objs, false)[0];
+    const hit = ray.intersectObjects(objs, true)[0];
     if (!hit) return;
     let o = hit.object;
     if (o.userData.ground) {
@@ -1452,6 +1555,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (!running) return;
     requestAnimationFrame(loop);
     const real = last ? (now - last) / 1000 : 0.016, dt = Math.min(0.25, real);
+    if (!REDUCED && animatedModels.length) modelDelta += dt;
     if (real > 0.35 && document.visibilityState === 'visible') Diag.slow(real * 1000);
     last = now;
     frame++;
@@ -1495,7 +1599,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     const need = moving || !camStill;
     if (need) shadowLate = true;
     const every = Dice3D.busy ? 4 : mobile ? 2 : 1;
-    if (shadowDirty || (shadowLate && (!need || frame - shadowAt >= every))) { R.shadowMap.needsUpdate = true; shadowDirty = false; shadowLate = false; shadowAt = frame; PERF.shadows++; }
+    const nativeShadow = !REDUCED && animatedModels.length && frame - shadowAt >= (mobile ? 12 : 8);
+    if (shadowDirty || nativeShadow || (shadowLate && (!need || frame - shadowAt >= every))) { R.shadowMap.needsUpdate = true; shadowDirty = false; shadowLate = false; shadowAt = frame; PERF.shadows++; }
     PERF.frames++;
     const lt = REDUCED ? 3 : t;              // with less motion asked for, the board's life stands still
     U.time.value = lt;
@@ -1503,6 +1608,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     draw(dt * speedK);
   }
   function draw(diceDt) {
+    // Render throttling saves power, but native clips still advance by all elapsed time between drawn frames.
+    if (modelDelta) { for (const { mixer } of animatedModels) mixer.update(modelDelta); modelDelta = 0; }
     R.setViewport(0, 0, W, H); R.setScissorTest(false);
     R.clear();
     R.render(scene, cam);
@@ -1630,6 +1737,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   function* remaking() {
     const t0 = performance.now();
     stop(); halt();
+    clearAnimatedModels();
     if (root) { disposeAll(root); scene.remove(root); }
     root = landG = seaMesh = wheel = fallFoot = null;
     tiles.length = lotMesh.length = lotGround.length = flags.length = mark.length = toks.length = 0;

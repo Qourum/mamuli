@@ -212,6 +212,14 @@ const Board3D = (() => {
   // the higher it is above its ground), y what kind of surface it is (1 water lying still, 2 falling water, 3 the land
   // itself, which gets the fine grain of soil, grass and rock from a small noise picture). One clock for all of it.
   const U = { time: { value: 0 }, fade: { value: 1 }, scale: { value: 800 }, detail: { value: null } };
+  // The archipelago's sea (anim.y = 4 and how deep it is there, anim.x how near a shore): swells roll over it from the
+  // open ocean, four trains of waves, each its own way, length, height and speed. The two long ones lift the water; all
+  // four tilt it, so the sun and the sky light their slopes and the light on the water moves with them.
+  const SEA_WAVES = [[0.8, 0.6, 3.2, 0.05, 1.05], [0.31, 0.95, 1.75, 0.024, 0.8], [0.97, -0.24, 0.95, 0.011, 0.62], [-0.447, 0.894, 0.55, 0.0055, 0.48]];
+  const gf = v => (Math.round(v * 1e5) / 1e5).toFixed(5);
+  const seaLift = SEA_WAVES.slice(0, 2).map(([x, z, len, a, c]) => `${gf(a)} * sin( ${gf(Math.PI * 2 / len)} * ( dot( vec2( ${gf(x)}, ${gf(z)} ), wp4.xz ) - ${gf(c)} * uTime ) )`).join(' + ');
+  const seaTilt = SEA_WAVES.map(([x, z, len, a, c], k) => `seaWave( p, vec2( ${gf(x)}, ${gf(z)} ), ${gf(len)}, ${gf(a)} * calm${k > 1 ? ' * fine' : ''}, ${gf(c)}, h, g );`).join('\n        ');
+  const seaTall = (n, fine) => SEA_WAVES.slice(0, n).reduce((s, w) => s + w[3], 0).toFixed(5) + (fine ? ` + ${SEA_WAVES.slice(n).reduce((s, w) => s + w[3], 0).toFixed(5)} * fine` : '');
   const LIVING = {
     vp: '#include <common>\nattribute vec2 anim;\nuniform float uTime;\nvarying vec3 vWP;\nvarying float vWater;\nvarying float vShore;',
     v: `#include <begin_vertex>
@@ -224,15 +232,27 @@ const Board3D = (() => {
       vWater = anim.y;
       vShore = anim.x;
       if ( anim.y > 3.5 && anim.y < 4.5 ) {
-        // the sea's swell (anim.x is how near the shore: no sway)
-        transformed.y += 0.006 * sin( uTime * 1.3 + wp4.x * 2.3 + wp4.z * 1.1 ) + 0.004 * sin( uTime * 1.9 - wp4.z * 3.1 + wp4.x * 0.7 );
+        // the swell lifts the sea (less inside the ring of squares, and none at a shore)
+        float open = smoothstep( 6.2, 7.2, max( abs( wp4.x ), abs( wp4.z ) ) );
+        transformed.y += mix( 0.42, 1.0, open ) * ( 1.0 - anim.x ) * ( ${seaLift} );
       } else if ( anim.x > 0.0 ) {
         float ph = wp4.x * 1.9 + wp4.z * 1.3;
         float gust = 0.65 + 0.35 * sin( uTime * 0.41 + wp4.x * 0.25 - wp4.z * 0.2 );
         transformed.x += anim.x * gust * ( 0.009 * sin( uTime * 1.7 + ph ) + 0.0035 * sin( uTime * 3.3 + ph * 2.1 ) );
         transformed.z += anim.x * gust * 0.0055 * sin( uTime * 1.25 + ph * 1.3 + 1.2 );
       }`,
-    fp: '#include <common>\nuniform float uTime;\nuniform sampler2D uDetail;\nvarying vec3 vWP;\nvarying float vWater;\nvarying float vShore;',
+    fp: `#include <common>
+uniform float uTime;
+uniform sampler2D uDetail;
+varying vec3 vWP;
+varying float vWater;
+varying float vShore;
+// one train of the sea's waves: its height and its slope here, added to h and g
+void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, inout vec2 g ) {
+  float k = 6.28318 / len, ph = k * ( dot( d, p ) - speed * uTime );
+  h += amp * sin( ph );
+  g += amp * k * cos( ph ) * d;
+}`,
     f: `#include <emissivemap_fragment>
       if ( vWater > 4.5 ) {
         // lava: glowing, its dark crust drifting over it
@@ -240,15 +260,36 @@ const Board3D = (() => {
         diffuseColor.rgb = mix( vec3( 0.32, 0.05, 0.02 ), vec3( 1.0, 0.56, 0.14 ), 0.5 + 0.5 * c );
         totalEmissiveRadiance += vec3( 0.95, 0.34, 0.06 ) * ( 0.6 + 0.4 * c );
       } else if ( vWater > 3.5 ) {
-        // the sea: small waves glitter in the sun; foam laps each shore, coming and going
-        float w1 = sin( vWP.x * 6.3 + uTime * 1.1 + sin( vWP.z * 2.9 + uTime * 0.5 ) * 1.9 + sin( vWP.x * 1.7 - vWP.z * 2.3 ) * 1.2 );
-        float w2 = sin( vWP.z * 5.7 - uTime * 0.85 + sin( vWP.x * 2.4 - uTime * 0.4 ) * 1.6 + sin( vWP.z * 1.3 + vWP.x * 2.1 ) * 1.1 );
-        float near = 1.0 - smoothstep( 9.0, 30.0, length( vWP.xz ) );            // the glitter fades out over the far ocean
-        diffuseColor.rgb *= 0.94 + 0.08 * ( w1 * 0.5 + 0.5 ) * ( 0.4 + 0.6 * near );
-        totalEmissiveRadiance += vec3( 0.11, 0.13, 0.14 ) * smoothstep( 0.82, 0.995, w1 * w2 ) * near;
+        // the sea. Its waves (see SEA_WAVES) tilt it, so the sun and the sky light their slopes; the sky shows in those
+        // turned away; out on the ocean the crests break white here and there; in the shallows the sun's light, bent by
+        // the waves, dances on the sand; little waves glitter; foam laps each shore, coming and going
+        vec2 p = vWP.xz;
+        float depth = vWater - 4.0, open = smoothstep( 6.2, 7.2, max( abs( p.x ), abs( p.y ) ) );
+        float calm = mix( 0.55, 1.0, open ), fine = 1.0 - smoothstep( 14.0, 40.0, length( vViewPosition ) );
+        float h = 0.0;
+        vec2 g = vec2( 0.0 );
+        ${seaTilt}
+        normal = normalize( mat3( viewMatrix ) * vec3( -g.x, 1.0, -g.y ) );       // (in the camera's space, as the lights want it)
+        float crest = h / ( ( ${seaTall(2, true)} ) * calm );
+        float fres = 1.0 - clamp( dot( normal, normalize( vViewPosition ) ), 0.0, 1.0 );
+        fres *= fres * fres;
+        diffuseColor.rgb = mix( diffuseColor.rgb * ( 0.97 + 0.09 * crest ), vec3( 0.68, 0.87, 0.95 ), fres * 0.42 );
+        // (the whitecaps' patches are long along the crests of the longest waves, and drift)
+        float m = texture2D( uDetail, vec2( dot( p, vec2( 0.8, 0.6 ) ) * 0.5, dot( p, vec2( -0.6, 0.8 ) ) * 0.14 ) + uTime * vec2( 0.006, -0.009 ) ).r;
+        float cap = smoothstep( 0.42, 0.92, crest ) * smoothstep( 0.52, 0.7, m ) * ( 0.15 + 0.85 * open );
+        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.93, 0.97, 0.98 ), cap * 0.72 );
+        float shallow = 1.0 - smoothstep( 0.01, 0.26, depth );
+        if ( shallow * fine > 0.0 ) {
+          vec2 q = p * 0.5 + g * 0.6;
+          float n1 = texture2D( uDetail, q + uTime * vec2( 0.019, 0.011 ) ).r;
+          float n2 = texture2D( uDetail, q * 1.37 + vec2( 0.31, 0.57 ) - uTime * vec2( 0.012, 0.021 ) ).r;
+          totalEmissiveRadiance += vec3( 0.36, 0.48, 0.42 ) * pow( 1.0 - abs( n1 - n2 ), 12.0 ) * shallow * shallow * fine;
+        }
+        float w1 = sin( p.x * 6.3 + uTime * 1.1 + h * 38.0 + g.y * 3.0 ), w2 = sin( p.y * 5.7 - uTime * 0.85 + h * 21.0 + g.x * 6.0 );   // (bent by the swell)
+        totalEmissiveRadiance += vec3( 0.11, 0.13, 0.14 ) * smoothstep( 0.82, 0.995, w1 * w2 ) * fine * ( 0.7 + 0.3 * crest );
         float lap = 0.5 + 0.5 * sin( vShore * 14.0 - uTime * 1.8 + ( vWP.x + vWP.z ) * 2.5 );
         float foam = smoothstep( 0.74, 0.97, vShore ) + smoothstep( 0.4, 0.76, vShore ) * smoothstep( 0.78, 0.97, lap ) * 0.75;
-        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.95, 0.98, 0.97 ), clamp( foam, 0.0, 1.0 ) * 0.85 );
+        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.95, 0.98, 0.97 ), clamp( foam * ( 0.7 + 0.6 * m ), 0.0, 1.0 ) * 0.85 );
       } else if ( vWater > 2.5 ) {
         // the land's grain: the same noise at two sizes; bright snow gets less of it
         float g1 = texture2D( uDetail, vWP.xz * 1.7 ).r, g2 = texture2D( uDetail, vWP.xz * 6.1 + 0.37 ).r;
@@ -908,7 +949,14 @@ const Board3D = (() => {
     BLD.cb = new T.InstancedMesh(ca.body, mats.stone, 24); BLD.cr = new T.InstancedMesh(ca.roof, roofMat, 24);
     BLD.tr.setColorAt(0, new T.Color(0xffffff)); BLD.cr.setColorAt(0, new T.Color(0xffffff));      // so the shader is made with colours per copy
     for (const m of [BLD.tb, BLD.tr, BLD.cb, BLD.cr]) { m.count = 0; m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; root.add(m); }
+    // where a tower can go up now (see the signs below): a gold ring on the square, pulsing
+    const ring = new T.RingGeometry(0.105, 0.155, 32);
+    ring.rotateX(-Math.PI / 2);
+    BLD.ring = new T.InstancedMesh(ring, new T.MeshBasicMaterial({ color: 0xffd76a, transparent: true, opacity: 0.85, depthWrite: false }), 24);
+    BLD.ring.count = 0; BLD.ring.frustumCulled = false; BLD.ring.renderOrder = 3;
+    root.add(BLD.ring);
     BLD.ready = true;
+    pinCam.fill(NaN);
   }
   const _m = new T.Matrix4(), _q = new T.Quaternion(), _s = new T.Vector3(), _c = new T.Color(), _up = new T.Vector3(0, 1, 0);
   function layoutBuildings(now) {
@@ -943,6 +991,88 @@ const Board3D = (() => {
       if (lv < 5) dust(toWorld(i, towerSlots[lv][lv - 1], -D / 2 + 0.2, TH)); else dust(toWorld(i, 0, -D / 2 + 0.2, TH));
     }
     layoutBuildings(performance.now());
+  }
+  // ----- the signs over the squares where this device's player can build now -----
+  // The page makes them (ui.js: a hut and its price, a tap builds there); here each is kept over its square as the camera
+  // moves: over the spot where the next tower would rise, as big as a square is on the screen (never too small to tap),
+  // one raised over another where they would cover each other. A gold ring pulses on the spot itself.
+  let pinEls = [];
+  const pinCam = new Float32Array(18).fill(NaN), _pa = new T.Vector3(), _pb = new T.Vector3();
+  function pinSpot(i, lv) {
+    const n = clamp(lv, 1, 5), x = n >= 5 ? 0 : towerSlots[n][n - 1];
+    return toWorld(i, x, -D / 2 + 0.2, (tiles[i] ? tiles[i].position.y : 0) + TH + 0.006);
+  }
+  function pins(list) {
+    for (const p of pinEls) if (!list.some(q => q.el === p.el)) p.el.hidden = true;
+    pinEls = (list || []).filter(p => p && p.el && BOARD[p.i] && BOARD[p.i].k === 'p');
+    pinCam.fill(NaN);                                      // placed again at the next frame
+    if (BLD.ring) BLD.ring.count = 0;
+    if (running && cam) pinFrame(performance.now() / 1000);
+  }
+  const sx = v => (v.x + 1) / 2 * W, sy = v => (1 - v.y) / 2 * H;
+  function placePins() {
+    const out = [];
+    _pb.set(0, 0, 0).project(cam);
+    const midX = sx(_pb);
+    for (const p of pinEls) {
+      const a = pinSpot(p.i, p.lv), el = p.el;
+      _pa.copy(a).project(cam);
+      if (_pa.z > 1 || Math.abs(_pa.x) > 1.02 || Math.abs(_pa.y) > 1.02) { if (!el.hidden) el.hidden = true; continue; }
+      const x = sx(_pa), y = sy(_pa), [ax, az] = ALONG[sideOf(p.i)];
+      _pb.set(a.x + ax, a.y, a.z + az).project(cam);
+      const ex = sx(_pb) - x, ey = sy(_pb) - y, k = clamp(Math.hypot(ex, ey) / 84, 0.7, 1.1);
+      _pb.set(a.x, a.y + 0.55, a.z).project(cam);
+      if (el.hidden) el.hidden = false;
+      const b = el.firstElementChild;
+      if (!el._w && b) { el._w = b.offsetWidth; el._h = b.offsetHeight; }
+      // its side of the board runs across the screen (the signs go up, one over another) or along it (they go aside,
+      // towards the middle of the board)
+      out.push({ el, x, y, k, w: (el._w || 56) * k, h: (el._h || 80) * k, lift: Math.max(16, y - sy(_pb)), across: Math.abs(ex) >= Math.abs(ey), inward: midX >= x ? 1 : -1, dx: 0 });
+    }
+    // nearer the camera first; a sign that would cover one already placed goes to the first free place next to it
+    out.sort((a, b) => b.y - a.y);
+    const hits = (q, n, dx, up) => {
+      const cx = q.x + dx, bot = q.y - q.lift - up;
+      for (let j = 0; j < n; j++) {
+        const o = out[j], ox = o.x + o.dx, ob = o.y - o.lift;
+        if (Math.abs(ox - cx) < (o.w + q.w) / 2 * 0.96 && bot > ob - o.h * 0.96 && bot - q.h * 0.96 < ob) return true;
+      }
+      return false;
+    };
+    out.forEach((q, n) => {
+      const side = q.inward * q.w * 1.02;
+      const tries = q.across ? [[0, 0], [0, 1], [side, 0], [-side, 0], [0, 2], [side, 1]] : [[0, 0], [side, 0], [0, 1], [-side, 0], [side, 1], [0, 2]];
+      const [dx, up] = tries.find(([dx, up]) => !hits(q, n, dx, up * q.h)) || [0, 0];
+      q.lift += up * q.h;
+      // kept on the screen: the sign moves aside (its stem leans to reach it), or down from the top edge
+      q.dx = clamp(q.x + dx, q.w / 2 + 4, W - q.w / 2 - 4) - q.x;
+      q.lift = Math.min(q.lift, q.y - q.h - 2);
+      if (q.lift < -q.h * 0.35) { q.el.hidden = true; return; }
+      const st = q.el.style, len = Math.hypot(q.dx, Math.max(0, q.lift));
+      st.transform = `translate3d(${q.x.toFixed(1)}px,${q.y.toFixed(1)}px,0)`;
+      st.setProperty('--lift', q.lift.toFixed(1) + 'px');
+      st.setProperty('--dx', q.dx.toFixed(1) + 'px');
+      st.setProperty('--len', len.toFixed(1) + 'px');
+      st.setProperty('--ang', Math.atan2(q.dx, q.lift).toFixed(3) + 'rad');
+      st.setProperty('--k', q.k.toFixed(3));
+    });
+  }
+  // every frame while there are signs: placed again when the camera (or the screen) changed, the rings pulse
+  function pinFrame(t) {
+    if (!pinEls.length) { if (BLD.ring && BLD.ring.count) BLD.ring.count = 0; return; }
+    const e = cam.matrixWorld.elements;
+    let moved = pinCam[16] !== W || pinCam[17] !== H;
+    for (let k = 0; k < 16 && !moved; k++) moved = pinCam[k] !== e[k];
+    if (moved) { pinCam.set(e); pinCam[16] = W; pinCam[17] = H; placePins(); }
+    if (!BLD.ring) return;
+    const n = Math.min(pinEls.length, 24), beat = REDUCED ? 0 : Math.sin(t * 3.4);
+    for (let j = 0; j < n; j++) {
+      const p = pinEls[j], s = (p.lv >= 5 ? 2.4 : 1) * (1 + 0.13 * beat);
+      _m.compose(pinSpot(p.i, p.lv), _q.identity(), _s.set(s, 1, s));
+      BLD.ring.setMatrixAt(j, _m);
+    }
+    BLD.ring.count = n; BLD.ring.instanceMatrix.needsUpdate = true;
+    BLD.ring.material.opacity = 0.62 + 0.28 * beat;
   }
   let dustGeo = null;
   function dust(p) {
@@ -1312,6 +1442,7 @@ const Board3D = (() => {
     stepTweens(dt * speedK);
     moveCamera(dt * speedK);
     const t = now / 1000;
+    pinFrame(t);
     // the figures face the camera; the one whose turn it is glows
     for (const tk of toks) {
       if (!tk || !tk.g.visible) continue;
@@ -1604,7 +1735,7 @@ const Board3D = (() => {
   }
 
   return {
-    init, prepare, show, sync, walk, fly, setOwner, setLevel, setMort, pop, celebrate, coins, focus, snap, setMode, setTurn, leave, resize, halt, retheme,
+    init, prepare, show, sync, walk, fly, setOwner, setLevel, setMort, pop, celebrate, coins, focus, snap, setMode, setTurn, leave, resize, halt, retheme, pins,
     speed(k) { speedK = k > 0 ? k : 1; },
     get ok() { return done; }, get mode() { return mode; }, get world() { return worldBuilt; },
     // how long ago a frame was drawn (the animations wait for frames: none coming means they must not be waited for)
@@ -1625,7 +1756,7 @@ const Board3D = (() => {
     // where a point of the board is on the screen (for tests)
     _project(x, y, z) { const c = new T.Vector3(x, y, z).project(cam), r = host.getBoundingClientRect(); return [r.left + (c.x + 1) / 2 * r.width, r.top + (1 - c.y) / 2 * r.height]; },
     _dbg: () => ({ y: tiles.slice(0, 6).map(t => +t.position.y.toFixed(2)), tw: tweens.length, built, running, frame, quality, land: landG ? +landG.scale.y.toFixed(3) : 0, fade: +U.fade.value.toFixed(3), top: +landTop.toFixed(2) }),
-    _scene: () => scene, _gl: () => ({ R, cam, scene }),
+    _scene: () => scene, _gl: () => ({ R, cam, scene, U }),
     _label: i => labelCv[i] ? labelCv[i].toDataURL() : '',
     _life: () => ({ ready: life.ready, groups: life.groups.map(g => [g.k, g.list.length]), points: life.pts ? life.pts.geometry.attributes.position.count : 0, fall: fallFoot }),
     _perf: () => R ? Object.assign({ calls: R.info.render.calls, tris: R.info.render.triangles, programs: R.info.programs.length, textures: R.info.memory.textures, geometries: R.info.memory.geometries, frame, quality, pr: R.getPixelRatio() }, PERF) : PERF

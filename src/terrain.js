@@ -272,8 +272,8 @@ const Terrain = (() => {
   }
 
   // ----- the archipelago's lagoon: the water inside the ring of squares, coloured by how deep it is (pale turquoise
-  // over sand, blue where it is deep), with the foam lapping each shore (the board's shader moves it: anim.y = 4, anim.x
-  // how near the shore). Where land stands well above it, there is none. -----
+  // over sand, blue where it is deep), with the foam lapping each shore (the board's shader moves it: anim.y = 4 and how
+  // deep it is, anim.x how near the shore). Where land stands well above it, there is none. -----
   const DEEP = [[0, 0x8fe6dc], [0.03, 0x3cc9cf], [0.09, 0x1fa2c4], [0.17, 0x1a7db6], [0.3, 0x15609a]].map(([d, c]) => [d, new T.Color(c)]);
   function depthColor(d, out) {
     if (d <= DEEP[0][0]) return out.copy(DEEP[0][1]);
@@ -289,7 +289,7 @@ const Terrain = (() => {
       const i = k % n, j = (k - i) / n, d = dep[k];
       P.push(-EDGE + i * step, SEA_Y, -EDGE + j * step);
       depthColor(d, C1); Cc.push(C1.r, C1.g, C1.b);
-      A.push(1 - smooth(0, 0.07, d), 4);
+      A.push(1 - smooth(0, 0.07, d), 4 + Math.max(0, Math.min(0.45, d)));                  // (and how deep: the shallows shine)
       return (map[k] = P.length / 3 - 1);
     };
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
@@ -326,7 +326,7 @@ const Terrain = (() => {
         pos.push(x, OCEAN_Y, z);
         C1.copy(NEAR).lerp(MID, smooth(0.5, 6, side)).lerp(FAR, smooth(10, 40, r)).multiplyScalar(0.94 + 0.12 * (fbm(x * 0.15, z * 0.15) * 0.5 + 0.5));
         col.push(C1.r, C1.g, C1.b);
-        anim.push(1 - smooth(0.0, 0.45, side), 4);                                             // the surf along the board
+        anim.push(1 - smooth(0.0, 0.45, side), 4.45);                                          // the surf along the board; deep
       }
     }
     for (let k = 0; k < rings; k++) for (let s = 0; s < seg; s++) {

@@ -136,6 +136,7 @@ const Lobby = (() => {
       ? `<div class="row"><button class="btn" data-lob="addbot" ${full ? 'disabled' : ''}>+ ბოტი</button>${ROOM.role === 'local' ? `<button class="btn" data-lob="addlocal" ${full ? 'disabled' : ''}>+ მოთამაშე</button>` : ''}</div>
          <button class="btn gold wide big" data-lob="start" ${st.players.length < 2 ? 'disabled' : ''}>დაწყება</button>${st.players.length < 2 ? '<p class="hint">დაამატე ბოტი ან დაელოდე მეგობრებს.</p>' : ''}`
       : `<p class="waiting">მასპინძელი თამაშს დაიწყებს, როცა ყველა შემოვა.</p>`;
+    Voice.render();
   }
   // the room is being reached (or made): its code is known already, the rest is not
   function connecting() {
@@ -208,6 +209,9 @@ function boot() {
   $('#sheet').addEventListener('click', Sheet.onClick);
   $('#scr-game').addEventListener('click', ev => {
     Sound.unlock();
+    // a sign over a square: a tower goes up there
+    const pin = ev.target.closest('#pins [data-build]');
+    if (pin) { if (!pin.disabled) { pin.disabled = true; move({ t: 'build', i: +pin.dataset.build }); } return; }
     const a = ev.target.closest('#panel [data-a], #buycard [data-a]');
     if (a && !a.disabled) {
       const m = { t: a.dataset.a };

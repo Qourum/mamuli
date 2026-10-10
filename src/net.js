@@ -144,7 +144,7 @@ function newRoom(mode, role, code) {
 }
 function meta() {
   const st = ROOM.st, s = st ? Engine.seatOf(st, ROOM.me) : -1, p = s >= 0 ? st.players[s] : null;
-  return { pid: ROOM.me, name: p ? p.name : PROFILE.name, hero: p ? p.hero : PROFILE.hero, h: isHost() ? 1 : 0, v: PROTO };
+  return { pid: ROOM.me, name: p ? p.name : PROFILE.name, hero: p ? p.hero : PROFILE.hero, h: isHost() ? 1 : 0, v: PROTO, vo: Voice.vo, vn: Voice.vn };
 }
 function send(t, d, to) {
   if (!ROOM || !ROOM.net) return;
@@ -270,6 +270,7 @@ function leaveRoom(quiet) {
   }
   clearTimeout(r.driveT);
   ROOM = null;
+  Voice.leave();
   View.clear();
 }
 const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -285,6 +286,7 @@ function onMsg(m) {
   const d = m.d && typeof m.d === 'object' ? m.d : {};
   ROOM.missing[m.f] = 0;
   if (m.t === 'st') return gotState(m.f, d);
+  if (m.t === 'v') return Voice.msg(m.f, d);              // talking: who has the microphone on, the handshakes
   if (ROOM.role === 'host') {
     const st = ROOM.st;
     if (m.t === 'hello') {
@@ -395,6 +397,7 @@ function onPeers(peers) {
     }
   }
   View.peers();
+  Voice.peers(peers);
 }
 function onStatus(up) {
   if (ROOM.up !== up) Diag.note('net', up ? 'connected' : 'connection lost');

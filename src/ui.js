@@ -179,7 +179,7 @@ const View = (() => {
     if (!gl) { stage.innerHTML = '<p class="nogl">ამ ბრაუზერში 3D დაფა ვერ ჩაირთო. სცადე სხვა ბრაუზერი (Chrome, Safari) ან განაახლე ეს.</p>'; return; }
     Board3D.onPick(i => Sheet.open('deed', i));
   }
-  function leaveBoard() { built = false; if (Board3D.ok) Board3D.leave(); if (Dice3D.busy) Dice3D.skip(); }
+  function leaveBoard() { built = false; if (Board3D.ok) { Board3D.pins([]); Board3D.leave(); } if (Dice3D.busy) Dice3D.skip(); const pb = $('#pins'); if (pb) pb.innerHTML = ''; pinsKey = ''; }
   function clear() { target = shown = null; q = []; playing = false; lastEv = 0; gen++; leaveBoard(); Sheet.close(); hideBuy(); }
   // roughly how long events take on screen (only a hint for tests and the like: the computer players wait for the screen itself)
   function estimate(list) {
@@ -204,6 +204,7 @@ const View = (() => {
   async function play() {
     const my = ++gen;
     playing = true;
+    renderPins();
     clearTimeout(autoT);
     // the auction's card stays while bids come in, the chest's question while answers do
     if (!(target && shown && target.phase === shown.phase && (shown.phase === 'auction' || shown.phase === 'quiz'))) hideBuy();
@@ -406,6 +407,7 @@ const View = (() => {
     renderPanel();
     renderBuy();
     viewBtn();
+    renderPins();
     $('#bTrade').disabled = !Engine.legal(st, mySeat()).trade;
     Sheet.refresh();
     if (st.trade && acting() === st.trade.to && controls(st.trade.to) && Sheet.kind() !== 'offer') Sheet.open('offer');
@@ -422,6 +424,26 @@ const View = (() => {
     const seq = st.seq;
     autoT = setTimeout(() => { if (shown && shown.seq === seq && !playing && !Sheet.kind()) move({ t: 'end' }); }, 1300);
   }
+  // ----- where this device's player can put up a tower now: a sign over each such square, with the price (a tap builds
+  // there). They go while the screen plays what happened, and while a move is on its way. -----
+  let pinsKey = '';
+  function renderPins() {
+    const box = $('#pins');
+    if (!box) return;
+    const st = shown, me = acting();
+    const can = gl && Board3D.ok && st && st.phase !== 'lobby' && !playing && !busy && me >= 0 && me === st.turn && controls(me) && Engine.legal(st, me).build;
+    const list = can ? BOARD.map((t, i) => i).filter(i => BOARD[i].k === 'p' && !Engine.buildBlock(st, me, i)) : [];
+    const key = list.map(i => i + ':' + st.own[i].lv).join(',') + '|' + THEME.key;
+    if (key !== pinsKey) {
+      pinsKey = key;
+      box.innerHTML = list.map(i => {
+        const lv = st.own[i].lv + 1, price = GROUPS[BOARD[i].g].b;
+        const icon = lv >= 5 ? (sea() ? SEAFORT_SVG : `<img src="${ART('s_fort')}" alt="">`) : towerIcon();
+        return `<div class="pin" data-pin="${i}" data-lv="${lv}" hidden><button class="pin-b${lv >= 5 ? ' fort' : ''}" data-build="${i}" aria-label="${esc(`${LEVEL_NAMES[lv]}: ${tName(i)} · ${price}`)}"><span class="pin-f"><span class="pin-m">${icon}<b aria-hidden="true">+</b></span><span class="pin-p">${coin(price)}</span></span></button></div>`;
+      }).join('');
+    }
+    if (gl && Board3D.ok) Board3D.pins($$('.pin', box).map(el => ({ i: +el.dataset.pin, lv: +el.dataset.lv, el })));
+  }
   let playersHTML = '';
   function renderPlayers() {
     const st = shown, box = $('#players');
@@ -435,7 +457,7 @@ const View = (() => {
         <img class="pp" src="${por(p.hero)}" alt=""><span class="pn">${esc(p.name)}</span><span class="pc">${p.out ? '<b class="amt">გაკოტრდა</b>' : coin(cash[s] != null ? cash[s] : p.cash)}${icons ? `<span class="pi">${icons}</span>` : ''}</span>${tag ? `<span class="pf">${tag}</span>` : ''}</button>`;
     }).join('');
     // drawn again only when something in it changed (the faces are not made anew with every step of a move)
-    if (html !== playersHTML || !box.firstChild) { box.innerHTML = html; playersHTML = html; }
+    if (html !== playersHTML || !box.firstChild) { box.innerHTML = html; playersHTML = html; Voice.chips(); }
     box.onclick = ev => { const b = ev.target.closest('.pl'); if (b) Sheet.open('player', +b.dataset.s); };
     const r = $('#round');
     if (r) r.textContent = st.cfg.mode === 'rounds' ? `რაუნდი ${st.round} / ${st.cfg.rounds}` : `რაუნდი ${st.round}`;
@@ -661,7 +683,7 @@ const View = (() => {
     show, reset, clear, pending, idleFor, render, fit, acting, mySeat, controls,
     get st() { return shown; },
     get playing() { return current ? current.k : playing ? 'queue' : ''; },
-    busy(b) { busy = b; if (b) $$('#panel [data-a], #buycard [data-a], #sheet [data-a]').forEach(x => { x.disabled = true; }); },
+    busy(b) { busy = b; if (b) { $$('#panel [data-a], #buycard [data-a], #sheet [data-a]').forEach(x => { x.disabled = true; }); renderPins(); } },
     peers() { if (shown && shown.phase === 'lobby') Lobby.render(shown); else if (shown) renderPlayers(); },
     idle() { if (shown && !playing) autoEnd(); },
     view() { if (!gl) return; Board3D.setMode(Board3D.mode === 'follow' ? 'overview' : 'follow'); viewBtn(); }
@@ -1027,6 +1049,7 @@ const UI = (() => {
     if (s !== 'game') Sheet.close();
     if (s === 'menu') Menu.render();
     if (s === 'game') { requestAnimationFrame(() => View.fit()); }
+    Voice.render();
   }
   function toast(msg, ms, kind) {
     const box = $('#toasts');

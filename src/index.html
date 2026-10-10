@@ -29,7 +29,8 @@
 
   <section class="screen" id="scr-lobby" hidden>
     <div class="lobby-wrap">
-      <header class="lobby-top"><button class="ib back" id="bLeave" aria-label="უკან">‹</button><h2 id="lobbyTitle">ოთახი</h2></header>
+      <header class="lobby-top"><button class="ib back" id="bLeave" aria-label="უკან">‹</button><h2 id="lobbyTitle">ოთახი</h2>
+        <div class="vbar" data-vbar hidden><button class="vbtn" data-voice="mic"></button><button class="vbtn" data-voice="hear"></button></div></header>
       <div class="code-box" id="codeBox">
         <div class="ccode"><span>ოთახი</span><b id="roomCode">····</b><button class="btn gold small" id="bInvite">მოწვევა</button></div>
         <p class="hint" id="roomState"></p>
@@ -48,6 +49,8 @@
       <header class="hud"><div class="players" id="players"></div><div class="round" id="round"></div></header>
       <main class="table" id="table">
         <div class="stage" id="stage"></div>
+        <div class="pins" id="pins"></div>
+        <div class="vbar onboard" data-vbar hidden><button class="vbtn" data-voice="mic"></button><button class="vbtn" data-voice="hear"></button></div>
         <button class="viewbtn" id="bView" aria-label="მთელი დაფა" title="მთელი დაფა"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="7.5" y="7.5" width="9" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
         <div class="watch" id="watch" hidden></div>
         <div class="buycard" id="buycard" hidden></div>
@@ -66,5 +69,6 @@
 
   <div class="sheet" id="sheet" hidden><div class="sheet-card" id="sheetBody" role="dialog" aria-modal="true"></div></div>
   <div class="bubbles" id="bubbles" aria-hidden="true"></div>
+  <div id="voices" hidden></div>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 </div>

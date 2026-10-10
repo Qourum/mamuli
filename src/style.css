@@ -222,6 +222,55 @@ img { max-width: 100%; }
   background: radial-gradient(circle at 50% 30%, #3b4254, #181d28 72%); box-shadow: 0 0 0 2px var(--gold), 0 0 0 4px var(--wood-2), 0 3px 8px rgba(0, 0, 0, .55); }
 .viewbtn svg { width: 24px; height: 24px; }
 .viewbtn:active { transform: translateY(1px); }
+/* where a tower can go up now: a sign over the square, on a stem down to the spot (board3d.js keeps it there; a tap builds) */
+.pins { position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
+.pin { position: absolute; left: 0; top: 0; width: 0; height: 0; will-change: transform; }
+.pin::before { content: ''; position: absolute; left: -1.5px; bottom: 0; width: 3px; height: var(--len, 30px); border-radius: 3px;
+  transform: rotate(var(--ang, 0rad)); transform-origin: 50% 100%;
+  background: linear-gradient(180deg, var(--gold-hi), rgba(232, 180, 76, .2)); box-shadow: 0 0 0 1px rgba(44, 27, 16, .55); }
+.pin-b { position: absolute; left: var(--dx, 0px); bottom: var(--lift, 30px); padding: 0; border: 0; background: none; color: inherit; pointer-events: auto;
+  transform: translateX(-50%) scale(var(--k, 1)); transform-origin: 50% 100%; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.pin-f { display: flex; flex-direction: column; align-items: center; padding-bottom: 4px;
+  animation: pinIn .4s cubic-bezier(.2, 1.5, .4, 1) both, pinBob 2.4s ease-in-out .4s infinite; }
+.pin-m { position: relative; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; color: #a3261c;
+  background: radial-gradient(circle at 50% 30%, var(--gold-hi), var(--gold) 52%, #b5771f);
+  box-shadow: 0 0 0 2px var(--wood-2), 0 0 0 4px var(--gold-lo), 0 0 18px rgba(255, 215, 106, .55), 0 6px 12px rgba(0, 0, 0, .55); }
+.pin-m svg { width: 21px; height: 29px; filter: drop-shadow(0 1px 0 rgba(255, 255, 255, .5)); }
+.pin-b.fort .pin-m svg { width: 30px; height: 28px; }
+.pin-m img { width: 34px; height: 34px; object-fit: contain; }
+.pin-m b { position: absolute; right: -5px; top: -5px; display: grid; place-items: center; width: 21px; height: 21px; border-radius: 50%;
+  background: #3b8a34; color: #fff; font: 900 17px/1 var(--f-ui); box-shadow: 0 0 0 2px var(--wood-2); }
+.pin-p { margin-top: 6px; padding: 1px 9px 2px; border-radius: 99px; background: rgba(32, 20, 11, .92); border: 1.5px solid var(--gold-lo);
+  color: var(--gold-hi); font-size: 15px; line-height: 1.3; box-shadow: 0 3px 8px rgba(0, 0, 0, .5); }
+.pin-b:active .pin-m { transform: scale(.9); }
+.pin-b:disabled { opacity: .5; }
+/* talking in an online room: the microphone and the others' voices, in the room's header and over the board */
+.vbar { display: flex; gap: 8px; }
+.vbar.onboard { position: absolute; right: 10px; top: 58px; z-index: 4; flex-direction: column; }
+.lobby-top .vbar { margin-left: auto; }
+.vbtn { width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; color: #b9bfc9; flex: none;
+  background: radial-gradient(circle at 50% 30%, #3b4254, #181d28 72%); box-shadow: 0 0 0 2px #6f7785, 0 0 0 4px var(--wood-2), 0 3px 8px rgba(0, 0, 0, .55);
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.vbtn svg { width: 24px; height: 24px; }
+.vbtn:active { transform: translateY(1px); }
+.vbtn.on { color: var(--gold-hi); box-shadow: 0 0 0 2px var(--gold), 0 0 0 4px var(--wood-2), 0 3px 8px rgba(0, 0, 0, .55); }
+.vbtn[data-voice="mic"].on { color: #fff; background: radial-gradient(circle at 50% 30%, #5aa84f, #1f4d1b 72%);
+  box-shadow: 0 0 0 2px var(--green), 0 0 0 4px var(--wood-2), 0 0 16px rgba(134, 212, 110, .55), 0 3px 8px rgba(0, 0, 0, .55); }
+.vbtn.wait { animation: vWait 1s ease-in-out infinite; }
+.vbtn.ask { animation: vAsk 1.2s ease-in-out infinite; }
+@keyframes vWait { 50% { opacity: .5; } }
+@keyframes vAsk { 50% { box-shadow: 0 0 0 2px var(--gold-hi), 0 0 0 4px var(--wood-2), 0 0 18px rgba(255, 240, 188, .9); } }
+/* on the players' chips: a microphone on those who have it on, a green ring round whoever is speaking */
+.pl.vmic::after, .seat.vmic::after { content: ''; position: absolute; width: 17px; height: 17px; border-radius: 50%; pointer-events: none;
+  background: #3b8a34 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='8.5' y='2.5' width='7' height='12' rx='3.5' fill='%23fff'/%3E%3Cpath d='M5 11a7 7 0 0 0 14 0M12 18v3.5' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E") center / 11px no-repeat;
+  box-shadow: 0 0 0 2px var(--wood-2); }
+.pl.vmic::after { left: 25px; bottom: -3px; }
+.seat { position: relative; }
+.seat.vmic::after { left: 42px; bottom: 5px; }
+.pl.talk .pp, .seat.talk img { box-shadow: 0 0 0 2.5px var(--green), 0 0 0 5px rgba(134, 212, 110, .45), 0 0 14px rgba(134, 212, 110, .85); }
+@keyframes pinIn { from { opacity: 0; transform: translateY(12px) scale(.35); } to { opacity: 1; transform: none; } }
+@keyframes pinBob { 50% { transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .pin-f { animation: none; } }
 .dicesum { position: absolute; left: 50%; z-index: 3; transform: translate(-50%, 50%); display: flex; flex-direction: column; align-items: center; pointer-events: none; }
 .dicesum b { font: 400 66px/1 var(--f-num); color: var(--gold-hi); -webkit-text-stroke: 3px var(--wood-2); paint-order: stroke fill; text-shadow: 0 4px 0 var(--wood-2), 0 8px 18px rgba(0, 0, 0, .55); }
 .dicesum span { margin-top: 4px; padding: 2px 14px; border-radius: 99px; background: var(--red); color: #fff; font: 900 16px var(--f-display); box-shadow: 0 3px 8px rgba(0, 0, 0, .4); }

@@ -246,6 +246,55 @@ img { max-width: 100%; }
   background: radial-gradient(circle at 50% 30%, #3b4254, #181d28 72%); box-shadow: 0 0 0 2px var(--gold), 0 0 0 4px var(--wood-2), 0 3px 8px rgba(0, 0, 0, .55); }
 .viewbtn svg { width: 24px; height: 24px; }
 .viewbtn:active { transform: translateY(1px); }
+/* where a tower can go up now: a sign over the square, on a stem down to the spot (board3d.js keeps it there; a tap builds) */
+.pins { position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
+.pin { position: absolute; left: 0; top: 0; width: 0; height: 0; will-change: transform; }
+.pin::before { content: ''; position: absolute; left: -1.5px; bottom: 0; width: 3px; height: var(--len, 30px); border-radius: 3px;
+  transform: rotate(var(--ang, 0rad)); transform-origin: 50% 100%;
+  background: linear-gradient(180deg, var(--gold-hi), rgba(232, 180, 76, .2)); box-shadow: 0 0 0 1px rgba(44, 27, 16, .55); }
+.pin-b { position: absolute; left: var(--dx, 0px); bottom: var(--lift, 30px); padding: 0; border: 0; background: none; color: inherit; pointer-events: auto;
+  transform: translateX(-50%) scale(var(--k, 1)); transform-origin: 50% 100%; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.pin-f { display: flex; flex-direction: column; align-items: center; padding-bottom: 4px;
+  animation: pinIn .4s cubic-bezier(.2, 1.5, .4, 1) both, pinBob 2.4s ease-in-out .4s infinite; }
+.pin-m { position: relative; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; color: #a3261c;
+  background: radial-gradient(circle at 50% 30%, var(--gold-hi), var(--gold) 52%, #b5771f);
+  box-shadow: 0 0 0 2px var(--wood-2), 0 0 0 4px var(--gold-lo), 0 0 18px rgba(255, 215, 106, .55), 0 6px 12px rgba(0, 0, 0, .55); }
+.pin-m svg { width: 21px; height: 29px; filter: drop-shadow(0 1px 0 rgba(255, 255, 255, .5)); }
+.pin-b.fort .pin-m svg { width: 30px; height: 28px; }
+.pin-m img { width: 34px; height: 34px; object-fit: contain; }
+.pin-m b { position: absolute; right: -5px; top: -5px; display: grid; place-items: center; width: 21px; height: 21px; border-radius: 50%;
+  background: #3b8a34; color: #fff; font: 900 17px/1 var(--f-ui); box-shadow: 0 0 0 2px var(--wood-2); }
+.pin-p { margin-top: 6px; padding: 1px 9px 2px; border-radius: 99px; background: rgba(32, 20, 11, .92); border: 1.5px solid var(--gold-lo);
+  color: var(--gold-hi); font-size: 15px; line-height: 1.3; box-shadow: 0 3px 8px rgba(0, 0, 0, .5); }
+.pin-b:active .pin-m { transform: scale(.9); }
+.pin-b:disabled { opacity: .5; }
+/* talking in an online room: the microphone and the others' voices, in the room's header and over the board */
+.vbar { display: flex; gap: 8px; }
+.vbar.onboard { position: absolute; right: 10px; top: 58px; z-index: 4; flex-direction: column; }
+.lobby-top .vbar { margin-left: auto; }
+.vbtn { width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; color: #b9bfc9; flex: none;
+  background: radial-gradient(circle at 50% 30%, #3b4254, #181d28 72%); box-shadow: 0 0 0 2px #6f7785, 0 0 0 4px var(--wood-2), 0 3px 8px rgba(0, 0, 0, .55);
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.vbtn svg { width: 24px; height: 24px; }
+.vbtn:active { transform: translateY(1px); }
+.vbtn.on { color: var(--gold-hi); box-shadow: 0 0 0 2px var(--gold), 0 0 0 4px var(--wood-2), 0 3px 8px rgba(0, 0, 0, .55); }
+.vbtn[data-voice="mic"].on { color: #fff; background: radial-gradient(circle at 50% 30%, #5aa84f, #1f4d1b 72%);
+  box-shadow: 0 0 0 2px var(--green), 0 0 0 4px var(--wood-2), 0 0 16px rgba(134, 212, 110, .55), 0 3px 8px rgba(0, 0, 0, .55); }
+.vbtn.wait { animation: vWait 1s ease-in-out infinite; }
+.vbtn.ask { animation: vAsk 1.2s ease-in-out infinite; }
+@keyframes vWait { 50% { opacity: .5; } }
+@keyframes vAsk { 50% { box-shadow: 0 0 0 2px var(--gold-hi), 0 0 0 4px var(--wood-2), 0 0 18px rgba(255, 240, 188, .9); } }
+/* on the players' chips: a microphone on those who have it on, a green ring round whoever is speaking */
+.pl.vmic::after, .seat.vmic::after { content: ''; position: absolute; width: 17px; height: 17px; border-radius: 50%; pointer-events: none;
+  background: #3b8a34 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='8.5' y='2.5' width='7' height='12' rx='3.5' fill='%23fff'/%3E%3Cpath d='M5 11a7 7 0 0 0 14 0M12 18v3.5' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E") center / 11px no-repeat;
+  box-shadow: 0 0 0 2px var(--wood-2); }
+.pl.vmic::after { left: 25px; bottom: -3px; }
+.seat { position: relative; }
+.seat.vmic::after { left: 42px; bottom: 5px; }
+.pl.talk .pp, .seat.talk img { box-shadow: 0 0 0 2.5px var(--green), 0 0 0 5px rgba(134, 212, 110, .45), 0 0 14px rgba(134, 212, 110, .85); }
+@keyframes pinIn { from { opacity: 0; transform: translateY(12px) scale(.35); } to { opacity: 1; transform: none; } }
+@keyframes pinBob { 50% { transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .pin-f { animation: none; } }
 .dicesum { position: absolute; left: 50%; z-index: 3; transform: translate(-50%, 50%); display: flex; flex-direction: column; align-items: center; pointer-events: none; }
 .dicesum b { font: 400 66px/1 var(--f-num); color: var(--gold-hi); -webkit-text-stroke: 3px var(--wood-2); paint-order: stroke fill; text-shadow: 0 4px 0 var(--wood-2), 0 8px 18px rgba(0, 0, 0, .55); }
 .dicesum span { margin-top: 4px; padding: 2px 14px; border-radius: 99px; background: var(--red); color: #fff; font: 900 16px var(--f-display); box-shadow: 0 3px 8px rgba(0, 0, 0, .4); }
@@ -572,7 +621,8 @@ pre.diag { margin: 10px 0 0; padding: 10px; max-height: 52vh; overflow: auto; bo
 
   <section class="screen" id="scr-lobby" hidden>
     <div class="lobby-wrap">
-      <header class="lobby-top"><button class="ib back" id="bLeave" aria-label="უკან">‹</button><h2 id="lobbyTitle">ოთახი</h2></header>
+      <header class="lobby-top"><button class="ib back" id="bLeave" aria-label="უკან">‹</button><h2 id="lobbyTitle">ოთახი</h2>
+        <div class="vbar" data-vbar hidden><button class="vbtn" data-voice="mic"></button><button class="vbtn" data-voice="hear"></button></div></header>
       <div class="code-box" id="codeBox">
         <div class="ccode"><span>ოთახი</span><b id="roomCode">····</b><button class="btn gold small" id="bInvite">მოწვევა</button></div>
         <p class="hint" id="roomState"></p>
@@ -591,6 +641,8 @@ pre.diag { margin: 10px 0 0; padding: 10px; max-height: 52vh; overflow: auto; bo
       <header class="hud"><div class="players" id="players"></div><div class="round" id="round"></div></header>
       <main class="table" id="table">
         <div class="stage" id="stage"></div>
+        <div class="pins" id="pins"></div>
+        <div class="vbar onboard" data-vbar hidden><button class="vbtn" data-voice="mic"></button><button class="vbtn" data-voice="hear"></button></div>
         <button class="viewbtn" id="bView" aria-label="მთელი დაფა" title="მთელი დაფა"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="7.5" y="7.5" width="9" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
         <div class="watch" id="watch" hidden></div>
         <div class="buycard" id="buycard" hidden></div>
@@ -609,11 +661,12 @@ pre.diag { margin: 10px 0 0; padding: 10px; max-height: 52vh; overflow: auto; bo
 
   <div class="sheet" id="sheet" hidden><div class="sheet-card" id="sheetBody" role="dialog" aria-modal="true"></div></div>
   <div class="bubbles" id="bubbles" aria-hidden="true"></div>
+  <div id="voices" hidden></div>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 </div>
 <script src="vendor/three.min.js"></script>
 <script>
-const BUILD = "b0385d86d2";
+const BUILD = "1afa9fdf80";
 const SITE = true;
 // ===== the technical log: what this phone went through, to copy and send when something goes wrong =====
 // Errors, the 3D board losing or getting back its graphics, slow frames (and what was on the screen then), shaders made
@@ -2065,7 +2118,7 @@ function newRoom(mode, role, code) {
 }
 function meta() {
   const st = ROOM.st, s = st ? Engine.seatOf(st, ROOM.me) : -1, p = s >= 0 ? st.players[s] : null;
-  return { pid: ROOM.me, name: p ? p.name : PROFILE.name, hero: p ? p.hero : PROFILE.hero, h: isHost() ? 1 : 0, v: PROTO };
+  return { pid: ROOM.me, name: p ? p.name : PROFILE.name, hero: p ? p.hero : PROFILE.hero, h: isHost() ? 1 : 0, v: PROTO, vo: Voice.vo, vn: Voice.vn };
 }
 function send(t, d, to) {
   if (!ROOM || !ROOM.net) return;
@@ -2191,6 +2244,7 @@ function leaveRoom(quiet) {
   }
   clearTimeout(r.driveT);
   ROOM = null;
+  Voice.leave();
   View.clear();
 }
 const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -2206,6 +2260,7 @@ function onMsg(m) {
   const d = m.d && typeof m.d === 'object' ? m.d : {};
   ROOM.missing[m.f] = 0;
   if (m.t === 'st') return gotState(m.f, d);
+  if (m.t === 'v') return Voice.msg(m.f, d);              // talking: who has the microphone on, the handshakes
   if (ROOM.role === 'host') {
     const st = ROOM.st;
     if (m.t === 'hello') {
@@ -2316,6 +2371,7 @@ function onPeers(peers) {
     }
   }
   View.peers();
+  Voice.peers(peers);
 }
 function onStatus(up) {
   if (ROOM.up !== up) Diag.note('net', up ? 'connected' : 'connection lost');
@@ -2496,6 +2552,319 @@ document.addEventListener('visibilitychange', () => {
   else if (ROOM.st) send('st', { p: PROTO, st: ROOM.st });
 });
 window.addEventListener('pagehide', () => { if (ROOM && ROOM.mode === 'online') send('bye', {}); });
+
+// ===== talking in an online room: each phone's microphone to the others, straight from phone to phone =====
+// Every phone has two switches, shown in the room and over the board: its microphone (off at first, and off again in
+// every new room) and the others' voices (on at first; this phone remembers). What each has on is part of what it tells
+// the room (presence), and a short message says it at once. Two phones are joined when one of them speaks and the other
+// listens: WebRTC carries the sound between them, peer to peer, and the room's channel only carries the handshake (the
+// phone whose id sorts first offers, the other answers, and each sends all its addresses at once: two messages). Some
+// mobile networks let no direct connection through; between such phones the sound would need a relay (a TURN server,
+// below: none yet), so they cannot hear each other, and say so.
+// Each speaker's voice also goes to a level meter, so that the chips of the players show who is speaking.
+
+const Voice = (() => {
+  const ok = typeof RTCPeerConnection !== 'undefined' && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  const ICE = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }, { urls: 'stun:stun.cloudflare.com:3478' }];
+  const TURN = [];                       // a relay, once there is one: { urls: 'turn:…', username: '…', credential: '…' }
+  let mic = false, hear = store.get('voice.hear') !== false, vn = Date.now(), track = null, mine = null, asking = false, blocked = false;
+  let actx = null, tickT = 0, ticks = 0, unblocking = false;
+  const conns = new Map(), flags = {}, tries = {}, told = {}, loud = {};
+  const live = () => ok && !!ROOM && ROOM.mode === 'online';
+  const vo = () => (mic ? 1 : 0) | (hear ? 2 : 0);
+
+  // ----- who has what on -----
+  function setFlags(pid, o, n) {
+    if (typeof o !== 'number' || pid === (ROOM && ROOM.me)) return;
+    const f = flags[pid];
+    if (f && (n || 0) < f.n) return;                         // an older word (presence comes a few seconds after the message)
+    flags[pid] = { o, n: n || 0 };
+  }
+  // two phones are joined while one speaks and the other listens
+  function wanted(pid) {
+    const f = flags[pid];
+    if (!live() || !f || pid === ROOM.me || !ROOM.peers[pid]) return false;
+    return (mic && (f.o & 2) > 0) || ((f.o & 1) > 0 && hear);
+  }
+  function update() {
+    if (!live()) return;
+    const t = Date.now();
+    for (const pid in ROOM.peers) {
+      if (pid === ROOM.me || conns.has(pid) || !wanted(pid) || ROOM.me > pid) continue;     // (the other phone offers)
+      if (tries[pid] && tries[pid].wait > t) continue;
+      offer(pid);
+    }
+    for (const [pid, C] of conns) {
+      feed(C);
+      if (wanted(pid)) { C.idle = 0; continue; }
+      if (!C.idle) C.idle = t; else if (t - C.idle > 6000) close(pid, true);           // not needed for a while: closed
+    }
+    render();
+  }
+  // this phone's voice goes to a phone that listens, and to no other
+  function feed(C) {
+    const f = flags[C.pid], want = !!(mic && track && f && (f.o & 2));
+    if (!C.tr || C.feeding === want) return;
+    C.feeding = want;
+    C.tr.sender.replaceTrack(want ? track : null).catch(() => { C.feeding = null; });
+  }
+
+  // ----- the connections -----
+  function connect(pid, n) {
+    const pc = new RTCPeerConnection({ iceServers: ICE.concat(TURN) });
+    const C = { pid, pc, n: n || Math.random().toString(36).slice(2, 10), tr: null, audio: null, meter: null, at: Date.now(), up: false, idle: 0, timer: 0 };
+    conns.set(pid, C);
+    pc.ontrack = e => attach(C, (e.streams && e.streams[0]) || new MediaStream([e.track]));
+    const watch = () => {
+      if (conns.get(pid) !== C) return;
+      const s = pc.connectionState || pc.iceConnectionState;
+      if (s === 'connected' || s === 'completed') { if (!C.up) Diag.note('voice', `connected to ${pid} in ${Date.now() - C.at} ms`); C.up = true; tries[pid] = null; clearTimeout(C.timer); }
+      else if (s === 'failed') lost(C, 'failed');
+      else if (s === 'disconnected') setTimeout(() => { if (conns.get(pid) === C && (pc.connectionState || pc.iceConnectionState) === 'disconnected') lost(C, 'disconnected'); }, 8000);
+      render();
+    };
+    pc.onconnectionstatechange = watch;
+    pc.oniceconnectionstatechange = watch;
+    C.timer = setTimeout(() => { if (conns.get(pid) === C && !C.up) lost(C, 'no connection'); }, 16000);
+    return C;
+  }
+  // all of this phone's addresses are in the description it sends (gathered first: then two messages are enough)
+  const gathered = pc => new Promise(done => {
+    if (pc.iceGatheringState === 'complete') return done();
+    const t = setTimeout(done, 3000);
+    pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); done(); } });
+  });
+  async function offer(pid) {
+    const C = connect(pid);
+    try {
+      C.tr = C.pc.addTransceiver('audio', { direction: 'sendrecv' });
+      feed(C);
+      await C.pc.setLocalDescription(await C.pc.createOffer());
+      await gathered(C.pc);
+      if (conns.get(pid) !== C) return;
+      send('v', { k: 'offer', n: C.n, sdp: C.pc.localDescription.sdp }, pid);
+    } catch (e) { lost(C, 'offer: ' + (e && e.message)); }
+  }
+  async function answer(pid, d) {
+    if (conns.has(pid)) close(pid, false);                  // that phone started again (a reload, a lost connection)
+    const C = connect(pid, d.n);
+    try {
+      await C.pc.setRemoteDescription({ type: 'offer', sdp: d.sdp });
+      C.tr = C.pc.getTransceivers()[0] || null;
+      if (C.tr) { C.tr.direction = 'sendrecv'; feed(C); }
+      await C.pc.setLocalDescription(await C.pc.createAnswer());
+      await gathered(C.pc);
+      if (conns.get(pid) !== C) return;
+      send('v', { k: 'answer', n: C.n, sdp: C.pc.localDescription.sdp }, pid);
+    } catch (e) { lost(C, 'answer: ' + (e && e.message)); }
+  }
+  // it did not work out: tried again a little later (by the phone that offers); after two tries the player is told
+  function lost(C, why, quiet) {
+    if (conns.get(C.pid) !== C) return;
+    Diag.note('voice', `${C.pid}: ${why}`);
+    const t = tries[C.pid] = tries[C.pid] || { n: 0, wait: 0 };
+    t.n++; t.wait = Date.now() + Math.min(60000, 5000 * t.n);
+    close(C.pid, !quiet);
+    if (t.n >= 2 && !told[C.pid] && wanted(C.pid)) {
+      told[C.pid] = 1;
+      UI.toast(`${esc(who(C.pid))}: ხმოვანი კავშირი ვერ დამყარდა. ზოგი მობილური ქსელი პირდაპირ კავშირს არ უშვებს; სცადე Wi-Fi.`, 6000, 'bad');
+    }
+    setTimeout(update, t.wait - Date.now() + 50);
+  }
+  function close(pid, bye) {
+    const C = conns.get(pid);
+    if (!C) return;
+    conns.delete(pid);
+    clearTimeout(C.timer);
+    try { C.pc.close(); } catch (e) { }
+    if (C.audio) { C.audio.srcObject = null; C.audio.remove(); }
+    if (C.meter) try { C.meter.src.disconnect(); } catch (e) { }
+    if (bye && live()) send('v', { k: 'bye', n: C.n }, pid);
+    render();
+  }
+  const who = pid => { const st = ROOM && ROOM.st, s = st ? Engine.seatOf(st, pid) : -1; return s >= 0 ? st.players[s].name : (ROOM && ROOM.peers[pid] && ROOM.peers[pid].name) || '?'; };
+
+  // ----- the sound: each voice through its own (hidden) player, and into a level meter -----
+  function audioCtx() {
+    if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { actx = null; } }
+    if (actx && actx.state === 'suspended') actx.resume().catch(() => { });
+    return actx;
+  }
+  function meter(stream) {
+    const a = audioCtx();
+    if (!a) return null;
+    try { const src = a.createMediaStreamSource(stream), an = a.createAnalyser(); an.fftSize = 512; src.connect(an); return { src, an, buf: new Uint8Array(an.fftSize) }; } catch (e) { return null; }
+  }
+  const level = m => { if (!m) return 0; m.an.getByteTimeDomainData(m.buf); let s = 0; for (let k = 0; k < m.buf.length; k++) { const x = (m.buf[k] - 128) / 128; s += x * x; } return Math.sqrt(s / m.buf.length); };
+  function attach(C, stream) {
+    if (!C.audio) {
+      const a = document.createElement('audio');
+      a.autoplay = true; a.setAttribute('playsinline', ''); a.hidden = true;
+      (document.getElementById('voices') || document.body).appendChild(a);
+      C.audio = a;
+    }
+    C.audio.srcObject = stream;
+    C.audio.muted = !hear;
+    play(C.audio);
+    C.meter = meter(stream);
+  }
+  // a browser plays sound only after a touch: what could not start is started by the next one
+  function play(a) { const p = a.play(); if (p && p.catch) p.catch(() => { if (hear && !blocked) { blocked = true; render(); } }); }
+  document.addEventListener('pointerdown', () => {
+    unblocking = blocked;
+    if (!conns.size) return;
+    audioCtx();
+    let any = false;
+    for (const C of conns.values()) if (C.audio && C.audio.paused) { any = true; C.audio.play().then(() => { if (blocked) { blocked = false; render(); } }, () => { }); }
+    if (!any && blocked) { blocked = false; render(); }
+  }, true);
+
+  // ----- the switches -----
+  async function setMic(on) {
+    if (!ok || on === mic || asking) return;
+    if (on) {
+      if (!live()) return;
+      asking = true; render();
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+        track = s.getAudioTracks()[0] || null;
+      } catch (e) {
+        asking = false;
+        Diag.note('voice', 'microphone: ' + (e && (e.name || e.message)));
+        UI.toast(e && e.name === 'NotAllowedError' ? 'მიკროფონის ნება არ არის. დართე ნება ბრაუზერში (საიტის პარამეტრები → მიკროფონი) და სცადე თავიდან.' : 'მიკროფონი ვერ ჩაირთო.', 5600, 'bad');
+        render();
+        return;
+      }
+      asking = false;
+      if (!track || !live()) { if (track) track.stop(); track = null; render(); return; }      // (the room was left meanwhile)
+      track.onended = () => { if (mic) setMic(false); };                                       // a phone call, the system took it
+      mine = meter(new MediaStream([track]));
+      mic = true;
+    } else {
+      mic = false;
+      if (track) track.stop();
+      track = null; mine = null;
+    }
+    for (const C of conns.values()) { C.feeding = null; feed(C); }       // (a new microphone track: given again)
+    say();
+  }
+  function setHear(on) {
+    hear = !!on;
+    store.set('voice.hear', hear);
+    if (hear) audioCtx();
+    for (const C of conns.values()) if (C.audio) { C.audio.muted = !hear; if (hear) play(C.audio); }
+    if (!hear) blocked = false;
+    say();
+  }
+  // what changed goes to the room at once (and with this phone's presence, for those who come later)
+  function say() {
+    vn = Date.now();
+    if (live()) { send('v', { k: 'st', o: vo(), vn }); if (ROOM.net) ROOM.net.track(meta()); }
+    update();
+  }
+
+  // ----- what the room says -----
+  function msg(from, d) {
+    if (!ok || !d || !live()) return;
+    if (d.k === 'st') { setFlags(from, d.o, d.vn); update(); return; }
+    if (d.k === 'offer' && typeof d.sdp === 'string' && typeof d.n === 'string') { answer(from, d); return; }
+    if (d.k === 'answer' && typeof d.sdp === 'string') {
+      const C = conns.get(from);
+      if (C && C.n === d.n && C.pc.signalingState === 'have-local-offer') C.pc.setRemoteDescription({ type: 'answer', sdp: d.sdp }).catch(e => lost(C, 'answer: ' + (e && e.message)));
+      return;
+    }
+    if (d.k === 'bye') {                                     // the other phone closed it: not needed, or it never got through
+      const C = conns.get(from);
+      if (C && C.n === d.n) { if (C.up) close(from, false); else lost(C, 'given up by the other phone', true); }
+    }
+  }
+  function peers(map) {
+    if (!ok) return;
+    for (const pid in map) { const p = map[pid]; if (p && typeof p.vo === 'number') setFlags(pid, p.vo, p.vn); }
+    update();
+  }
+  // out of the room: every connection closed, the microphone too (the others' voices stay as they were)
+  function leave() {
+    for (const pid of [...conns.keys()]) close(pid, false);
+    if (track) track.stop();
+    track = null; mine = null; mic = false; asking = false; blocked = false;
+    for (const o of [flags, tries, told, loud]) for (const k in o) delete o[k];
+    render();
+  }
+
+  // ----- on the screen: the two switches (in the room and over the board), and who speaks on the players' chips -----
+  const ICONS = {
+    mic: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11.5" rx="3" fill="currentColor"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21.2h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+    micOff: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11.5" rx="3" fill="currentColor" opacity=".55"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21.2h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".55"/><path d="M4 3.5l16 17" stroke="#ff6a5c" stroke-width="2.4" stroke-linecap="round"/></svg>',
+    hear: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 9h4l5-4.2v14.4l-5-4.2h-4z" fill="currentColor"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.2a8 8 0 0 1 0 11.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+    hearOff: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 9h4l5-4.2v14.4l-5-4.2h-4z" fill="currentColor" opacity=".55"/><path d="M16 9.2l5 5.6M21 9.2l-5 5.6" stroke="#ff6a5c" stroke-width="2.3" stroke-linecap="round"/></svg>'
+  };
+  function render() {
+    const show = live();
+    for (const bar of document.querySelectorAll('[data-vbar]')) if (bar.hidden === show) bar.hidden = !show;
+    if (!show) return chips();
+    const joined = [...conns.values()].filter(C => C.up).length;
+    for (const b of document.querySelectorAll('[data-voice="mic"]')) {
+      const key = `${mic}${asking}`;
+      if (b.dataset.k !== key) {
+        b.dataset.k = key;
+        b.innerHTML = mic ? ICONS.mic : ICONS.micOff;
+        b.classList.toggle('on', mic); b.classList.toggle('wait', asking);
+        b.setAttribute('aria-pressed', mic ? 'true' : 'false');
+        b.title = mic ? 'მიკროფონი ჩართულია: გესმით (დააჭირე გამოსართავად)' : 'მიკროფონის ჩართვა: ილაპარაკე სხვებთან';
+        b.setAttribute('aria-label', b.title);
+      }
+    }
+    for (const b of document.querySelectorAll('[data-voice="hear"]')) {
+      const key = `${hear}${blocked}${joined}`;
+      if (b.dataset.k !== key) {
+        b.dataset.k = key;
+        b.innerHTML = hear ? ICONS.hear : ICONS.hearOff;
+        b.classList.toggle('on', hear); b.classList.toggle('ask', hear && blocked);
+        b.setAttribute('aria-pressed', hear ? 'true' : 'false');
+        b.title = hear ? (blocked ? 'შეეხე ეკრანს, რომ სხვების ხმა გაიგო' : 'სხვების ხმა ჩართულია (დააჭირე გამოსართავად)') : 'სხვების ხმა გამორთულია (დააჭირე ჩასართავად)';
+        b.setAttribute('aria-label', b.title);
+      }
+    }
+    chips();
+    if ((mic || conns.size) && !tickT) tickT = setInterval(tick, 160);
+  }
+  // the players' chips: a microphone on those who have it on, and a ring round whoever is speaking now
+  function chips() {
+    const st = ROOM && ROOM.st;
+    for (const el of document.querySelectorAll('#players .pl[data-s], #seats .seat[data-seat]')) {
+      const s = +(el.dataset.s != null ? el.dataset.s : el.dataset.seat), pid = st && st.players[s] ? st.players[s].pid : '';
+      const on = live() && !!pid && (pid === ROOM.me ? mic : !!(flags[pid] && flags[pid].o & 1));
+      const talk = on && loud[pid] > Date.now();
+      if (el.classList.contains('vmic') !== on) el.classList.toggle('vmic', on);
+      if (el.classList.contains('talk') !== talk) el.classList.toggle('talk', talk);
+    }
+  }
+  function tick() {
+    if (!live() || (!mic && !conns.size)) { clearInterval(tickT); tickT = 0; for (const k in loud) delete loud[k]; chips(); return; }
+    const t = Date.now();
+    if (mic && mine && level(mine) > 0.035) loud[ROOM.me] = t + 450;
+    for (const [pid, C] of conns) if (C.up && C.meter && level(C.meter) > 0.03) loud[pid] = t + 450;
+    chips();
+    if (++ticks % 6 === 0) update();                        // (connections no longer needed close after a while)
+  }
+  document.addEventListener('click', ev => {
+    const b = ev.target.closest('[data-voice]');
+    if (!b) return;
+    ev.preventDefault();
+    if (b.dataset.voice === 'mic') setMic(!mic);
+    else if (unblocking && hear) unblocking = false;       // the touch that let the voices play: they stay on
+    else setHear(!hear);
+  });
+
+  return {
+    ok, msg, peers, leave, render, chips, setMic, setHear,
+    get vo() { return vo(); }, get vn() { return vn; }, get mic() { return mic; }, get hear() { return hear; },
+    // for the technical log and tests
+    _state: () => ({ mic, hear, blocked, flags: JSON.parse(JSON.stringify(flags)), conns: [...conns.values()].map(C => ({ pid: C.pid, up: C.up, state: C.pc.connectionState || C.pc.iceConnectionState, sending: !!(C.tr && C.tr.sender.track) })) }),
+    _stats: async () => { const out = {}; for (const [pid, C] of conns) { let rx = 0, tx = 0; (await C.pc.getStats()).forEach(r => { if (r.type === 'inbound-rtp' && r.kind === 'audio') rx += r.bytesReceived || 0; if (r.type === 'outbound-rtp' && r.kind === 'audio') tx += r.bytesSent || 0; }); out[pid] = { rx, tx }; } return out; }
+  };
+})();
 
 // ===== the land: one smooth relief under the whole board, and the country around it =====
 // The ground inside the ring of squares is a single height field. Every region adds its own shapes to it (peaks with
@@ -2771,8 +3140,8 @@ const Terrain = (() => {
   }
 
   // ----- the archipelago's lagoon: the water inside the ring of squares, coloured by how deep it is (pale turquoise
-  // over sand, blue where it is deep), with the foam lapping each shore (the board's shader moves it: anim.y = 4, anim.x
-  // how near the shore). Where land stands well above it, there is none. -----
+  // over sand, blue where it is deep), with the foam lapping each shore (the board's shader moves it: anim.y = 4 and how
+  // deep it is, anim.x how near the shore). Where land stands well above it, there is none. -----
   const DEEP = [[0, 0x8fe6dc], [0.03, 0x3cc9cf], [0.09, 0x1fa2c4], [0.17, 0x1a7db6], [0.3, 0x15609a]].map(([d, c]) => [d, new T.Color(c)]);
   function depthColor(d, out) {
     if (d <= DEEP[0][0]) return out.copy(DEEP[0][1]);
@@ -2788,7 +3157,7 @@ const Terrain = (() => {
       const i = k % n, j = (k - i) / n, d = dep[k];
       P.push(-EDGE + i * step, SEA_Y, -EDGE + j * step);
       depthColor(d, C1); Cc.push(C1.r, C1.g, C1.b);
-      A.push(1 - smooth(0, 0.07, d), 4);
+      A.push(1 - smooth(0, 0.07, d), 4 + Math.max(0, Math.min(0.45, d)));                  // (and how deep: the shallows shine)
       return (map[k] = P.length / 3 - 1);
     };
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
@@ -2825,7 +3194,7 @@ const Terrain = (() => {
         pos.push(x, OCEAN_Y, z);
         C1.copy(NEAR).lerp(MID, smooth(0.5, 6, side)).lerp(FAR, smooth(10, 40, r)).multiplyScalar(0.94 + 0.12 * (fbm(x * 0.15, z * 0.15) * 0.5 + 0.5));
         col.push(C1.r, C1.g, C1.b);
-        anim.push(1 - smooth(0.0, 0.45, side), 4);                                             // the surf along the board
+        anim.push(1 - smooth(0.0, 0.45, side), 4.45);                                          // the surf along the board; deep
       }
     }
     for (let k = 0; k < rings; k++) for (let s = 0; s < seg; s++) {
@@ -4973,6 +5342,14 @@ const Board3D = (() => {
   // the higher it is above its ground), y what kind of surface it is (1 water lying still, 2 falling water, 3 the land
   // itself, which gets the fine grain of soil, grass and rock from a small noise picture). One clock for all of it.
   const U = { time: { value: 0 }, fade: { value: 1 }, scale: { value: 800 }, detail: { value: null } };
+  // The archipelago's sea (anim.y = 4 and how deep it is there, anim.x how near a shore): swells roll over it from the
+  // open ocean, four trains of waves, each its own way, length, height and speed. The two long ones lift the water; all
+  // four tilt it, so the sun and the sky light their slopes and the light on the water moves with them.
+  const SEA_WAVES = [[0.8, 0.6, 3.2, 0.05, 1.05], [0.31, 0.95, 1.75, 0.024, 0.8], [0.97, -0.24, 0.95, 0.011, 0.62], [-0.447, 0.894, 0.55, 0.0055, 0.48]];
+  const gf = v => (Math.round(v * 1e5) / 1e5).toFixed(5);
+  const seaLift = SEA_WAVES.slice(0, 2).map(([x, z, len, a, c]) => `${gf(a)} * sin( ${gf(Math.PI * 2 / len)} * ( dot( vec2( ${gf(x)}, ${gf(z)} ), wp4.xz ) - ${gf(c)} * uTime ) )`).join(' + ');
+  const seaTilt = SEA_WAVES.map(([x, z, len, a, c], k) => `seaWave( p, vec2( ${gf(x)}, ${gf(z)} ), ${gf(len)}, ${gf(a)} * calm${k > 1 ? ' * fine' : ''}, ${gf(c)}, h, g );`).join('\n        ');
+  const seaTall = (n, fine) => SEA_WAVES.slice(0, n).reduce((s, w) => s + w[3], 0).toFixed(5) + (fine ? ` + ${SEA_WAVES.slice(n).reduce((s, w) => s + w[3], 0).toFixed(5)} * fine` : '');
   const LIVING = {
     vp: '#include <common>\nattribute vec2 anim;\nuniform float uTime;\nvarying vec3 vWP;\nvarying float vWater;\nvarying float vShore;',
     v: `#include <begin_vertex>
@@ -4985,15 +5362,27 @@ const Board3D = (() => {
       vWater = anim.y;
       vShore = anim.x;
       if ( anim.y > 3.5 && anim.y < 4.5 ) {
-        // the sea's swell (anim.x is how near the shore: no sway)
-        transformed.y += 0.006 * sin( uTime * 1.3 + wp4.x * 2.3 + wp4.z * 1.1 ) + 0.004 * sin( uTime * 1.9 - wp4.z * 3.1 + wp4.x * 0.7 );
+        // the swell lifts the sea (less inside the ring of squares, and none at a shore)
+        float open = smoothstep( 6.2, 7.2, max( abs( wp4.x ), abs( wp4.z ) ) );
+        transformed.y += mix( 0.42, 1.0, open ) * ( 1.0 - anim.x ) * ( ${seaLift} );
       } else if ( anim.x > 0.0 ) {
         float ph = wp4.x * 1.9 + wp4.z * 1.3;
         float gust = 0.65 + 0.35 * sin( uTime * 0.41 + wp4.x * 0.25 - wp4.z * 0.2 );
         transformed.x += anim.x * gust * ( 0.009 * sin( uTime * 1.7 + ph ) + 0.0035 * sin( uTime * 3.3 + ph * 2.1 ) );
         transformed.z += anim.x * gust * 0.0055 * sin( uTime * 1.25 + ph * 1.3 + 1.2 );
       }`,
-    fp: '#include <common>\nuniform float uTime;\nuniform sampler2D uDetail;\nvarying vec3 vWP;\nvarying float vWater;\nvarying float vShore;',
+    fp: `#include <common>
+uniform float uTime;
+uniform sampler2D uDetail;
+varying vec3 vWP;
+varying float vWater;
+varying float vShore;
+// one train of the sea's waves: its height and its slope here, added to h and g
+void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, inout vec2 g ) {
+  float k = 6.28318 / len, ph = k * ( dot( d, p ) - speed * uTime );
+  h += amp * sin( ph );
+  g += amp * k * cos( ph ) * d;
+}`,
     f: `#include <emissivemap_fragment>
       if ( vWater > 4.5 ) {
         // lava: glowing, its dark crust drifting over it
@@ -5001,15 +5390,36 @@ const Board3D = (() => {
         diffuseColor.rgb = mix( vec3( 0.32, 0.05, 0.02 ), vec3( 1.0, 0.56, 0.14 ), 0.5 + 0.5 * c );
         totalEmissiveRadiance += vec3( 0.95, 0.34, 0.06 ) * ( 0.6 + 0.4 * c );
       } else if ( vWater > 3.5 ) {
-        // the sea: small waves glitter in the sun; foam laps each shore, coming and going
-        float w1 = sin( vWP.x * 6.3 + uTime * 1.1 + sin( vWP.z * 2.9 + uTime * 0.5 ) * 1.9 + sin( vWP.x * 1.7 - vWP.z * 2.3 ) * 1.2 );
-        float w2 = sin( vWP.z * 5.7 - uTime * 0.85 + sin( vWP.x * 2.4 - uTime * 0.4 ) * 1.6 + sin( vWP.z * 1.3 + vWP.x * 2.1 ) * 1.1 );
-        float near = 1.0 - smoothstep( 9.0, 30.0, length( vWP.xz ) );            // the glitter fades out over the far ocean
-        diffuseColor.rgb *= 0.94 + 0.08 * ( w1 * 0.5 + 0.5 ) * ( 0.4 + 0.6 * near );
-        totalEmissiveRadiance += vec3( 0.11, 0.13, 0.14 ) * smoothstep( 0.82, 0.995, w1 * w2 ) * near;
+        // the sea. Its waves (see SEA_WAVES) tilt it, so the sun and the sky light their slopes; the sky shows in those
+        // turned away; out on the ocean the crests break white here and there; in the shallows the sun's light, bent by
+        // the waves, dances on the sand; little waves glitter; foam laps each shore, coming and going
+        vec2 p = vWP.xz;
+        float depth = vWater - 4.0, open = smoothstep( 6.2, 7.2, max( abs( p.x ), abs( p.y ) ) );
+        float calm = mix( 0.55, 1.0, open ), fine = 1.0 - smoothstep( 14.0, 40.0, length( vViewPosition ) );
+        float h = 0.0;
+        vec2 g = vec2( 0.0 );
+        ${seaTilt}
+        normal = normalize( mat3( viewMatrix ) * vec3( -g.x, 1.0, -g.y ) );       // (in the camera's space, as the lights want it)
+        float crest = h / ( ( ${seaTall(2, true)} ) * calm );
+        float fres = 1.0 - clamp( dot( normal, normalize( vViewPosition ) ), 0.0, 1.0 );
+        fres *= fres * fres;
+        diffuseColor.rgb = mix( diffuseColor.rgb * ( 0.97 + 0.09 * crest ), vec3( 0.68, 0.87, 0.95 ), fres * 0.42 );
+        // (the whitecaps' patches are long along the crests of the longest waves, and drift)
+        float m = texture2D( uDetail, vec2( dot( p, vec2( 0.8, 0.6 ) ) * 0.5, dot( p, vec2( -0.6, 0.8 ) ) * 0.14 ) + uTime * vec2( 0.006, -0.009 ) ).r;
+        float cap = smoothstep( 0.42, 0.92, crest ) * smoothstep( 0.52, 0.7, m ) * ( 0.15 + 0.85 * open );
+        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.93, 0.97, 0.98 ), cap * 0.72 );
+        float shallow = 1.0 - smoothstep( 0.01, 0.26, depth );
+        if ( shallow * fine > 0.0 ) {
+          vec2 q = p * 0.5 + g * 0.6;
+          float n1 = texture2D( uDetail, q + uTime * vec2( 0.019, 0.011 ) ).r;
+          float n2 = texture2D( uDetail, q * 1.37 + vec2( 0.31, 0.57 ) - uTime * vec2( 0.012, 0.021 ) ).r;
+          totalEmissiveRadiance += vec3( 0.36, 0.48, 0.42 ) * pow( 1.0 - abs( n1 - n2 ), 12.0 ) * shallow * shallow * fine;
+        }
+        float w1 = sin( p.x * 6.3 + uTime * 1.1 + h * 38.0 + g.y * 3.0 ), w2 = sin( p.y * 5.7 - uTime * 0.85 + h * 21.0 + g.x * 6.0 );   // (bent by the swell)
+        totalEmissiveRadiance += vec3( 0.11, 0.13, 0.14 ) * smoothstep( 0.82, 0.995, w1 * w2 ) * fine * ( 0.7 + 0.3 * crest );
         float lap = 0.5 + 0.5 * sin( vShore * 14.0 - uTime * 1.8 + ( vWP.x + vWP.z ) * 2.5 );
         float foam = smoothstep( 0.74, 0.97, vShore ) + smoothstep( 0.4, 0.76, vShore ) * smoothstep( 0.78, 0.97, lap ) * 0.75;
-        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.95, 0.98, 0.97 ), clamp( foam, 0.0, 1.0 ) * 0.85 );
+        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.95, 0.98, 0.97 ), clamp( foam * ( 0.7 + 0.6 * m ), 0.0, 1.0 ) * 0.85 );
       } else if ( vWater > 2.5 ) {
         // the land's grain: the same noise at two sizes; bright snow gets less of it
         float g1 = texture2D( uDetail, vWP.xz * 1.7 ).r, g2 = texture2D( uDetail, vWP.xz * 6.1 + 0.37 ).r;
@@ -5669,7 +6079,14 @@ const Board3D = (() => {
     BLD.cb = new T.InstancedMesh(ca.body, mats.stone, 24); BLD.cr = new T.InstancedMesh(ca.roof, roofMat, 24);
     BLD.tr.setColorAt(0, new T.Color(0xffffff)); BLD.cr.setColorAt(0, new T.Color(0xffffff));      // so the shader is made with colours per copy
     for (const m of [BLD.tb, BLD.tr, BLD.cb, BLD.cr]) { m.count = 0; m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; root.add(m); }
+    // where a tower can go up now (see the signs below): a gold ring on the square, pulsing
+    const ring = new T.RingGeometry(0.105, 0.155, 32);
+    ring.rotateX(-Math.PI / 2);
+    BLD.ring = new T.InstancedMesh(ring, new T.MeshBasicMaterial({ color: 0xffd76a, transparent: true, opacity: 0.85, depthWrite: false }), 24);
+    BLD.ring.count = 0; BLD.ring.frustumCulled = false; BLD.ring.renderOrder = 3;
+    root.add(BLD.ring);
     BLD.ready = true;
+    pinCam.fill(NaN);
   }
   const _m = new T.Matrix4(), _q = new T.Quaternion(), _s = new T.Vector3(), _c = new T.Color(), _up = new T.Vector3(0, 1, 0);
   function layoutBuildings(now) {
@@ -5704,6 +6121,88 @@ const Board3D = (() => {
       if (lv < 5) dust(toWorld(i, towerSlots[lv][lv - 1], -D / 2 + 0.2, TH)); else dust(toWorld(i, 0, -D / 2 + 0.2, TH));
     }
     layoutBuildings(performance.now());
+  }
+  // ----- the signs over the squares where this device's player can build now -----
+  // The page makes them (ui.js: a hut and its price, a tap builds there); here each is kept over its square as the camera
+  // moves: over the spot where the next tower would rise, as big as a square is on the screen (never too small to tap),
+  // one raised over another where they would cover each other. A gold ring pulses on the spot itself.
+  let pinEls = [];
+  const pinCam = new Float32Array(18).fill(NaN), _pa = new T.Vector3(), _pb = new T.Vector3();
+  function pinSpot(i, lv) {
+    const n = clamp(lv, 1, 5), x = n >= 5 ? 0 : towerSlots[n][n - 1];
+    return toWorld(i, x, -D / 2 + 0.2, (tiles[i] ? tiles[i].position.y : 0) + TH + 0.006);
+  }
+  function pins(list) {
+    for (const p of pinEls) if (!list.some(q => q.el === p.el)) p.el.hidden = true;
+    pinEls = (list || []).filter(p => p && p.el && BOARD[p.i] && BOARD[p.i].k === 'p');
+    pinCam.fill(NaN);                                      // placed again at the next frame
+    if (BLD.ring) BLD.ring.count = 0;
+    if (running && cam) pinFrame(performance.now() / 1000);
+  }
+  const sx = v => (v.x + 1) / 2 * W, sy = v => (1 - v.y) / 2 * H;
+  function placePins() {
+    const out = [];
+    _pb.set(0, 0, 0).project(cam);
+    const midX = sx(_pb);
+    for (const p of pinEls) {
+      const a = pinSpot(p.i, p.lv), el = p.el;
+      _pa.copy(a).project(cam);
+      if (_pa.z > 1 || Math.abs(_pa.x) > 1.02 || Math.abs(_pa.y) > 1.02) { if (!el.hidden) el.hidden = true; continue; }
+      const x = sx(_pa), y = sy(_pa), [ax, az] = ALONG[sideOf(p.i)];
+      _pb.set(a.x + ax, a.y, a.z + az).project(cam);
+      const ex = sx(_pb) - x, ey = sy(_pb) - y, k = clamp(Math.hypot(ex, ey) / 84, 0.7, 1.1);
+      _pb.set(a.x, a.y + 0.55, a.z).project(cam);
+      if (el.hidden) el.hidden = false;
+      const b = el.firstElementChild;
+      if (!el._w && b) { el._w = b.offsetWidth; el._h = b.offsetHeight; }
+      // its side of the board runs across the screen (the signs go up, one over another) or along it (they go aside,
+      // towards the middle of the board)
+      out.push({ el, x, y, k, w: (el._w || 56) * k, h: (el._h || 80) * k, lift: Math.max(16, y - sy(_pb)), across: Math.abs(ex) >= Math.abs(ey), inward: midX >= x ? 1 : -1, dx: 0 });
+    }
+    // nearer the camera first; a sign that would cover one already placed goes to the first free place next to it
+    out.sort((a, b) => b.y - a.y);
+    const hits = (q, n, dx, up) => {
+      const cx = q.x + dx, bot = q.y - q.lift - up;
+      for (let j = 0; j < n; j++) {
+        const o = out[j], ox = o.x + o.dx, ob = o.y - o.lift;
+        if (Math.abs(ox - cx) < (o.w + q.w) / 2 * 0.96 && bot > ob - o.h * 0.96 && bot - q.h * 0.96 < ob) return true;
+      }
+      return false;
+    };
+    out.forEach((q, n) => {
+      const side = q.inward * q.w * 1.02;
+      const tries = q.across ? [[0, 0], [0, 1], [side, 0], [-side, 0], [0, 2], [side, 1]] : [[0, 0], [side, 0], [0, 1], [-side, 0], [side, 1], [0, 2]];
+      const [dx, up] = tries.find(([dx, up]) => !hits(q, n, dx, up * q.h)) || [0, 0];
+      q.lift += up * q.h;
+      // kept on the screen: the sign moves aside (its stem leans to reach it), or down from the top edge
+      q.dx = clamp(q.x + dx, q.w / 2 + 4, W - q.w / 2 - 4) - q.x;
+      q.lift = Math.min(q.lift, q.y - q.h - 2);
+      if (q.lift < -q.h * 0.35) { q.el.hidden = true; return; }
+      const st = q.el.style, len = Math.hypot(q.dx, Math.max(0, q.lift));
+      st.transform = `translate3d(${q.x.toFixed(1)}px,${q.y.toFixed(1)}px,0)`;
+      st.setProperty('--lift', q.lift.toFixed(1) + 'px');
+      st.setProperty('--dx', q.dx.toFixed(1) + 'px');
+      st.setProperty('--len', len.toFixed(1) + 'px');
+      st.setProperty('--ang', Math.atan2(q.dx, q.lift).toFixed(3) + 'rad');
+      st.setProperty('--k', q.k.toFixed(3));
+    });
+  }
+  // every frame while there are signs: placed again when the camera (or the screen) changed, the rings pulse
+  function pinFrame(t) {
+    if (!pinEls.length) { if (BLD.ring && BLD.ring.count) BLD.ring.count = 0; return; }
+    const e = cam.matrixWorld.elements;
+    let moved = pinCam[16] !== W || pinCam[17] !== H;
+    for (let k = 0; k < 16 && !moved; k++) moved = pinCam[k] !== e[k];
+    if (moved) { pinCam.set(e); pinCam[16] = W; pinCam[17] = H; placePins(); }
+    if (!BLD.ring) return;
+    const n = Math.min(pinEls.length, 24), beat = REDUCED ? 0 : Math.sin(t * 3.4);
+    for (let j = 0; j < n; j++) {
+      const p = pinEls[j], s = (p.lv >= 5 ? 2.4 : 1) * (1 + 0.13 * beat);
+      _m.compose(pinSpot(p.i, p.lv), _q.identity(), _s.set(s, 1, s));
+      BLD.ring.setMatrixAt(j, _m);
+    }
+    BLD.ring.count = n; BLD.ring.instanceMatrix.needsUpdate = true;
+    BLD.ring.material.opacity = 0.62 + 0.28 * beat;
   }
   let dustGeo = null;
   function dust(p) {
@@ -6073,6 +6572,7 @@ const Board3D = (() => {
     stepTweens(dt * speedK);
     moveCamera(dt * speedK);
     const t = now / 1000;
+    pinFrame(t);
     // the figures face the camera; the one whose turn it is glows
     for (const tk of toks) {
       if (!tk || !tk.g.visible) continue;
@@ -6365,7 +6865,7 @@ const Board3D = (() => {
   }
 
   return {
-    init, prepare, show, sync, walk, fly, setOwner, setLevel, setMort, pop, celebrate, coins, focus, snap, setMode, setTurn, leave, resize, halt, retheme,
+    init, prepare, show, sync, walk, fly, setOwner, setLevel, setMort, pop, celebrate, coins, focus, snap, setMode, setTurn, leave, resize, halt, retheme, pins,
     speed(k) { speedK = k > 0 ? k : 1; },
     get ok() { return done; }, get mode() { return mode; }, get world() { return worldBuilt; },
     // how long ago a frame was drawn (the animations wait for frames: none coming means they must not be waited for)
@@ -6386,7 +6886,7 @@ const Board3D = (() => {
     // where a point of the board is on the screen (for tests)
     _project(x, y, z) { const c = new T.Vector3(x, y, z).project(cam), r = host.getBoundingClientRect(); return [r.left + (c.x + 1) / 2 * r.width, r.top + (1 - c.y) / 2 * r.height]; },
     _dbg: () => ({ y: tiles.slice(0, 6).map(t => +t.position.y.toFixed(2)), tw: tweens.length, built, running, frame, quality, land: landG ? +landG.scale.y.toFixed(3) : 0, fade: +U.fade.value.toFixed(3), top: +landTop.toFixed(2) }),
-    _scene: () => scene, _gl: () => ({ R, cam, scene }),
+    _scene: () => scene, _gl: () => ({ R, cam, scene, U }),
     _label: i => labelCv[i] ? labelCv[i].toDataURL() : '',
     _life: () => ({ ready: life.ready, groups: life.groups.map(g => [g.k, g.list.length]), points: life.pts ? life.pts.geometry.attributes.position.count : 0, fall: fallFoot }),
     _perf: () => R ? Object.assign({ calls: R.info.render.calls, tris: R.info.render.triangles, programs: R.info.programs.length, textures: R.info.memory.textures, geometries: R.info.memory.geometries, frame, quality, pr: R.getPixelRatio() }, PERF) : PERF
@@ -7008,7 +7508,7 @@ const View = (() => {
     if (!gl) { stage.innerHTML = '<p class="nogl">ამ ბრაუზერში 3D დაფა ვერ ჩაირთო. სცადე სხვა ბრაუზერი (Chrome, Safari) ან განაახლე ეს.</p>'; return; }
     Board3D.onPick(i => Sheet.open('deed', i));
   }
-  function leaveBoard() { built = false; if (Board3D.ok) Board3D.leave(); if (Dice3D.busy) Dice3D.skip(); }
+  function leaveBoard() { built = false; if (Board3D.ok) { Board3D.pins([]); Board3D.leave(); } if (Dice3D.busy) Dice3D.skip(); const pb = $('#pins'); if (pb) pb.innerHTML = ''; pinsKey = ''; }
   function clear() { target = shown = null; q = []; playing = false; lastEv = 0; gen++; leaveBoard(); Sheet.close(); hideBuy(); }
   // roughly how long events take on screen (only a hint for tests and the like: the computer players wait for the screen itself)
   function estimate(list) {
@@ -7033,6 +7533,7 @@ const View = (() => {
   async function play() {
     const my = ++gen;
     playing = true;
+    renderPins();
     clearTimeout(autoT);
     // the auction's card stays while bids come in, the chest's question while answers do
     if (!(target && shown && target.phase === shown.phase && (shown.phase === 'auction' || shown.phase === 'quiz'))) hideBuy();
@@ -7235,6 +7736,7 @@ const View = (() => {
     renderPanel();
     renderBuy();
     viewBtn();
+    renderPins();
     $('#bTrade').disabled = !Engine.legal(st, mySeat()).trade;
     Sheet.refresh();
     if (st.trade && acting() === st.trade.to && controls(st.trade.to) && Sheet.kind() !== 'offer') Sheet.open('offer');
@@ -7251,6 +7753,26 @@ const View = (() => {
     const seq = st.seq;
     autoT = setTimeout(() => { if (shown && shown.seq === seq && !playing && !Sheet.kind()) move({ t: 'end' }); }, 1300);
   }
+  // ----- where this device's player can put up a tower now: a sign over each such square, with the price (a tap builds
+  // there). They go while the screen plays what happened, and while a move is on its way. -----
+  let pinsKey = '';
+  function renderPins() {
+    const box = $('#pins');
+    if (!box) return;
+    const st = shown, me = acting();
+    const can = gl && Board3D.ok && st && st.phase !== 'lobby' && !playing && !busy && me >= 0 && me === st.turn && controls(me) && Engine.legal(st, me).build;
+    const list = can ? BOARD.map((t, i) => i).filter(i => BOARD[i].k === 'p' && !Engine.buildBlock(st, me, i)) : [];
+    const key = list.map(i => i + ':' + st.own[i].lv).join(',') + '|' + THEME.key;
+    if (key !== pinsKey) {
+      pinsKey = key;
+      box.innerHTML = list.map(i => {
+        const lv = st.own[i].lv + 1, price = GROUPS[BOARD[i].g].b;
+        const icon = lv >= 5 ? (sea() ? SEAFORT_SVG : `<img src="${ART('s_fort')}" alt="">`) : towerIcon();
+        return `<div class="pin" data-pin="${i}" data-lv="${lv}" hidden><button class="pin-b${lv >= 5 ? ' fort' : ''}" data-build="${i}" aria-label="${esc(`${LEVEL_NAMES[lv]}: ${tName(i)} · ${price}`)}"><span class="pin-f"><span class="pin-m">${icon}<b aria-hidden="true">+</b></span><span class="pin-p">${coin(price)}</span></span></button></div>`;
+      }).join('');
+    }
+    if (gl && Board3D.ok) Board3D.pins($$('.pin', box).map(el => ({ i: +el.dataset.pin, lv: +el.dataset.lv, el })));
+  }
   let playersHTML = '';
   function renderPlayers() {
     const st = shown, box = $('#players');
@@ -7264,7 +7786,7 @@ const View = (() => {
         <img class="pp" src="${por(p.hero)}" alt=""><span class="pn">${esc(p.name)}</span><span class="pc">${p.out ? '<b class="amt">გაკოტრდა</b>' : coin(cash[s] != null ? cash[s] : p.cash)}${icons ? `<span class="pi">${icons}</span>` : ''}</span>${tag ? `<span class="pf">${tag}</span>` : ''}</button>`;
     }).join('');
     // drawn again only when something in it changed (the faces are not made anew with every step of a move)
-    if (html !== playersHTML || !box.firstChild) { box.innerHTML = html; playersHTML = html; }
+    if (html !== playersHTML || !box.firstChild) { box.innerHTML = html; playersHTML = html; Voice.chips(); }
     box.onclick = ev => { const b = ev.target.closest('.pl'); if (b) Sheet.open('player', +b.dataset.s); };
     const r = $('#round');
     if (r) r.textContent = st.cfg.mode === 'rounds' ? `რაუნდი ${st.round} / ${st.cfg.rounds}` : `რაუნდი ${st.round}`;
@@ -7490,7 +8012,7 @@ const View = (() => {
     show, reset, clear, pending, idleFor, render, fit, acting, mySeat, controls,
     get st() { return shown; },
     get playing() { return current ? current.k : playing ? 'queue' : ''; },
-    busy(b) { busy = b; if (b) $$('#panel [data-a], #buycard [data-a], #sheet [data-a]').forEach(x => { x.disabled = true; }); },
+    busy(b) { busy = b; if (b) { $$('#panel [data-a], #buycard [data-a], #sheet [data-a]').forEach(x => { x.disabled = true; }); renderPins(); } },
     peers() { if (shown && shown.phase === 'lobby') Lobby.render(shown); else if (shown) renderPlayers(); },
     idle() { if (shown && !playing) autoEnd(); },
     view() { if (!gl) return; Board3D.setMode(Board3D.mode === 'follow' ? 'overview' : 'follow'); viewBtn(); }
@@ -7856,6 +8378,7 @@ const UI = (() => {
     if (s !== 'game') Sheet.close();
     if (s === 'menu') Menu.render();
     if (s === 'game') { requestAnimationFrame(() => View.fit()); }
+    Voice.render();
   }
   function toast(msg, ms, kind) {
     const box = $('#toasts');
@@ -8014,6 +8537,7 @@ const Lobby = (() => {
       ? `<div class="row"><button class="btn" data-lob="addbot" ${full ? 'disabled' : ''}>+ ბოტი</button>${ROOM.role === 'local' ? `<button class="btn" data-lob="addlocal" ${full ? 'disabled' : ''}>+ მოთამაშე</button>` : ''}</div>
          <button class="btn gold wide big" data-lob="start" ${st.players.length < 2 ? 'disabled' : ''}>დაწყება</button>${st.players.length < 2 ? '<p class="hint">დაამატე ბოტი ან დაელოდე მეგობრებს.</p>' : ''}`
       : `<p class="waiting">მასპინძელი თამაშს დაიწყებს, როცა ყველა შემოვა.</p>`;
+    Voice.render();
   }
   // the room is being reached (or made): its code is known already, the rest is not
   function connecting() {
@@ -8086,6 +8610,9 @@ function boot() {
   $('#sheet').addEventListener('click', Sheet.onClick);
   $('#scr-game').addEventListener('click', ev => {
     Sound.unlock();
+    // a sign over a square: a tower goes up there
+    const pin = ev.target.closest('#pins [data-build]');
+    if (pin) { if (!pin.disabled) { pin.disabled = true; move({ t: 'build', i: +pin.dataset.build }); } return; }
     const a = ev.target.closest('#panel [data-a], #buycard [data-a]');
     if (a && !a.disabled) {
       const m = { t: a.dataset.a };

@@ -8,7 +8,8 @@
                                     html/head/body tags, plus the pictures; online rooms are switched off there
                                     (the viewer allows no connections to other servers)
 
-The pictures in art/ come from მეტეხი (github.com/qourum/metekhi); missing ones are copied from a checkout of it
+The pictures in art/ come from მეტეხი (github.com/qourum/metekhi), the archipelago's from its Higgsfield references; missing
+ones of მეტეხი are copied from a checkout of it
 (METEKHI=/path/to/metekhi, default ../qourum/metekhi), and so is rt.js, the bundled Supabase Realtime client.
 """
 import hashlib, json, os, shutil, sys
@@ -19,7 +20,11 @@ METEKHI = os.environ.get('METEKHI', os.path.join(os.path.dirname(ROOT), 'qourum'
 JS = ['diag.js', 'data.js', 'themes.js', 'engine.js', 'net.js', 'terrain.js', 'models.js', 'sea.js', 'board3d.js', 'dice3d.js', 'pictures.js', 'ui.js', 'app.js']
 THREE_CDN = 'https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js'
 HEROES = ['david', 'tamar', 'gorgasali', 'erekle', 'kakutsa', 'tariel', 'avtandil', 'gurdjieff', 'abrag', 'amirani', 'mikha', 'prometheus']
-ART = ([f'por_h_{h}' for h in HEROES] + [f'h_{h}' for h in HEROES if h != 'david'] + ['h_davidride'] +
+PIRATES = ['blackbeard', 'bonny', 'read', 'chingshih', 'omalley', 'morgan', 'kidd', 'roberts', 'barbarossa', 'bellamy', 'labuse', 'stortebeker']
+# the archipelago's pictures: its pirates' portraits and its places, made from the Higgsfield references (they live in art/)
+SEA_ART = ([f'por_p_{p}' for p in PIRATES] + ['bg_sea'] + [f'sc_{n}' for n in ['north', 'gotland', 'med', 'atlantic', 'antilles', 'caribbean', 'indian', 'pacific', 'oak', 'cocos',
+           'qar', 'whydah', 'galley', 'fortune', 'lighthouse', 'shipyard', 'customs', 'whirlpool', 'port', 'isle', 'tavern', 'kraken', 'chest', 'bottle']])
+ART = ([f'por_h_{h}' for h in HEROES] + [f'h_{h}' for h in HEROES if h != 'david'] + ['h_davidride'] + SEA_ART +
        ['t_archer_2', 's_fort', 's_camp', 't_palisade', 'ui_page', 'ui_chest_wood', 'ui_chest_wood_o', 'ui_coin', 'ui_coinbag',
         'ui_book', 'ui_feather', 'g_svan', 'g_elbrus', 'g_pass', 'g_stone', 'g_tbilisi'])
 FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'

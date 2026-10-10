@@ -1,6 +1,6 @@
-// ===== the archipelago's pictures, drawn here =====
-// The pirates' portraits (until their 3D portraits come), the sea and island behind a square's name on its card, and the
-// small icons: a hut and a sea fort for the levels, the castaway's islet and the fisherman's boat, a ship.
+// ===== the archipelago's pictures =====
+// Which picture each place shows on its card (they are files in art/), the sea and island drawn for one that has none, and
+// the small icons: a hut and a sea fort for the levels, the castaway's islet and the fisherman's boat, a ship.
 
 // a picture written as SVG, ready for src="" or url('') (no quotes are left in it)
 const svgUri = s => 'data:image/svg+xml,' + encodeURIComponent(s.replace(/\s*\n\s*/g, ' '));
@@ -9,67 +9,15 @@ const shade = (hex, k) => {          // k > 0 towards white, k < 0 towards black
   return '#' + c.map(v => Math.round(k > 0 ? v + (255 - v) * k : v * (1 + k)).toString(16).padStart(2, '0')).join('');
 };
 
-// ----- the pirates: who wore what -----
-const PIRATE_LOOK = {
-  blackbeard: { hat: 'tricorn', hair: '#1b1612', beard: 'long', bc: '#1b1612', skin: '#c99a74', coat: '#3a2a22', smoke: true },
-  bonny: { hat: 'scarf', scarf: '#c23b2a', hair: '#b4482a', long: true, skin: '#f0c9a4', coat: '#5a3324' },
-  read: { hat: 'tricorn', hair: '#4a2e1a', long: true, skin: '#eac09a', coat: '#2e4a6b' },
-  chingshih: { hat: 'crown', hair: '#14110f', skin: '#e9c49e', coat: '#a3262a' },
-  omalley: { hat: 'hood', hood: '#3f6b4a', hair: '#9a3f1f', long: true, skin: '#f0c9a4', coat: '#2f4f39' },
-  morgan: { hat: 'plume', plume: '#d23c2c', hair: '#3a2416', long: true, beard: 'moustache', bc: '#3a2416', skin: '#ddb08a', coat: '#7a2622' },
-  kidd: { hat: 'tricorn', hair: '#e2dcd2', long: true, skin: '#e6b994', coat: '#283a5c' },
-  roberts: { hat: 'plume', plume: '#e33b5a', hair: '#24170f', long: true, skin: '#d4a47c', coat: '#7d1f3c' },
-  barbarossa: { hat: 'turban', turban: '#f1ead8', hair: '#b4421c', beard: 'long', bc: '#c04a1c', skin: '#c99068', coat: '#2f6b46' },
-  bellamy: { hat: 'tricorn', hair: '#2a1d14', long: true, skin: '#e6b994', coat: '#2f3b58' },
-  labuse: { hat: 'tricorn', hair: '#463224', patch: true, beard: 'short', bc: '#463224', skin: '#d8a882', coat: '#4d3f30' },
-  stortebeker: { hat: 'cap', cap: '#6b4a24', hair: '#c9a25a', beard: 'short', bc: '#c9a25a', skin: '#e3b590', coat: '#5c4320' }
-};
-const PORTRAITS = {};
-function piratePor(h) {
-  if (PORTRAITS[h]) return PORTRAITS[h];
-  const L = PIRATE_LOOK[h] || PIRATE_LOOK.kidd, c = (HEROES[h] && HEROES[h].c) || '#33405e', sk = L.skin, dk = shade(sk, -0.18);
-  const beard = { long: `<path d="M35.5 49q0 24 14.5 28q14.5-4 14.5-28q-4 9-14.5 9t-14.5-9z" fill="${L.bc}"/>`,
-    short: `<path d="M37 52q1 14 13 17q12-3 13-17q-4 6-13 6t-13-6z" fill="${L.bc}"/>`,
-    moustache: `<path d="M42.5 55.5q7.5-4.5 15 0q-7.5 2.5-15 0z" fill="${L.bc}"/>` }[L.beard] || '';
-  const tricorn = `<path d="M23 39c9-3 15-16 27-16s18 13 27 16c-7 4-16 6.5-27 6.5s-20-2.5-27-6.5z" fill="#1d1a1e"/>
-    <path d="M26 39.5c8 3 15.5 4.5 24 4.5s16-1.5 24-4.5" fill="none" stroke="#d9a640" stroke-width="1.7"/>`;
-  const hat = ({            // (each made only when it is the one worn)
-    tricorn: () => tricorn,
-    plume: () => tricorn + `<path d="M60 29c7-9 17-11 23-8-7 0-13 4-19 10z" fill="${L.plume}"/><path d="M61 30c6-6 13-8 18-8" stroke="${shade(L.plume, -0.3)}" stroke-width="1" fill="none"/>`,
-    scarf: () => `<path d="M34.5 43c0-11 7-17.5 15.5-17.5S65.5 32 65.5 43c-5-3.5-10-4.5-15.5-4.5s-10.5 1-15.5 4.5z" fill="${L.scarf}"/>
-      <path d="M63.5 40l10 3-5 8zM63.5 40l8 9-6 3z" fill="${shade(L.scarf, -0.15)}"/><g fill="#fff" opacity=".55"><circle cx="43" cy="33" r="1.3"/><circle cx="51" cy="30" r="1.3"/><circle cx="58" cy="34" r="1.3"/></g>`,
-    hood: () => `<path d="M29 56c-1-21 8.5-32 21-32s22 11 21 32c-3-11-10-16.5-21-16.5S32 45 29 56z" fill="${L.hood}"/>
-      <path d="M29 56q-1 11 7 19l3-13zM71 56q1 11-7 19l-3-13z" fill="${shade(L.hood, -0.2)}"/>`,
-    turban: () => `<ellipse cx="50" cy="34" rx="18" ry="11.5" fill="${L.turban}"/><path d="M33 36q17-9 34 0M35 31q15-8 30 0" stroke="${shade(L.turban, -0.25)}" stroke-width="1.4" fill="none"/>
-      <circle cx="50" cy="29.5" r="2.8" fill="#c0392b" stroke="#e8b44c" stroke-width="1"/><path d="M50 27q2-8 7-10" stroke="#e8b44c" stroke-width="1.4" fill="none"/>`,
-    crown: () => `<path d="M34 39c3-11 9-15.5 16-15.5S63 28 66 39c-5-3-10-4-16-4s-11 1-16 4z" fill="${L.hair}"/><ellipse cx="50" cy="23" rx="8" ry="6" fill="${L.hair}"/>
-      <path d="M36 31l-7-5M64 31l7-5" stroke="#e8b44c" stroke-width="2.2" stroke-linecap="round"/><circle cx="50" cy="22" r="3.2" fill="#e8b44c"/><circle cx="29" cy="26" r="2" fill="#c0392b"/><circle cx="71" cy="26" r="2" fill="#c0392b"/>`,
-    cap: () => `<path d="M34 39c2-10 8-14.5 16-14.5s14 4.5 16 14.5c-5-2.5-10-3.5-16-3.5s-11 1-16 3.5z" fill="${L.cap}"/><path d="M32 39.5q18-5 36 0" stroke="${shade(L.cap, -0.3)}" stroke-width="2.4" fill="none"/>`
-  }[L.hat] || (() => tricorn))();
-  const eyes = L.patch
-    ? `<circle cx="44.5" cy="47.5" r="1.8" fill="#24160f"/><path d="M36 40.5L64.5 44" stroke="#111" stroke-width="1.5"/><ellipse cx="55.5" cy="47.5" rx="4.2" ry="3.6" fill="#111"/>`
-    : `<circle cx="44.5" cy="47.5" r="1.8" fill="#24160f"/><circle cx="55.5" cy="47.5" r="1.8" fill="#24160f"/>`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="256" height="256">
-    <defs><radialGradient id="b" cx="50%" cy="36%" r="72%"><stop offset="0" stop-color="${shade(c, 0.42)}"/><stop offset="1" stop-color="${shade(c, -0.25)}"/></radialGradient></defs>
-    <rect width="100" height="100" fill="url(#b)"/>
-    ${L.smoke ? '<g fill="#fff" opacity=".22"><circle cx="24" cy="30" r="7"/><circle cx="18" cy="22" r="5"/><circle cx="78" cy="28" r="6"/><circle cx="84" cy="20" r="4.5"/></g>' : ''}
-    ${L.long ? `<path d="M32 46q-2 18-7 30h50q-5-12-7-30z" fill="${L.hair}"/>` : ''}
-    <path d="M11 100c1-19 15-29.5 39-29.5S88 81 89 100z" fill="${L.coat}"/>
-    <path d="M11 100c1-19 15-29.5 39-29.5" stroke="${shade(L.coat, 0.25)}" stroke-width="1.5" fill="none" opacity=".6"/>
-    <path d="M38.5 72l11.5 15 11.5-15-5-1.5-6.5 7-6.5-7z" fill="#efe6d2"/>
-    <rect x="44" y="58" width="12" height="15" rx="4" fill="${dk}"/>
-    <ellipse cx="35.8" cy="48.5" rx="2.6" ry="4" fill="${dk}"/><ellipse cx="64.2" cy="48.5" rx="2.6" ry="4" fill="${dk}"/>
-    <ellipse cx="50" cy="47.5" rx="14.5" ry="16.5" fill="${sk}"/>
-    <path d="M36 44q1-9 14-10t14 10q-3-6-14-6.5T36 44z" fill="${L.hair}"/>
-    ${eyes}
-    <path d="M41 43q3.5-2 7 0M52 43q3.5-2 7 0" stroke="${shade(L.hair, -0.1)}" stroke-width="1.4" fill="none" stroke-linecap="round"/>
-    <path d="M50 49q-2.6 4 0 6.2" stroke="${shade(sk, -0.35)}" stroke-width="1.2" fill="none" stroke-linecap="round"/>
-    <path d="M46 58.5q4 2 8 0" stroke="#8c3b2c" stroke-width="1.4" fill="none" stroke-linecap="round"/>
-    ${beard}${hat}
-  </svg>`;
-  return (PORTRAITS[h] = svgUri(svg));
-}
+// ----- the pictures of the archipelago's places (made from its Higgsfield references): each sea's for its islands, its own
+// for Gotland's walled town, the great treasures, the ships, the lighthouse, the shipyard, the customs house, the whirlpool,
+// the corners, the chest and the bottle -----
+const SEA_SCENES = { g: ['sc_north', 'sc_med', 'sc_atlantic', 'sc_antilles', 'sc_caribbean', 'sc_indian', 'sc_pacific', null], 3: 'sc_gotland', 37: 'sc_oak', 39: 'sc_cocos',
+  5: 'sc_qar', 15: 'sc_whydah', 25: 'sc_galley', 35: 'sc_fortune', 12: 'sc_lighthouse', 28: 'sc_shipyard', 4: 'sc_customs', 38: 'sc_whirlpool',
+  0: 'sc_port', 10: 'sc_isle', 20: 'sc_tavern', 30: 'sc_kraken', chest: 'sc_chest', scroll: 'sc_bottle' };
+const seaScene = t => SEA_SCENES[t.i] || (t.k === 'p' ? SEA_SCENES.g[t.g] : SEA_SCENES[t.k]) || null;
 
+// (where a place has no picture of its own, one is drawn)
 // ----- the picture behind a square's name: its sea, as it looks there -----
 const SEA_LOOK = [
   { sky: ['#8299ad', '#d3dbe0'], sea: ['#456a82', '#22405a'], sun: '#f4f1df', land: 'cliff' },      // the north: Heligoland's red cliffs

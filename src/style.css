@@ -176,7 +176,7 @@ img { max-width: 100%; }
 .panel .last li:first-child { color: #dfe3ea; }
 .dock { position: relative; z-index: 3; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 8px 10px 8px; border-top: 2px solid var(--gold-lo);
   background: linear-gradient(180deg, var(--wood-3), var(--wood) 35%, var(--wood-2)); box-shadow: 0 -4px 14px rgba(0, 0, 0, .5); }
-.dock button { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 0; border: 0; background: none; color: var(--cream); font-size: 11px; font-weight: 700; }
+.dock button { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 0; border: 0; background: none; color: var(--cream); font-size: 11px; font-weight: 700; white-space: nowrap; }
 .dock .rb { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: radial-gradient(circle at 50% 30%, #3b4254, #181d28 72%);
   box-shadow: 0 0 0 2px var(--gold), 0 0 0 4px var(--wood-2), 0 3px 8px rgba(0, 0, 0, .55); }
 .dock .rb img { width: 32px; height: 32px; object-fit: contain; }
@@ -332,7 +332,12 @@ button.qz-b:disabled { cursor: default; opacity: .7; }
 .story-b h4 { margin: 0 0 3px; font-size: 11.5px; letter-spacing: .06em; color: #8fc6ff; }
 .story-b p { margin: 0; font-size: 14px; line-height: 1.5; }
 .prose.bio { margin: -2px 0 8px; font-size: 13.5px; color: var(--muted); }
-/* the archipelago: its sky and sea behind the board, its icons */
+/* the archipelago: its sky and sea behind the board, its golden board behind the lobby, its icons */
+#app[data-world="archipelago"] #scr-lobby { background: linear-gradient(180deg, rgba(13, 16, 22, .55), rgba(13, 16, 22, .9) 45%, var(--ink) 85%), url(art/bg_sea.webp) 50% 0 / cover; }
+.bc-h, .deed-h { background-size: cover; }
+.qz-h { background-size: cover; background-position: right center; }
+.cardpop .card.pic { padding-top: 0; overflow: hidden; }
+.cardpop .card-pic { height: 96px; margin: 0 -16px 8px; background: right center / cover; }
 #app[data-world="archipelago"] .scene {
   background: linear-gradient(180deg, rgba(13, 16, 22, .8) 0, rgba(13, 16, 22, .25) 14%, rgba(13, 16, 22, 0) 30%, rgba(13, 16, 22, .1) 58%, rgba(13, 16, 22, .88) 82%, var(--ink) 100%),
     linear-gradient(180deg, #5aa7dc 0%, #bfe6f5 40%, #39a9c4 54%, #0f5d86 100%); }

@@ -8,8 +8,8 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const ART = n => 'art/' + n + '.webp';
 const fmt = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 const coin = n => `<b class="amt"><i class="ci"></i>${fmt(n)}</b>`;
-// a hero's portrait (the pirates are drawn in pictures.js until their own pictures come)
-const por = h => HEROES[h] && HEROES[h].t === 'archipelago' ? piratePor(h) : ART('por_h_' + h);
+// a hero's portrait (a king or hero of მამული, or a pirate)
+const por = h => ART((HEROES[h] && HEROES[h].t === 'archipelago' ? 'por_p_' : 'por_h_') + h);
 const pName = (st, s) => st && st.players[s] ? st.players[s].name : '?';
 const tName = i => BOARD[i].n.replace(/\u00ad/g, '');
 // a level as pictures: one to four little towers (huts in the archipelago), or the fortress
@@ -23,7 +23,7 @@ const SCENES = ['g_pass', 'g_svan', 'g_elbrus', 'g_elbrus', 'g_stone', 'g_stone'
 const SCENE_POS = ['50% 70%', '50% 35%', '30% 60%', '70% 40%', '40% 30%', '75% 55%', '20% 70%', '50% 50%'];
 // the picture behind a square's name on its card: a Georgian landscape, or in the archipelago its sea and island
 function sceneBg(t, fade) {
-  if (sea()) return `background-image:${fade},url('${seaArt(t)}');background-position:50% 62%`;
+  if (sea()) { const sc = seaScene(t); return sc ? `background-image:${fade},url(${ART(sc)});background-position:right center` : `background-image:${fade},url('${seaArt(t)}');background-position:50% 62%`; }
   const scene = t.k === 'p' ? SCENES[t.g] : t.k === 'road' ? 'g_pass' : 'g_elbrus', at = t.k === 'p' ? SCENE_POS[t.g] : '50% 50%';
   return `background-image:${fade},url(${ART(scene)});background-position:${at}`;
 }
@@ -340,7 +340,7 @@ const View = (() => {
     const chip = $(`#players .pl[data-s="${s}"]`);
     if (chip) {
       const b = chip.querySelector('.pc');
-      if (b) b.innerHTML = coin(cash[s]);
+      if (b) { b.innerHTML = coin(cash[s]); playersHTML = ''; }       // (the strip is drawn whole again next time)
       const f = document.createElement('span');
       f.className = 'float ' + (d > 0 ? 'up' : 'down');
       f.textContent = (d > 0 ? '+' : '−') + fmt(Math.abs(d));
@@ -383,7 +383,8 @@ const View = (() => {
     const c = Engine.deckOf(target)[e.d][e.id], box = $('#cardpop');
     if (!box) return;
     const title = e.d === 's' ? W.scroll : W.chest;
-    box.innerHTML = `<div class="card ${e.d}"><img src="${ART(e.d === 's' ? 'ui_page' : 'ui_chest_wood_o')}" alt=""><h3>${title}</h3><p>${esc(c.t)}</p><small>${esc(pName(target, e.s))}</small></div>`;
+    const pic = sea() && e.d === 's' ? `<div class="card-pic" style="background-image:url(${ART('sc_bottle')})"></div>` : `<img src="${ART(e.d === 's' ? 'ui_page' : 'ui_chest_wood_o')}" alt="">`;
+    box.innerHTML = `<div class="card ${e.d}${pic.startsWith('<div') ? ' pic' : ''}">${pic}<h3>${title}</h3><p>${esc(c.t)}</p><small>${esc(pName(target, e.s))}</small></div>`;
     box.hidden = false;
     box.classList.remove('go'); void box.offsetWidth; box.classList.add('go');
     Sound.card();
@@ -421,10 +422,11 @@ const View = (() => {
     const seq = st.seq;
     autoT = setTimeout(() => { if (shown && shown.seq === seq && !playing && !Sheet.kind()) move({ t: 'end' }); }, 1300);
   }
+  let playersHTML = '';
   function renderPlayers() {
     const st = shown, box = $('#players');
     if (!box) return;
-    box.innerHTML = st.players.map((p, s) => {
+    const html = st.players.map((p, s) => {
       const me = controls(s) && ROOM && ROOM.role !== 'local';
       const tag = me ? '<span class="tag me">შენ</span>' : p.away && !p.bot ? '<span class="tag warn">არ არის</span>' : p.bot ? '<span class="tag">ბოტი</span>' : '';
       const icons = (p.jail ? (sea() ? `<i class="ic" title="${esc(W.inJail)}">${ISLE_SVG}</i>` : `<img src="${ART('t_palisade')}" alt="${esc(W.inJail)}" title="${esc(W.inJail)}">`) : '')
@@ -432,6 +434,8 @@ const View = (() => {
       return `<button class="pl${st.turn === s && st.phase !== 'over' ? ' now' : ''}${p.out ? ' out' : ''}" data-s="${s}" style="--c:${SEAT_COLORS[s]}">
         <img class="pp" src="${por(p.hero)}" alt=""><span class="pn">${esc(p.name)}</span><span class="pc">${p.out ? '<b class="amt">გაკოტრდა</b>' : coin(cash[s] != null ? cash[s] : p.cash)}${icons ? `<span class="pi">${icons}</span>` : ''}</span>${tag ? `<span class="pf">${tag}</span>` : ''}</button>`;
     }).join('');
+    // drawn again only when something in it changed (the faces are not made anew with every step of a move)
+    if (html !== playersHTML || !box.firstChild) { box.innerHTML = html; playersHTML = html; }
     box.onclick = ev => { const b = ev.target.closest('.pl'); if (b) Sheet.open('player', +b.dataset.s); };
     const r = $('#round');
     if (r) r.textContent = st.cfg.mode === 'rounds' ? `რაუნდი ${st.round} / ${st.cfg.rounds}` : `რაუნდი ${st.round}`;
@@ -584,7 +588,7 @@ const View = (() => {
   const LETTERS = ['ა', 'ბ', 'გ'];
   const quizItem = (st, q) => { const Q = themeOf(st).quiz; return Q && Q[q]; };
   function quizHead(st, s) {
-    return `<div class="qz-h"><img src="${ART('ui_chest_wood_o')}" alt=""><div><b>${esc(W.chest)}</b><small>გახსნა ${esc(pName(st, s))} · სწორ პასუხზე მას ${coin(QUIZ_WIN)}, სხვებს ${coin(QUIZ_SHARE)}</small></div></div>`;
+    return `<div class="qz-h" style="background-image:linear-gradient(90deg,rgba(44,27,16,.96) 30%,rgba(44,27,16,.55) 62%,rgba(44,27,16,.15)),url(${ART('sc_chest')})"><img src="${ART('ui_chest_wood_o')}" alt=""><div><b>${esc(W.chest)}</b><small>გახსნა ${esc(pName(st, s))} · სწორ პასუხზე მას ${coin(QUIZ_WIN)}, სხვებს ${coin(QUIZ_SHARE)}</small></div></div>`;
   }
   function renderQuiz() {
     const st = shown, box = $('#buycard'), Q = st && st.quiz, item = Q && quizItem(st, Q.q);
@@ -757,6 +761,7 @@ const Sheet = (() => {
       rows = `<ul class="rents"><li class="${n === 1 ? 'on' : ''}"><span class="ph"></span><span>ერთი გაქვს: კამათლის ჯამი ×4</span></li><li class="${n === 2 ? 'on' : ''}"><span class="ph"></span><span>ორივე გაქვს: კამათლის ჯამი ×10</span></li></ul><p class="facts"><span>ფასი ${coin(t.p)}</span><span>დაგირავება ${coin(t.p / 2)}</span></p>`;
     } else {
       const a = W.about[t.k], about = typeof a === 'function' ? a(t) : a;
+      if (sea() && seaScene(t)) return `<button class="x float-x" data-close aria-label="დახურვა">×</button><div class="deed-h" style="${sceneBg(t, 'linear-gradient(180deg,rgba(13,16,22,0),rgba(13,16,22,.85))')}"><h2>${esc(t.n)}</h2></div><p class="prose">${about}</p>${story(i)}`;
       return `<div class="sheet-h"><h2>${esc(t.n)}</h2><button class="x" data-close aria-label="დახურვა">×</button></div><p class="prose">${about}</p>${story(i)}`;
     }
     const owner = o ? `<p class="owner"><img src="${por(st.players[o.o].hero)}" alt="" style="--c:${SEAT_COLORS[o.o]}">${esc(st.players[o.o].name)}${o.m ? ' · <b class="bad">დაგირავებული</b>' : ''}</p>` : '<p class="owner free">ჯერ არავისია</p>';

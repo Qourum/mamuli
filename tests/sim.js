@@ -40,6 +40,14 @@ function check(st) {
   st.ev.forEach((e, k) => assert(e.n === st.evn - st.ev.length + 1 + k, `event number ${e.n} (${e.k}) at ${k} of ${st.ev.length}, last ${st.evn}`, st));
   if (st.phase === 'debt') assert(st.pend && st.pend.a > 0, 'debt without amount');
   if (st.phase === 'buy') assert(st.pend && !st.own[st.pend.i], 'buying an owned square');
+  if (st.phase === 'auction') {
+    const A = st.auc;
+    assert(A && !st.own[A.i] && st.pend && st.pend.k === 'auction', 'auction without its town', st);
+    if (A) assert(A.by < 0 || (st.players[A.by].cash >= A.hi && !A.out.includes(A.by)), 'a bid nobody can pay', st);
+  } else assert(!st.auc, 'an auction left over in phase ' + st.phase, st);
+  // the dice's throws are numbered: every screen can work them out
+  const r = st.ev.filter(e => e.k === 'roll');
+  if (r.length) assert(r[r.length - 1].w === E.throwSeed(st, st.rolls), 'throw seed', st);
 }
 
 function game(seed, n, cfg, withTrades) {
@@ -50,7 +58,7 @@ function game(seed, n, cfg, withTrades) {
   E.lobbyAct(st, 'p0', { t: 'cfg', ...cfg }, rnd);
   st.players.forEach(p => p.bot = true);
   assert(E.lobbyAct(st, 'p0', { t: 'start' }, rnd) === '', 'start');
-  let moves = 0, trades = 0;
+  let moves = 0, trades = 0, seen = 0;
   while (st.phase !== 'over' && moves < 60000) {
     // sometimes the player whose turn it is offers a random trade
     if (withTrades && !st.trade && (st.phase === 'roll' || st.phase === 'end') && rnd() < 0.05) {
@@ -62,6 +70,7 @@ function game(seed, n, cfg, withTrades) {
       if (!r) { trades++; check(st); }
     }
     let acted = false;
+    if (st.phase === 'auction') stat.auctions = (stat.auctions || 0) + (st.auc.n === 0 && st.auc.out.length === 0 ? 1 : 0);
     for (let s = 0; s < st.players.length && !acted; s++) {
       const a = E.botMove(st, s);
       if (!a) continue;
@@ -70,16 +79,21 @@ function game(seed, n, cfg, withTrades) {
       if (r) return { stuck: true };
       acted = true;
     }
+    if (!acted && st.phase === 'auction') { E.hammer(st); acted = true; stat.hammers = (stat.hammers || 0) + 1; }   // the host's clock
     assert(acted, 'nobody can move in phase ' + st.phase, st);
     if (!acted) return { stuck: true };
     check(st);
+    seen = countLog(st, seen);
     moves++;
   }
   return { over: st.phase === 'over', moves, rounds: st.round, out: st.players.filter(p => p.out).length, trades, st };
 }
+// the auction's outcome is counted from the log as it goes by
+function countLog(st, from) { for (const e of st.ev) if (e.n > from) { if (e.k === 'won') stat.won++; if (e.k === 'unsold') stat.unsold++; } return st.evn; 
+}
 
 const N = +(process.argv[2] || 300);
-const stat = { rounds: [], full: [], outs: 0, stuck: 0, unfinished: 0, trades: 0 };
+const stat = { rounds: [], full: [], outs: 0, stuck: 0, unfinished: 0, trades: 0, auctions: 0, hammers: 0, won: 0, unsold: 0 };
 for (let g = 0; g < N; g++) {
   const n = 2 + (g % 5);
   const r1 = game(1000 + g, n, { mode: 'rounds', rounds: [20, 30, 40][g % 3] }, g % 2 === 0);
@@ -93,4 +107,5 @@ console.log(`games: ${N * 2}, failures: ${fail}, stuck: ${stat.stuck}, unfinishe
 console.log(`round-limit games: avg ${avg(stat.rounds)} moves; bankruptcies ${stat.outs}`);
 console.log(`full games: rounds avg ${avg(stat.full)}, median ${med(stat.full)}, max ${Math.max(...stat.full)}`);
 console.log(`trades done: ${stat.trades}`);
+console.log(`auctions: ${stat.auctions}, sold ${stat.won}, unsold ${stat.unsold}, ended by the clock ${stat.hammers}`);
 process.exit(fail ? 1 : 0);

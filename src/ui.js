@@ -24,7 +24,8 @@ const ERR = {
   even: 'კოშკები კუთხეში თანაბრად შენდება და თანაბრად იყიდება', mort: 'ჯერ ამ კუთხის კოშკები უნდა გაყიდო', max: 'აქ უკვე ციხეა',
   own: 'ეს შენი არ არის', bad: 'ასე არ შეიძლება', empty: 'შეთავაზება ცარიელია', stale: 'შეთავაზება აღარ მოქმედებს',
   host: 'ამას მხოლოდ მასპინძელი აკეთებს', few: 'საჭიროა მინიმუმ ორი მოთამაშე', taken: 'ეს გმირი უკვე დაკავებულია',
-  full: 'ოთახი სავსეა', watch: 'ამ თამაშს მხოლოდ უყურებ', started: 'თამაში უკვე დაიწყო', out: 'შენ გაკოტრდი', over: 'თამაში დასრულდა'
+  full: 'ოთახი სავსეა', watch: 'ამ თამაშს მხოლოდ უყურებ', started: 'თამაში უკვე დაიწყო', out: 'შენ გაკოტრდი', over: 'თამაში დასრულდა',
+  passed: 'აუქციონიდან უკვე გამოხვედი'
 };
 
 // the roll button's picture
@@ -66,6 +67,8 @@ const Sound = (() => {
     turn() { tone(660, 0.14, 'sine', 0.09); tone(880, 0.2, 'sine', 0.09, 0.12); },
     build() { tone(220, 0.08, 'square', 0.05); tone(330, 0.12, 'square', 0.05, 0.08); },
     bad() { tone(160, 0.25, 'sawtooth', 0.05); },
+    bid() { tone(990, 0.07, 'triangle', 0.06); tone(1320, 0.09, 'triangle', 0.05, 0.05); },
+    gavel() { noise(0.09, 420, 0.7); noise(0.09, 380, 0.6, 0.2); tone(140, 0.12, 'sine', 0.08, 0.2); },
     // the land growing out of the board: a low rumble
     rumble() { for (let k = 0; k < 7; k++) noise(0.5, 55 + k * 10, 0.55, k * 0.17); tone(46, 1.3, 'sine', 0.06); },
     card() { tone(740, 0.08, 'sine', 0.06); tone(990, 0.12, 'sine', 0.06, 0.06); }
@@ -117,6 +120,7 @@ const View = (() => {
     const first = st.evn - st.ev.length + 1;
     if (!built || !shown || shown.phase === 'lobby' || st.evn < lastEv || first > lastEv + 1) { reset(st); return; }
     target = clone(st);
+    expectThrow(target);
     const fresh = target.ev.slice(Math.max(0, lastEv + 1 - first));
     if (fresh.length) batch++;
     for (const e of fresh) { e._b = batch; q.push(e); }     // which change of the state it came with
@@ -126,8 +130,12 @@ const View = (() => {
     endsAt = Math.max(endsAt, Date.now()) + estimate(fresh);
     if (!playing) play();
   }
+  // the next throw of the dice is known already: it is worked out while there is time
+  function expectThrow(st) { if (st && st.phase !== 'lobby' && st.phase !== 'over') Dice3D.expect(Engine.throwSeed(st, st.rolls + 1)); }
   function reset(st) {
     target = clone(st); shown = clone(st); lastEv = st.evn; q = []; playing = false; idleAt = Date.now(); speed(1);
+    expectThrow(target);
+    caughtUp(shown.evn);
     gen++;
     if (gl && Board3D.ok) Board3D.halt();
     if (Dice3D.busy) Dice3D.skip();
@@ -175,7 +183,7 @@ const View = (() => {
     const my = ++gen;
     playing = true;
     clearTimeout(autoT);
-    hideBuy();
+    if (!(target && target.phase === 'auction' && shown && shown.phase === 'auction')) hideBuy();   // the auction's card stays while bids come in
     while (q.length && gen === my) {
       const e = q.shift();
       current = e;
@@ -201,13 +209,14 @@ const View = (() => {
     pos = shown.players.map(p => p.pos);
     cash = shown.players.map(p => p.cash);
     render();
+    caughtUp(shown.evn);                 // the host waits for the slowest screen before the computer players move on
   }
 
   // ----- one event on screen -----
   async function animate(e) {
     const st = target;
     switch (e.k) {
-      case 'roll': if (gl) { Board3D.focus(e.s); Sound.dice(); await Dice3D.roll(e.d); } break;
+      case 'roll': if (gl) { Board3D.focus(e.s); Sound.dice(); await Dice3D.roll(e.d, e.w); } break;
       case 'move': {
         const n = stepsOf(e), g0 = gen;
         Board3D.focus(e.s);
@@ -215,20 +224,38 @@ const View = (() => {
         if (gen === g0) pos[e.s] = e.to;
         break;
       }
-      case 'jail': { const g0 = gen; Board3D.focus(e.s); await Board3D.fly(e.s, JAIL); if (gen === g0) pos[e.s] = JAIL; Sound.bad(); await wait(200); break; }
+      case 'jail': { const g0 = gen; Board3D.focus(e.s); bubble(e.s, 'ზინდანში!', 'bad'); await Board3D.fly(e.s, JAIL); if (gen === g0) pos[e.s] = JAIL; Sound.bad(); await wait(200); break; }
+      case 'free': bubble(e.s, 'გამოვიდა ზინდანიდან', 'good'); break;
+      case 'stay': bubble(e.s, 'ზინდანში რჩება', ''); break;
+      case 'debt': bubble(e.s, `ვალი ${coin(e.a)}`, 'bad'); break;
       case 'salary': case 'gain': money(e.s, e.a); Sound.coin(); await wait(260); break;
       case 'pay': {
         money(e.s, -e.a); if (e.to >= 0) money(e.to, e.a);
         if (gl) Board3D.coins(e.s, e.to, e.a);
-        if (e.why === 'rent') toastEv(`${esc(pName(st, e.s))} → ${esc(pName(st, e.to))}: ქირა ${coin(e.a)}`, controls(e.to) ? 'good' : controls(e.s) ? 'bad' : '');
-        else if (e.why === 'tax' && controls(e.s)) toastEv(`${esc(tName(e.i))}: ${coin(e.a)}`, 'bad');
+        if (e.why === 'rent') {                    // the notes by the two chips tell everyone; the toast only those who paid or got it
+          if (controls(e.s) || controls(e.to)) toastEv(`${esc(pName(st, e.s))} → ${esc(pName(st, e.to))}: ქირა ${coin(e.a)}`, controls(e.to) ? 'good' : 'bad');
+          bubble(e.s, `ქირა → ${esc(pName(st, e.to))}`, 'bad'); bubble(e.to, 'მიიღო ქირა', 'good');
+        }
+        else if (e.why === 'tax') { if (controls(e.s)) toastEv(`${esc(tName(e.i))}: ${coin(e.a)}`, 'bad'); bubble(e.s, esc(tName(e.i)), 'bad'); }
+        else bubble(e.s, e.why === 'fine' ? 'ზინდანის გამოსასყიდი' : e.why === 'repair' ? 'შეკეთება' : 'გადაიხადა', 'bad');
         Sound.pay(); await wait(450); break;
       }
-      case 'buy': Board3D.setOwner(e.i, e.s, true); money(e.s, -e.a); Sound.coin(); await wait(450); whole(st, e.s, [e.i]); break;
-      case 'build': case 'sell': Board3D.setLevel(e.i, e.lv, true); money(e.s, e.k === 'build' ? -Engine.buildCost(e.i) : Engine.buildCost(e.i) / 2); Sound.build(); await wait(380); break;
-      case 'mort': Board3D.setMort(e.i, true, true); money(e.s, Engine.mortValue(e.i)); await wait(240); break;
-      case 'unmort': Board3D.setMort(e.i, false, true); money(e.s, -Engine.unmortCost(e.i)); await wait(240); break;
-      case 'card': await showCard(e); break;
+      case 'buy': Board3D.setOwner(e.i, e.s, true); money(e.s, -e.a); bubble(e.s, `იყიდა: ${esc(tName(e.i))}`, 'good'); Sound.coin(); await wait(450); whole(st, e.s, [e.i]); break;
+      case 'skip': bubble(e.s, `აუქციონზე: ${esc(tName(e.i))}`, ''); break;
+      // the auction: its card is drawn from the state; the events only add sound, the notes and the town's owner
+      case 'auction': Sheet.close(true); Board3D.focus(e.s); Board3D.pop(e.i, 0.08); Sound.gavel(); await wait(250); break;
+      case 'bid': bubble(e.s, coin(e.a), 'bid'); Sound.bid(); await wait(120); break;
+      case 'pass': bubble(e.s, 'გავიდა', ''); break;
+      case 'won': {
+        Board3D.setOwner(e.i, e.s, true); money(e.s, -e.a); Sound.gavel(); bubble(e.s, `იყიდა: ${esc(tName(e.i))}`, 'good');
+        toastEv(`${esc(pName(st, e.s))}: ${esc(tName(e.i))} აუქციონზე · ${coin(e.a)}`, controls(e.s) ? 'good' : '');
+        await wait(600); whole(st, e.s, [e.i]); break;
+      }
+      case 'unsold': toastEv(`${esc(tName(e.i))}: აუქციონზე არავინ იყიდა`); await wait(300); break;
+      case 'build': case 'sell': Board3D.setLevel(e.i, e.lv, true); money(e.s, e.k === 'build' ? -Engine.buildCost(e.i) : Engine.buildCost(e.i) / 2); bubble(e.s, e.k === 'build' ? `${LEVEL_NAMES[e.lv]}: ${esc(tName(e.i))}` : `გაყიდა კოშკი: ${esc(tName(e.i))}`, e.k === 'build' ? 'good' : ''); Sound.build(); await wait(380); break;
+      case 'mort': Board3D.setMort(e.i, true, true); money(e.s, Engine.mortValue(e.i)); bubble(e.s, `დააგირავა: ${esc(tName(e.i))}`, 'bad'); await wait(240); break;
+      case 'unmort': Board3D.setMort(e.i, false, true); money(e.s, -Engine.unmortCost(e.i)); bubble(e.s, `გამოისყიდა: ${esc(tName(e.i))}`, 'good'); await wait(240); break;
+      case 'card': bubble(e.s, e.d === 's' ? 'ბედის გრაგნილი' : 'საგანძური', ''); await showCard(e); break;
       case 'turn': {
         Board3D.focus(e.s); Board3D.setTurn(e.s);
         const mine = controls(e.s) && ROOM && ROOM.role !== 'local';
@@ -247,7 +274,7 @@ const View = (() => {
         whole(st, e.to, e.give.p); whole(st, e.from, e.get.p);
         toastEv(`${esc(pName(st, e.from))} ⇄ ${esc(pName(st, e.to))}: გარიგება შედგა`, 'good'); Sound.coin(); await wait(500); break;
       }
-      case 'bankrupt': toastEv(`${esc(pName(st, e.s))} გაკოტრდა`, 'bad'); Sound.bad(); await wait(700); break;
+      case 'bankrupt': toastEv(`${esc(pName(st, e.s))} გაკოტრდა`, 'bad'); bubble(e.s, 'გაკოტრდა', 'bad'); Sound.bad(); await wait(700); break;
     }
   }
 
@@ -274,6 +301,30 @@ const View = (() => {
       chip.appendChild(f);
       setTimeout(() => f.remove(), 1300);
     }
+  }
+  // a short note by a player's picture at the top of the screen: what just happened to them (everyone sees it)
+  const notes = [];
+  function bubble(s, html, kind) {
+    const chip = $(`#players .pl[data-s="${s}"]`), box = $('#bubbles'), list = $('#players');
+    if (!chip || !box || document.visibilityState === 'hidden') return;
+    const r = chip.getBoundingClientRect(), b = document.createElement('div'), pl = (target || shown).players[s];
+    b.className = 'bub ' + (kind || '');
+    // whose note it is, with their face: a note may lie over someone else's chip
+    b.innerHTML = (pl ? `<img src="${por(pl.hero)}" alt="">` : '') + `<span>${html}</span>`;
+    b.style.setProperty('--c', SEAT_COLORS[s]);
+    if (notes[s]) notes[s].remove();                                                    // one note per player: a newer one replaces it
+    notes[s] = b;
+    box.appendChild(b);
+    if (matchMedia('(orientation: landscape) and (min-width: 640px)').matches) {
+      // the players are listed at the side: the note goes to the left of the list, level with the chip (in two columns
+      // the left one's a little higher, the right one's lower, so that two notes of one row can both be read)
+      const L = (list || chip).getBoundingClientRect(), dy = L.width > r.width * 1.5 ? (r.left - L.left > 10 ? 11 : -11) : 0;
+      b.classList.add('side'); b.style.right = (innerWidth - L.left + 8) + 'px'; b.style.top = (r.top + r.height / 2 + dy) + 'px';
+    } else {                                                                            // hanging from its chip, whole on the screen
+      const cx = r.left + r.width / 2, h = b.offsetWidth / 2 + 6, x = Math.max(h, Math.min(innerWidth - h, cx));
+      b.style.left = x + 'px'; b.style.top = (r.bottom + 3) + 'px'; b.style.setProperty('--tx', (cx - x).toFixed(1) + 'px');
+    }
+    setTimeout(() => { b.classList.add('bye'); setTimeout(() => { b.remove(); if (notes[s] === b) notes[s] = null; }, 350); }, 2600);
   }
   function banner(text, s) {
     const b = $('#banner'); if (!b) return;
@@ -379,6 +430,9 @@ const View = (() => {
       acts = `<button class="btn gold" data-sheet="offer">შეთავაზების ნახვა</button>`;
     } else if (st.trade && st.phase !== 'over') {
       extra = `<p class="hint">${esc(pName(st, st.trade.from))} ვაჭრობას სთავაზობს: ${esc(pName(st, st.trade.to))}</p>`;
+    } else if (st.phase === 'auction' && st.auc) {
+      status = `აუქციონი: <b>${esc(tName(st.auc.i))}</b>`;
+      extra = `<p class="hint">ფასს ყველა ასახელებს. ბოლო ფასის შემდეგ რამდენიმე წამში იყიდება.</p>`;
     } else if (st.phase === 'buy') {
       extra = `<p class="hint">ფიქრობს, იყიდოს თუ არა: ${esc(tName(st.pend.i))}</p>`;
     } else if (st.phase === 'over') {
@@ -393,15 +447,67 @@ const View = (() => {
     if (ul && !ul.children.length) ul.remove();
     if (busy) $$('[data-a]', c).forEach(b => { b.disabled = true; });
   }
+  // what a square is, in the card's head: its region's colour and picture
+  function cardHead(t, extra) {
+    const col = t.k === 'p' ? GROUPS[t.g].c : '#7b5532';
+    const head = `<span class="chip" style="--g:${col}">${esc(t.k === 'p' ? GROUPS[t.g].n : t.k === 'road' ? 'ქარვასლა' : 'მეურნეობა')}</span>${extra || ''}`;
+    const scene = t.k === 'p' ? SCENES[t.g] : t.k === 'road' ? 'g_pass' : 'g_elbrus', at = t.k === 'p' ? SCENE_POS[t.g] : '50% 50%';
+    return `<div class="bc-h" style="--g:${col};background-image:linear-gradient(180deg,rgba(13,16,22,0),rgba(13,16,22,.8)),url(${ART(scene)});background-position:${at}">${head}<h3>${esc(t.n.replace(/­/g, ''))}</h3></div>`;
+  }
+  // someone else is deciding whether to buy: everyone sees who, which town and its price
+  function renderWatch() {
+    const st = shown, box = $('#watch');
+    if (!box) return;
+    if (!st || st.phase !== 'buy' || !st.pend || controls(st.turn) || playing) { box.hidden = true; box.dataset.k = ''; return; }
+    const t = BOARD[st.pend.i], p = st.players[st.turn], col = t.k === 'p' ? GROUPS[t.g].c : '#7b5532', k = st.tn + ':' + st.pend.i;
+    if (box.dataset.k === k && !box.hidden) return;
+    box.dataset.k = k;
+    box.innerHTML = `<div class="wc" style="--c:${SEAT_COLORS[st.turn]};--g:${col}"><img src="${por(p.hero)}" alt=""><div class="wc-w"><b>${esc(p.name)}</b><span>ყიდვაზე ფიქრობს<i class="dots"><i></i><i></i><i></i></i></span></div>
+      <div class="wc-t"><small>${esc(t.k === 'p' ? GROUPS[t.g].n : t.k === 'road' ? 'ქარვასლა' : 'მეურნეობა')}</small><b>${esc(tName(st.pend.i))}</b>${coin(t.p)}</div></div>`;
+    box.hidden = false; box.classList.remove('go'); void box.offsetWidth; box.classList.add('go');
+  }
+  // the auction, the same card on every screen: the town, the highest bid and who made it, the clock until the
+  // hammer falls, who is still in; and the buttons for whoever bids from this device
+  const AUC_SHOW = { first: 8.5, after: 6.5 };          // seconds the clock shows (the host's hammer falls a little later)
+  let aucKey = '', aucAt = 0;
+  function renderAuction() {
+    const st = shown, box = $('#buycard'), A = st && st.auc;
+    if (!box || !A || st.phase !== 'auction') return false;
+    const t = BOARD[A.i], key = st.tn + ':' + A.i + ':' + A.n;
+    if (key !== aucKey) { aucKey = key; aucAt = performance.now(); }
+    const dur = A.n ? AUC_SHOW.after : AUC_SHOW.first, gone = Math.min(dur, (performance.now() - aucAt) / 1000);
+    const lead = A.by >= 0 ? st.players[A.by] : null;
+    const top = lead ? `<div class="au-bid"><img src="${por(lead.hero)}" alt="" style="--c:${SEAT_COLORS[A.by]}"><span><small>${esc(lead.name)}</small>${coin(A.hi)}</span></div>`
+      : `<div class="au-bid none"><span><small>ჯერ არავის დაუსახელებია ფასი</small><b>დაიწყე ${coin(Engine.BID_STEP)}-დან</b></span></div>`;
+    const who = Engine.activeSeats(st).map(s => `<img src="${por(st.players[s].hero)}" alt="${esc(st.players[s].name)}" title="${esc(st.players[s].name)}" class="${s === A.by ? 'lead' : A.out.includes(s) ? 'out' : ''}" style="--c:${SEAT_COLORS[s]}">`).join('');
+    // this device's bidders: one person online, everyone at this screen in a game of several on one phone
+    const mine = Engine.activeSeats(st).filter(s => controls(s));
+    const many = mine.length > 1;
+    const rows = mine.map(s => {
+      const p = st.players[s], L = Engine.legal(st, s);
+      if (L.lead) return `<p class="hint good">${many ? esc(p.name) + ': ' : ''}შენი ფასია ყველაზე მაღალი</p>`;
+      if (!L.pass) return `<p class="hint">${many ? esc(p.name) + ': ' : ''}აუქციონიდან გამოხვედი</p>`;
+      const btn = inc => `<button class="btn gold" data-a="bid" data-inc="${inc}" data-seat="${s}" ${A.hi + inc <= p.cash ? '' : 'disabled'}>+${inc}</button>`;
+      return `<div class="row au-acts">${many ? `<img class="au-me" src="${por(p.hero)}" alt="${esc(p.name)}" style="--c:${SEAT_COLORS[s]}">` : ''}${btn(10)}${btn(50)}${btn(100)}<button class="btn" data-a="pass" data-seat="${s}">გავდივარ</button></div>`;
+    }).join('');
+    box.innerHTML = `<div class="bc auc">${cardHead(t, '<span class="chip au-tag">აუქციონი</span>')}
+      <div class="bc-b"><div class="au-top">${top}<small class="au-price">ფასი ${coin(t.p)}</small></div>
+      <div class="au-clock"><i style="animation-duration:${dur}s;animation-delay:-${gone.toFixed(2)}s"></i></div>
+      <div class="au-who">${who}</div>${rows || '<p class="hint">უყურებ, ვინ იყიდის</p>'}</div></div>`;
+    if (box.hidden || box.dataset.k !== 'auc') { box.hidden = false; box.dataset.k = 'auc'; box.classList.remove('go'); void box.offsetWidth; box.classList.add('go'); }
+    if (busy) $$('[data-a]', box).forEach(b => { b.disabled = true; });
+    return true;
+  }
   // the town one may buy, as a card over the board
   function renderBuy() {
     const st = shown, box = $('#buycard');
     if (!box) return;
+    renderWatch();
+    if (st && st.phase === 'auction' && !playing) { renderAuction(); return; }
+    if (st && st.phase === 'auction') return;
     const me = acting();
-    if (!st || st.phase !== 'buy' || me !== st.turn || !controls(me) || playing) { hideBuy(); return; }
+    if (!st || st.phase !== 'buy' || me !== st.turn || !controls(me) || playing) { hideCard(); return; }   // (the watching card stays as renderWatch left it)
     const t = BOARD[st.pend.i], p = st.players[me], L = Engine.legal(st, me);
-    const col = t.k === 'p' ? GROUPS[t.g].c : '#7b5532';
-    const head = t.k === 'p' ? `<span class="chip" style="--g:${col}">${esc(GROUPS[t.g].n)}</span>` : `<span class="chip" style="--g:${col}">${t.k === 'road' ? 'ქარვასლა' : 'მეურნეობა'}</span>`;
     let rows = '', hint = '';
     if (t.k === 'p') {
       const mine = GROUP_TILES[t.g].filter(i => st.own[i] && st.own[i].o === me).length, all = GROUP_TILES[t.g].length;
@@ -414,16 +520,15 @@ const View = (() => {
       rows = `<li><span>ერთი გაქვს</span><b>კამათელი ×4</b></li><li><span>ორივე გაქვს</span><b>კამათელი ×10</b></li>`;
       hint = 'ქირა კამათლის ჯამზეა დამოკიდებული.';
     }
-    const scene = t.k === 'p' ? SCENES[t.g] : t.k === 'road' ? 'g_pass' : 'g_elbrus', at = t.k === 'p' ? SCENE_POS[t.g] : '50% 50%';
-    box.innerHTML = `<div class="bc">
-      <div class="bc-h" style="--g:${col};background-image:linear-gradient(180deg,rgba(13,16,22,0),rgba(13,16,22,.8)),url(${ART(scene)});background-position:${at}">${head}<h3>${esc(t.n.replace(/­/g, ''))}</h3></div>
+    box.innerHTML = `<div class="bc">${cardHead(t)}
       <div class="bc-b"><ul class="bc-rent">${rows}</ul><p class="hint">${hint}</p>
-      <div class="row"><button class="btn gold big" data-a="buy" ${L.buy ? '' : 'disabled'}>იყიდე ${coin(t.p)}</button><button class="btn" data-a="skip">არა</button></div>
-      ${L.buy ? '' : `<p class="hint bad">ფული არ გყოფნის: გაქვს ${coin(p.cash)}</p>`}</div></div>`;
-    if (box.hidden) { box.hidden = false; box.classList.remove('go'); void box.offsetWidth; box.classList.add('go'); }
+      <div class="row"><button class="btn gold big" data-a="buy" ${L.buy ? '' : 'disabled'}>იყიდე ${coin(t.p)}</button><button class="btn" data-a="skip">აუქციონზე</button></div>
+      ${L.buy ? '' : `<p class="hint bad">ფული არ გყოფნის: გაქვს ${coin(p.cash)}. აუქციონზე იაფადაც შეიძლება წავიდეს.</p>`}</div></div>`;
+    if (box.hidden || box.dataset.k !== 'buy') { box.hidden = false; box.dataset.k = 'buy'; box.classList.remove('go'); void box.offsetWidth; box.classList.add('go'); }
     if (busy) $$('[data-a]', box).forEach(b => { b.disabled = true; });
   }
-  function hideBuy() { const b = $('#buycard'); if (b) b.hidden = true; }
+  function hideCard() { const b = $('#buycard'); if (b) { b.hidden = true; b.dataset.k = ''; } }
+  function hideBuy() { hideCard(); const w = $('#watch'); if (w) { w.hidden = true; w.dataset.k = ''; } }
   // the button over the board: the whole board, or back to the figure
   function viewBtn() {
     const b = $('#bView');
@@ -463,7 +568,12 @@ function evText(st, e) {
     case 'start': return 'თამაში დაიწყო';
     case 'roll': return `${n(e.s)}: ${e.d[0]} და ${e.d[1]}${e.d[0] === e.d[1] ? ' · დუბლი' : ''}`;
     case 'buy': return `${n(e.s)}: იყიდა ${t(e.i)} · ${fmt(e.a)}`;
-    case 'skip': return `${n(e.s)}: არ იყიდა ${t(e.i)}`;
+    case 'skip': return `${n(e.s)}: აუქციონზე გაიტანა ${t(e.i)}`;
+    case 'auction': return `აუქციონი: ${t(e.i)}`;
+    case 'bid': return `${n(e.s)}: ფასი ${fmt(e.a)} · ${t(e.i)}`;
+    case 'pass': return '';
+    case 'won': return `${n(e.s)}: იყიდა აუქციონზე ${t(e.i)} · ${fmt(e.a)}`;
+    case 'unsold': return `${t(e.i)}: აუქციონზე არავინ იყიდა`;
     case 'pay':
       if (e.why === 'rent') return `${n(e.s)} → ${n(e.to)}: ქირა ${fmt(e.a)} · ${t(e.i)}`;
       if (e.why === 'tax') return `${n(e.s)}: ${t(e.i)} · ${fmt(e.a)}`;
@@ -717,6 +827,7 @@ const Sheet = (() => {
       <ol class="steps">
         <li><b>გააგორე კამათელი</b> და ფიგურა თავისით წავა. სტარტის გავლაზე ${SALARY} გეძლევა.</li>
         <li><b>იყიდე ქალაქი,</b> რომელზეც დადექი. სხვის ქალაქზე ქირას იხდი, თამაში თვითონ გადაიხდის.</li>
+        <li><b>არ იყიდი? აუქციონია.</b> ფასს ყველა ასახელებს, წინაზე ${Engine.BID_STEP}-ით მაინც მეტს; ვისაც აღარ უნდა, გადის. ბოლო ფასის მერე რამდენიმე წამში ქალაქი ყველაზე მაღალი ფასით იყიდება, ხშირად ნომინალზე იაფადაც.</li>
         <li><b>შეაგროვე მთელი კუთხე</b> (ერთი ფერის ქალაქები): ქირა გაორმაგდება და შეგიძლია <b>კოშკები</b> ააშენო. ოთხი კოშკის მერე ციხე-სიმაგრე დგება, ქირა ყველაზე დიდია.</li>
         <li><b>ვინც გაკოტრდება,</b> თამაშიდან გადის. იგებს ბოლო დარჩენილი ან, რაუნდების ლიმიტზე, ყველაზე მდიდარი.</li>
       </ol>

@@ -27,7 +27,7 @@ const Engine = (() => {
       v: 1, term: 0, seq: 0, phase: 'lobby', host: hostPid,
       cfg: { mode: 'rounds', rounds: 30 },
       players: [], own: BOARD.map(() => null), turn: 0, round: 1,
-      dice: [3, 4], rolls: 0, again: false, pend: null, trade: null,
+      dice: [3, 4], rolls: 0, again: false, pend: null, trade: null, auc: null, dseed: 0,
       decks: { s: [], c: [] }, ev: [], evn: 0, winner: -1, tn: 0, offered: -1, memo: []
     };
   }
@@ -93,9 +93,18 @@ const Engine = (() => {
     for (const p of st.players) Object.assign(p, { cash: START_CASH, pos: 0, jail: false, jt: 0, fe: [], out: false, outAt: 0, dbl: 0 });
     st.own = BOARD.map(() => null);
     st.decks = { s: shuffle(CARDS.s.map((_, i) => i), rnd), c: shuffle(CARDS.c.map((_, i) => i), rnd) };
-    Object.assign(st, { turn: 0, round: 1, phase: 'roll', again: false, pend: null, trade: null, winner: -1, rolls: 0, tn: 1, offered: -1, memo: [] });
+    Object.assign(st, { turn: 0, round: 1, phase: 'roll', again: false, pend: null, trade: null, auc: null, winner: -1, rolls: 0, tn: 1, offered: -1, memo: [] });
+    st.dseed = 1 + Math.floor(rnd() * 2147483646);       // every screen throws the dice the same way (see throwSeed)
     push(st, 'start', {});
     push(st, 'turn', { s: 0, r: 1 });
+  }
+
+  // The dice's throw (how they fly, bounce and come to rest) is worked out from a number every device can know ahead:
+  // the game's seed and the count of rolls. So the dice tumble and land alike on every phone, and each phone can work
+  // the next throw out before it is needed.
+  function throwSeed(st, r) {
+    if (!st || !st.dseed) return 0;
+    return ((Math.imul(st.dseed ^ 0x5bd1e995, 0x27d4eb2d) ^ Math.imul((r | 0) + 1, 0x165667b1)) >>> 0) || 1;
   }
 
   // ----- small helpers -----
@@ -246,11 +255,40 @@ const Engine = (() => {
     if (st.again && !p.jail && !p.out) st.phase = 'roll';
     else { st.phase = 'end'; st.again = false; }
   }
+  // ----- the auction: a town the player did not buy goes to whoever offers most -----
+  // Everyone still in the game may bid, the one who said no as well; a bid raises the last by at least BID_STEP and
+  // cannot be more than the bidder has. The host ends it a few seconds after the last bid (hammer), or at once when
+  // nobody else can or will bid.
+  const BID_STEP = 10;
+  function startAuction(st, seat, i) {
+    st.phase = 'auction';
+    st.pend = { k: 'auction', i };
+    st.auc = { i, hi: 0, by: -1, n: 0, out: [], from: seat };
+    push(st, 'auction', { s: seat, i });
+    if (auctionDone(st)) endAuction(st);
+  }
+  const canStillBid = (st, s) => { const A = st.auc; return s !== A.by && !A.out.includes(s) && st.players[s].cash >= A.hi + BID_STEP; };
+  const auctionDone = st => !activeSeats(st).some(s => canStillBid(st, s));
+  function endAuction(st) {
+    const A = st.auc;
+    if (!A) return;
+    st.auc = null; st.pend = null;
+    const w = A.by >= 0 ? st.players[A.by] : null;
+    if (w && !w.out && w.cash >= A.hi && !st.own[A.i]) {
+      w.cash -= A.hi;
+      st.own[A.i] = { o: A.by, lv: 0, m: false };
+      push(st, 'won', { s: A.by, i: A.i, a: A.hi });
+    } else push(st, 'unsold', { i: A.i });
+    settle(st, st.turn);
+  }
+  // the host's clock: no new bid for a while
+  function hammer(st) { if (st.phase === 'auction' && st.auc) endAuction(st); }
+
   function nextTurn(st) {
     const n = st.players.length;
     let i = st.turn, wrapped = false, guard = 0;
     do { i = (i + 1) % n; if (i === 0) wrapped = true; } while (st.players[i].out && ++guard < n);
-    st.trade = null; st.pend = null; st.again = false;
+    st.trade = null; st.pend = null; st.again = false; st.auc = null;
     if (wrapped) {
       st.round++;
       if (st.cfg.mode === 'rounds' && st.round > st.cfg.rounds) { st.round = st.cfg.rounds; return finish(st, 'rounds'); }
@@ -263,7 +301,7 @@ const Engine = (() => {
   function finish(st, why) {
     const alive = activeSeats(st).sort((a, b) => worth(st, b) - worth(st, a));
     st.winner = alive.length ? alive[0] : -1;
-    st.phase = 'over'; st.pend = null; st.trade = null;
+    st.phase = 'over'; st.pend = null; st.trade = null; st.auc = null;
     push(st, 'over', { s: st.winner, why });
   }
   // the order at the end: those still standing by worth, then the bankrupt, the last to fall first
@@ -337,6 +375,12 @@ const Engine = (() => {
       if (st.trade.to === seat) L.accept = L.decline = true;
       if (st.trade.from === seat) L.cancel = true;
     }
+    if (st.phase === 'auction' && st.auc) {
+      const A = st.auc;
+      if (A.by === seat) L.lead = true;
+      else if (!A.out.includes(seat)) { L.bid = p.cash >= A.hi + BID_STEP; L.pass = true; }
+      return L;
+    }
     if (st.turn !== seat) return L;
     const ph = st.phase, free = !st.trade;
     if (ph === 'roll' && free) {
@@ -363,7 +407,7 @@ const Engine = (() => {
         if (!mine || ph !== 'roll' || st.trade) return 'turn';
         const d = [1 + Math.floor(rnd() * 6), 1 + Math.floor(rnd() * 6)], dbl = d[0] === d[1], sum = d[0] + d[1];
         st.dice = d; st.rolls++;
-        push(st, 'roll', { s: seat, d });
+        push(st, 'roll', { s: seat, d, w: throwSeed(st, st.rolls) });
         if (p.jail) {
           st.again = false;
           if (dbl) { release(st, seat, 'dbl'); step(st, seat, sum); if (land(st, seat)) settle(st, seat); }
@@ -393,8 +437,33 @@ const Engine = (() => {
       }
       case 'skip': {
         if (!mine || ph !== 'buy') return 'turn';
-        push(st, 'skip', { s: seat, i: st.pend.i });
-        settle(st, seat);
+        const i2 = st.pend.i;
+        push(st, 'skip', { s: seat, i: i2 });
+        startAuction(st, seat, i2);
+        return '';
+      }
+      case 'bid': {
+        const A = st.auc;
+        if (ph !== 'auction' || !A) return 'turn';
+        if (A.out.includes(seat)) return 'passed';
+        if (A.by === seat) return 'lead';
+        // a computer player names its sum, a person raises by a step (whatever the bid is by the time it arrives)
+        const amt = a.a != null ? Math.floor(+a.a) : A.hi + Math.max(BID_STEP, Math.floor(+a.inc || BID_STEP));
+        if (!Number.isFinite(amt) || amt < A.hi + BID_STEP) return 'low';
+        if (amt > p.cash) return 'cash';
+        A.hi = amt; A.by = seat; A.n++;
+        push(st, 'bid', { s: seat, a: amt, i: A.i });
+        if (auctionDone(st)) endAuction(st);
+        return '';
+      }
+      case 'pass': {
+        const A = st.auc;
+        if (ph !== 'auction' || !A) return 'turn';
+        if (A.out.includes(seat)) return 'passed';
+        if (A.by === seat) return 'lead';
+        A.out.push(seat);
+        push(st, 'pass', { s: seat, i: A.i });
+        if (auctionDone(st)) endAuction(st);
         return '';
       }
       case 'end': {
@@ -626,10 +695,35 @@ const Engine = (() => {
     }
     return null;
   }
+  // what a town is worth to a computer player at an auction: a bargain is welcome, a town that finishes its region (or
+  // would finish someone else's) is worth more; it keeps some money back
+  function auctionValue(st, seat, i) {
+    const t = BOARD[i], p = st.players[seat], reserve = reserveFor(st, seat);
+    let v = t.p * 0.75;
+    if (t.k === 'p') {
+      const others = GROUP_TILES[t.g].filter(j => j !== i);
+      const mine = others.filter(j => st.own[j] && st.own[j].o === seat).length;
+      const owners = new Set(others.filter(j => st.own[j]).map(j => st.own[j].o));
+      if (mine === others.length) v = t.p * 1.7;
+      else if (owners.size === 1 && !owners.has(seat) && others.every(j => st.own[j])) v = t.p * 1.25;
+      else if (mine) v = t.p;
+    } else if (t.k === 'road') v = t.p * (0.75 + 0.2 * countOf(st, seat, ROADS));
+    return Math.floor(Math.min(v, p.cash - reserve * 0.5) / BID_STEP) * BID_STEP;
+  }
   // the next thing a computer player does, or null when it has nothing to do now (also while it waits for an answer)
   function botMove(st, seat, cautious) {
     const p = st.players[seat];
     if (!p || p.out || st.phase === 'over' || st.phase === 'lobby') return null;
+    if (st.phase === 'auction' && st.auc) {
+      const A = st.auc;
+      if (A.out.includes(seat) || A.by === seat) return null;
+      if (cautious) return { t: 'pass' };
+      const max = auctionValue(st, seat, A.i);
+      if (A.hi + BID_STEP > max || A.hi + BID_STEP > p.cash) return { t: 'pass' };
+      const gap = max - A.hi;
+      const inc = A.hi === 0 ? Math.max(BID_STEP, Math.floor(max * 0.45 / BID_STEP) * BID_STEP) : gap > 160 ? 50 : gap > 60 ? 20 : BID_STEP;
+      return { t: 'bid', a: Math.min(max, A.hi + inc) };
+    }
     if (st.trade && st.trade.to === seat) return { t: !cautious && likes(st, seat, st.trade) ? 'accept' : 'decline' };
     if (st.trade && st.trade.from === seat) return cautious ? { t: 'cancel' } : null;
     if (st.turn !== seat || st.trade) return null;
@@ -657,7 +751,7 @@ const Engine = (() => {
   function stop(st) { if (st.phase !== 'lobby' && st.phase !== 'over') finish(st, 'stop'); }
 
   return {
-    mulberry, newLobby, lobbyJoin, lobbyAct, seatOf, cleanName, act, legal, botMove, stop,
+    mulberry, newLobby, lobbyJoin, lobbyAct, seatOf, cleanName, act, legal, botMove, stop, hammer, throwSeed, BID_STEP,
     rentAt, buildBlock, canSell, canMort, buildCost, mortValue, unmortCost, raiseMax, worth, ranking,
     groupOwner, countOf, tradeBlock, cleanSide, activeSeats, FEATHER
   };

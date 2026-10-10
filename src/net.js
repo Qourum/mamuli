@@ -5,7 +5,7 @@
 // is in the room. If the host disappears, the next player in seat order takes over with their copy of the state.
 // "local" is a game on this device only (people taking turns and computer players), without any network.
 
-const PROTO = 2;                 // 2: a move's steps are in 'steps' (in 1 they hid the event's number)
+const PROTO = 3;                 // 3: auctions, and the dice's throw from the game's seed (2: a move's steps in 'steps')
 const ONLINE = {
   ws: 'wss://wnpqmcucnqcpcceqwega.supabase.co/realtime/v1',
   key: 'sb_publishable_DEGb_dkdj1s3QEJFrxc-Aw_apfCzfNx',
@@ -13,8 +13,11 @@ const ONLINE = {
   gone: 10000,      // the host silent this long: the next player takes over
   away: 5000,       // a player missing from the room this long counts as away
   awayWait: 12000,  // on an away player's turn, wait this long before the computer plays for them
-  tradeWait: 60000  // an offer nobody answers is declined after this long
+  tradeWait: 60000, // an offer nobody answers is declined after this long
+  seenMax: 2500     // the computer players wait for the others' screens to catch up, but not longer than this
 };
+// the auction's hammer falls this long after the last bid (the first bid gets longer, to read the card)
+const AUCTION = { first: 9000, after: 7000 };
 const randCode = n => Array.from({ length: n }, () => ONLINE.abc[Math.floor(Math.random() * ONLINE.abc.length)]).join('');
 const rndHost = () => { try { return crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296; } catch (e) { return Math.random(); } };
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -125,7 +128,8 @@ function newRoom(mode, role, code) {
   return {
     mode, role, code, me: myPid(), st: null, net: null, peers: {}, up: false, err: '',
     hostPid: '', heardHost: 0, joinedAt: now(), aid: 0, seenAid: {}, sent: null, sentAt: 0,
-    driveT: null, beatT: null, helloT: null, missing: {}, tradeAt: 0, tradeKey: '', awayAt: {}
+    driveT: null, beatT: null, helloT: null, missing: {}, tradeAt: 0, tradeKey: '', awayAt: {},
+    seen: {}, commitAt: 0, aucKey: '', aucAt: 0
   };
 }
 function meta() {
@@ -141,6 +145,7 @@ function send(t, d, to) {
 function commit() {
   const st = ROOM.st;
   st.seq++;
+  ROOM.commitAt = now();
   if (ROOM.mode === 'online') {
     store.set('room.' + ROOM.code, { st, at: now() });
     send('st', { p: PROTO, st });
@@ -285,6 +290,7 @@ function onMsg(m) {
       return;
     }
     if (m.t === 'bye') { markAway(m.f, true); return; }
+    if (m.t === 'seen') { ROOM.seen[m.f] = d.n | 0; return; }
     return;
   }
   // a guest
@@ -427,15 +433,39 @@ function takeOver(st) {
   commit();
 }
 
+// ----- how far the screens have got -----
+// A guest's screen says when it has shown everything (the event it got to); the host's computer players wait for it.
+function caughtUp(n) {
+  if (!ROOM || ROOM.mode !== 'online' || ROOM.role !== 'guest' || !ROOM.st) return;
+  if (ROOM.seenGame !== ROOM.st.dseed) { ROOM.seenGame = ROOM.st.dseed; ROOM.seenSent = 0; }      // a new game counts from the start
+  if (n <= (ROOM.seenSent || 0)) return;
+  ROOM.seenSent = n;
+  send('seen', { n }, ROOM.hostPid || undefined);
+}
+// how much longer to wait for the others' screens (0: they are there, or they have had long enough)
+function screensWait() {
+  if (!ROOM || ROOM.mode !== 'online') return 0;
+  const st = ROOM.st, since = now() - ROOM.commitAt;
+  if (since >= ONLINE.seenMax) return 0;
+  for (const p of st.players) {
+    if (p.bot || p.out || p.away || p.pid === ROOM.me || !ROOM.peers[p.pid]) continue;
+    const seen = ROOM.seen[p.pid];
+    if (seen != null && seen < st.evn) return ONLINE.seenMax - since;
+  }
+  return 0;
+}
+
 // ----- the computer players, and players who are away -----
 // A computer player waits until the screen has shown everything that happened, then a moment more (so one can see where it
 // landed before it buys, say), and only then makes its move. The others' phones play the same things at the same time.
-const BEAT = { roll: 550, buy: 700, skip: 700, end: 300, build: 450, sell: 450, mort: 450, unmort: 450, offer: 700, accept: 900, decline: 900, cancel: 500 };
+// how long a computer player takes over a move (buy or not: long enough for the others to read who is deciding, and where)
+const BEAT = { roll: 550, buy: 1100, skip: 1100, end: 300, build: 450, sell: 450, mort: 450, unmort: 450, offer: 700, accept: 900, decline: 900, cancel: 500 };
 function drive() {
   if (!ROOM || !isHost()) return;
   clearTimeout(ROOM.driveT);
   const st = ROOM.st;
   if (!st || st.phase === 'lobby' || st.phase === 'over') return;
+  if (st.phase === 'auction' && st.auc) return driveAuction(st);
   const seat = st.trade ? st.trade.to : st.turn, p = st.players[seat];
   if (!p) return;
   const key = st.trade ? st.tn + ':' + st.trade.from + '>' + st.trade.to : '';
@@ -450,11 +480,39 @@ function drive() {
   const beat = plan ? BEAT[plan.t] || 650 : 0;
   const go = () => {
     if (ROOM !== room || ROOM.st !== st) return;
-    const left = Math.max(until - now(), computer ? beat - View.idleFor() : 0);
+    const left = Math.max(until - now(), computer ? beat - View.idleFor() : 0, computer ? screensWait() : 0);
     if (left > 0) { ROOM.driveT = setTimeout(go, computer ? Math.min(left, 300) : left); return; }   // the screen is checked often
     const a = computer ? Engine.botMove(st, seat, away) : (st.trade && st.trade.to === seat ? { t: 'decline' } : null);
     if (!a) return;
     if (!Engine.act(st, seat, a, rndHost)) commit();
+  };
+  ROOM.driveT = setTimeout(go, 40);
+}
+
+// The auction: people bid whenever they like; the computer players (and those away, who only step back) one at a time,
+// each a moment after the screens have shown the last bid; and when nobody has bid for a while, the hammer falls.
+function driveAuction(st) {
+  const A = st.auc, room = ROOM, key = st.tn + ':' + A.i + ':' + A.n;
+  if (key !== ROOM.aucKey) { ROOM.aucKey = key; ROOM.aucAt = now(); }
+  const go = () => {
+    if (ROOM !== room || ROOM.st !== st || st.phase !== 'auction') return;
+    const seats = Engine.activeSeats(st), from = Math.max(0, seats.indexOf(A.by >= 0 ? A.by : st.turn));
+    for (let k = 1; k <= seats.length; k++) {
+      const s = seats[(from + k) % seats.length], p = st.players[s];
+      const computer = p.bot || (p.away && ROOM.mode === 'online');
+      if (!computer) continue;
+      const plan = Engine.botMove(st, s, !p.bot);
+      if (!plan) continue;
+      const beat = plan.t === 'pass' ? 600 : 900 + 300 * ((s + A.n) % 3);
+      const left = Math.max(beat - View.idleFor(), screensWait());
+      if (left > 0) { ROOM.driveT = setTimeout(go, Math.min(left, 300)); return; }
+      if (!Engine.act(st, s, plan, rndHost)) commit();
+      return;
+    }
+    const left = (A.n ? AUCTION.after : AUCTION.first) - (now() - ROOM.aucAt);
+    if (left > 0) { ROOM.driveT = setTimeout(go, Math.min(left, 400)); return; }
+    Engine.hammer(st);
+    commit();
   };
   ROOM.driveT = setTimeout(go, 40);
 }

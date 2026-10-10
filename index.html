@@ -267,6 +267,70 @@ img { max-width: 100%; }
 .bc .row { flex-wrap: nowrap; }
 .bc .btn.big { flex: 1; }
 .buycard.go .bc { animation: cardIn .38s cubic-bezier(.2, 1.4, .4, 1); }
+.bc .hint.good { color: #2f6b2a; font-weight: 700; }
+
+/* ----- someone else decides whether to buy: a small card at the top of the board, for everyone to see ----- */
+.watch { position: absolute; left: 10px; right: 62px; top: 8px; z-index: 4; max-width: 420px; margin: 0 auto; pointer-events: none; }   /* clear of the view button */
+.watch.go .wc { animation: watchIn .35s cubic-bezier(.2, 1.3, .4, 1); }
+@keyframes watchIn { from { opacity: 0; transform: translateY(-14px) scale(.94); } }
+.wc { display: flex; align-items: center; gap: 9px; padding: 6px 8px 6px 6px; border-radius: 16px; color: var(--cream);
+  background: linear-gradient(180deg, rgba(90, 58, 34, .97), rgba(44, 27, 16, .97)); border: 1.5px solid var(--gold-lo); box-shadow: 0 6px 18px rgba(0, 0, 0, .55); }
+.wc > img { width: 38px; height: 38px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px var(--c), 0 0 0 3.5px var(--gold-lo); }
+.wc-w { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.wc-w b { font-size: 13.5px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wc-w span { font-size: 11.5px; line-height: 1.25; color: #e3d6b8; }
+.wc-t { display: flex; flex-direction: column; align-items: flex-end; flex: none; padding: 3px 9px 3px 10px; border-radius: 11px; background: var(--paper); color: var(--paper-ink); border-left: 6px solid var(--g); line-height: 1.15; }
+.wc-t small { font-size: 10px; font-weight: 700; color: var(--paper-dim); }
+.wc-t b { font-size: 13px; }
+.wc-t .amt { font-size: 12.5px; color: #6b3a12; }
+.dots { display: inline-flex; gap: 3px; margin-left: 4px; vertical-align: middle; }
+.dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--gold); animation: dot 1.2s ease-in-out infinite; }
+.dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; }
+@keyframes dot { 0%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-2px); } }
+
+/* ----- the auction ----- */
+.bc.auc .bc-h { padding-top: 30px; }
+.chip.au-tag { margin-left: 6px; background: #a3261c; }
+.au-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.au-bid { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.au-bid img { width: 40px; height: 40px; border-radius: 50%; box-shadow: 0 0 0 2.5px var(--c); flex: none; }
+.au-bid span { display: flex; flex-direction: column; min-width: 0; line-height: 1.1; }
+.au-bid small { font-size: 12px; font-weight: 700; color: var(--paper-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.au-bid .amt { font: 400 30px/1 var(--f-num); color: #6b3a12; }
+.au-bid.none b { font-size: 15px; }
+.au-bid.none .amt { font: inherit; }
+.au-price { flex: none; font-weight: 700; color: var(--paper-dim); }
+.au-clock { height: 7px; border-radius: 99px; background: rgba(122, 86, 44, .2); overflow: hidden; }
+.au-clock i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #a3261c, var(--gold)); transform-origin: left center; animation-name: clock; animation-timing-function: linear; animation-fill-mode: both; }
+@keyframes clock { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.au-who { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; }
+.au-who img { width: 30px; height: 30px; border-radius: 50%; box-shadow: 0 0 0 2px var(--c); transition: opacity .2s, filter .2s; }
+.au-who img.out { opacity: .35; filter: grayscale(1); }
+.au-who img.lead { box-shadow: 0 0 0 2px var(--c), 0 0 0 4.5px var(--gold); }
+.au-acts { flex-wrap: nowrap; gap: 6px; }
+.au-acts .btn { flex: 1; min-width: 0; padding-left: 4px; padding-right: 4px; font: 400 17px var(--f-num); }
+.au-acts .btn:last-child { flex: 1.5; font: 700 13.5px var(--f-ui); }
+.au-me { width: 30px; height: 30px; border-radius: 50%; box-shadow: 0 0 0 2px var(--c); align-self: center; flex: none; }
+
+/* ----- a note by a player's picture at the top: what just happened to them ----- */
+.bubbles { position: fixed; inset: 0; z-index: 8; pointer-events: none; overflow: hidden; }
+.bub { position: absolute; transform: translateX(-50%); display: flex; align-items: center; gap: 5px; width: max-content; max-width: 52vw; padding: 3px 10px 3px 3px;
+  border-radius: 99px; font: 700 12px/1.3 var(--f-ui); color: var(--cream); background: rgba(23, 29, 42, .96); border: 1.5px solid var(--c, var(--line));
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .55), 0 0 0 2px rgba(13, 16, 22, .6); animation: bubIn .25s ease-out; transition: opacity .35s; }
+.bub > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bub > img { flex: none; width: 18px; height: 18px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--c); }
+/* the tail pointing up at the chip (the note may have moved aside to stay on the screen) */
+.bub::before { content: ''; position: absolute; left: calc(50% + var(--tx, 0px)); top: -5px; width: 8px; height: 8px; margin-left: -4px; background: inherit;
+  border: solid var(--c, var(--line)); border-width: 1.5px 0 0 1.5px; border-radius: 2px 0 0 0; transform: rotate(45deg); }
+.bub.side::before { display: none; }
+.bub.side { transform: translateY(-50%); animation-name: bubSide; }
+.bub.good { background: linear-gradient(180deg, #2f6a31, #1d4420); }
+.bub.bad { background: linear-gradient(180deg, #7a2a22, #4f1812); }
+.bub.bid { background: linear-gradient(180deg, var(--gold-hi), var(--gold)); color: var(--wood-2); }
+.bub .amt { font: 400 13px var(--f-num); }
+.bub.bye { opacity: 0; }
+@keyframes bubIn { from { opacity: 0; transform: translate(-50%, -5px) scale(.9); } }
+@keyframes bubSide { from { opacity: 0; transform: translate(6px, -50%) scale(.9); } }
 /* little towers drawn in the sheets and on the build button */
 .tws { display: inline-flex; gap: 1px; color: var(--gold); vertical-align: middle; }
 .tws svg { width: 12px; height: 17px; }
@@ -458,6 +522,7 @@ img { max-width: 100%; }
       <main class="table" id="table">
         <div class="stage" id="stage"></div>
         <button class="viewbtn" id="bView" aria-label="მთელი დაფა" title="მთელი დაფა"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="7.5" y="7.5" width="9" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+        <div class="watch" id="watch" hidden></div>
         <div class="buycard" id="buycard" hidden></div>
         <div class="cardpop" id="cardpop" hidden></div>
         <div class="banner" id="banner"></div>
@@ -473,11 +538,12 @@ img { max-width: 100%; }
   </section>
 
   <div class="sheet" id="sheet" hidden><div class="sheet-card" id="sheetBody" role="dialog" aria-modal="true"></div></div>
+  <div class="bubbles" id="bubbles" aria-hidden="true"></div>
   <div class="toasts" id="toasts" aria-live="polite"></div>
 </div>
 <script src="vendor/three.min.js"></script>
 <script>
-const BUILD = "0243191d32";
+const BUILD = "fce0934fc7";
 const SITE = true;
 // ===== მამული: the board, the regions, the cards and the heroes =====
 // Everything here is plain data; the rules live in engine.js.
@@ -666,7 +732,7 @@ const Engine = (() => {
       v: 1, term: 0, seq: 0, phase: 'lobby', host: hostPid,
       cfg: { mode: 'rounds', rounds: 30 },
       players: [], own: BOARD.map(() => null), turn: 0, round: 1,
-      dice: [3, 4], rolls: 0, again: false, pend: null, trade: null,
+      dice: [3, 4], rolls: 0, again: false, pend: null, trade: null, auc: null, dseed: 0,
       decks: { s: [], c: [] }, ev: [], evn: 0, winner: -1, tn: 0, offered: -1, memo: []
     };
   }
@@ -732,9 +798,18 @@ const Engine = (() => {
     for (const p of st.players) Object.assign(p, { cash: START_CASH, pos: 0, jail: false, jt: 0, fe: [], out: false, outAt: 0, dbl: 0 });
     st.own = BOARD.map(() => null);
     st.decks = { s: shuffle(CARDS.s.map((_, i) => i), rnd), c: shuffle(CARDS.c.map((_, i) => i), rnd) };
-    Object.assign(st, { turn: 0, round: 1, phase: 'roll', again: false, pend: null, trade: null, winner: -1, rolls: 0, tn: 1, offered: -1, memo: [] });
+    Object.assign(st, { turn: 0, round: 1, phase: 'roll', again: false, pend: null, trade: null, auc: null, winner: -1, rolls: 0, tn: 1, offered: -1, memo: [] });
+    st.dseed = 1 + Math.floor(rnd() * 2147483646);       // every screen throws the dice the same way (see throwSeed)
     push(st, 'start', {});
     push(st, 'turn', { s: 0, r: 1 });
+  }
+
+  // The dice's throw (how they fly, bounce and come to rest) is worked out from a number every device can know ahead:
+  // the game's seed and the count of rolls. So the dice tumble and land alike on every phone, and each phone can work
+  // the next throw out before it is needed.
+  function throwSeed(st, r) {
+    if (!st || !st.dseed) return 0;
+    return ((Math.imul(st.dseed ^ 0x5bd1e995, 0x27d4eb2d) ^ Math.imul((r | 0) + 1, 0x165667b1)) >>> 0) || 1;
   }
 
   // ----- small helpers -----
@@ -885,11 +960,40 @@ const Engine = (() => {
     if (st.again && !p.jail && !p.out) st.phase = 'roll';
     else { st.phase = 'end'; st.again = false; }
   }
+  // ----- the auction: a town the player did not buy goes to whoever offers most -----
+  // Everyone still in the game may bid, the one who said no as well; a bid raises the last by at least BID_STEP and
+  // cannot be more than the bidder has. The host ends it a few seconds after the last bid (hammer), or at once when
+  // nobody else can or will bid.
+  const BID_STEP = 10;
+  function startAuction(st, seat, i) {
+    st.phase = 'auction';
+    st.pend = { k: 'auction', i };
+    st.auc = { i, hi: 0, by: -1, n: 0, out: [], from: seat };
+    push(st, 'auction', { s: seat, i });
+    if (auctionDone(st)) endAuction(st);
+  }
+  const canStillBid = (st, s) => { const A = st.auc; return s !== A.by && !A.out.includes(s) && st.players[s].cash >= A.hi + BID_STEP; };
+  const auctionDone = st => !activeSeats(st).some(s => canStillBid(st, s));
+  function endAuction(st) {
+    const A = st.auc;
+    if (!A) return;
+    st.auc = null; st.pend = null;
+    const w = A.by >= 0 ? st.players[A.by] : null;
+    if (w && !w.out && w.cash >= A.hi && !st.own[A.i]) {
+      w.cash -= A.hi;
+      st.own[A.i] = { o: A.by, lv: 0, m: false };
+      push(st, 'won', { s: A.by, i: A.i, a: A.hi });
+    } else push(st, 'unsold', { i: A.i });
+    settle(st, st.turn);
+  }
+  // the host's clock: no new bid for a while
+  function hammer(st) { if (st.phase === 'auction' && st.auc) endAuction(st); }
+
   function nextTurn(st) {
     const n = st.players.length;
     let i = st.turn, wrapped = false, guard = 0;
     do { i = (i + 1) % n; if (i === 0) wrapped = true; } while (st.players[i].out && ++guard < n);
-    st.trade = null; st.pend = null; st.again = false;
+    st.trade = null; st.pend = null; st.again = false; st.auc = null;
     if (wrapped) {
       st.round++;
       if (st.cfg.mode === 'rounds' && st.round > st.cfg.rounds) { st.round = st.cfg.rounds; return finish(st, 'rounds'); }
@@ -902,7 +1006,7 @@ const Engine = (() => {
   function finish(st, why) {
     const alive = activeSeats(st).sort((a, b) => worth(st, b) - worth(st, a));
     st.winner = alive.length ? alive[0] : -1;
-    st.phase = 'over'; st.pend = null; st.trade = null;
+    st.phase = 'over'; st.pend = null; st.trade = null; st.auc = null;
     push(st, 'over', { s: st.winner, why });
   }
   // the order at the end: those still standing by worth, then the bankrupt, the last to fall first
@@ -976,6 +1080,12 @@ const Engine = (() => {
       if (st.trade.to === seat) L.accept = L.decline = true;
       if (st.trade.from === seat) L.cancel = true;
     }
+    if (st.phase === 'auction' && st.auc) {
+      const A = st.auc;
+      if (A.by === seat) L.lead = true;
+      else if (!A.out.includes(seat)) { L.bid = p.cash >= A.hi + BID_STEP; L.pass = true; }
+      return L;
+    }
     if (st.turn !== seat) return L;
     const ph = st.phase, free = !st.trade;
     if (ph === 'roll' && free) {
@@ -1002,7 +1112,7 @@ const Engine = (() => {
         if (!mine || ph !== 'roll' || st.trade) return 'turn';
         const d = [1 + Math.floor(rnd() * 6), 1 + Math.floor(rnd() * 6)], dbl = d[0] === d[1], sum = d[0] + d[1];
         st.dice = d; st.rolls++;
-        push(st, 'roll', { s: seat, d });
+        push(st, 'roll', { s: seat, d, w: throwSeed(st, st.rolls) });
         if (p.jail) {
           st.again = false;
           if (dbl) { release(st, seat, 'dbl'); step(st, seat, sum); if (land(st, seat)) settle(st, seat); }
@@ -1032,8 +1142,33 @@ const Engine = (() => {
       }
       case 'skip': {
         if (!mine || ph !== 'buy') return 'turn';
-        push(st, 'skip', { s: seat, i: st.pend.i });
-        settle(st, seat);
+        const i2 = st.pend.i;
+        push(st, 'skip', { s: seat, i: i2 });
+        startAuction(st, seat, i2);
+        return '';
+      }
+      case 'bid': {
+        const A = st.auc;
+        if (ph !== 'auction' || !A) return 'turn';
+        if (A.out.includes(seat)) return 'passed';
+        if (A.by === seat) return 'lead';
+        // a computer player names its sum, a person raises by a step (whatever the bid is by the time it arrives)
+        const amt = a.a != null ? Math.floor(+a.a) : A.hi + Math.max(BID_STEP, Math.floor(+a.inc || BID_STEP));
+        if (!Number.isFinite(amt) || amt < A.hi + BID_STEP) return 'low';
+        if (amt > p.cash) return 'cash';
+        A.hi = amt; A.by = seat; A.n++;
+        push(st, 'bid', { s: seat, a: amt, i: A.i });
+        if (auctionDone(st)) endAuction(st);
+        return '';
+      }
+      case 'pass': {
+        const A = st.auc;
+        if (ph !== 'auction' || !A) return 'turn';
+        if (A.out.includes(seat)) return 'passed';
+        if (A.by === seat) return 'lead';
+        A.out.push(seat);
+        push(st, 'pass', { s: seat, i: A.i });
+        if (auctionDone(st)) endAuction(st);
         return '';
       }
       case 'end': {
@@ -1265,10 +1400,35 @@ const Engine = (() => {
     }
     return null;
   }
+  // what a town is worth to a computer player at an auction: a bargain is welcome, a town that finishes its region (or
+  // would finish someone else's) is worth more; it keeps some money back
+  function auctionValue(st, seat, i) {
+    const t = BOARD[i], p = st.players[seat], reserve = reserveFor(st, seat);
+    let v = t.p * 0.75;
+    if (t.k === 'p') {
+      const others = GROUP_TILES[t.g].filter(j => j !== i);
+      const mine = others.filter(j => st.own[j] && st.own[j].o === seat).length;
+      const owners = new Set(others.filter(j => st.own[j]).map(j => st.own[j].o));
+      if (mine === others.length) v = t.p * 1.7;
+      else if (owners.size === 1 && !owners.has(seat) && others.every(j => st.own[j])) v = t.p * 1.25;
+      else if (mine) v = t.p;
+    } else if (t.k === 'road') v = t.p * (0.75 + 0.2 * countOf(st, seat, ROADS));
+    return Math.floor(Math.min(v, p.cash - reserve * 0.5) / BID_STEP) * BID_STEP;
+  }
   // the next thing a computer player does, or null when it has nothing to do now (also while it waits for an answer)
   function botMove(st, seat, cautious) {
     const p = st.players[seat];
     if (!p || p.out || st.phase === 'over' || st.phase === 'lobby') return null;
+    if (st.phase === 'auction' && st.auc) {
+      const A = st.auc;
+      if (A.out.includes(seat) || A.by === seat) return null;
+      if (cautious) return { t: 'pass' };
+      const max = auctionValue(st, seat, A.i);
+      if (A.hi + BID_STEP > max || A.hi + BID_STEP > p.cash) return { t: 'pass' };
+      const gap = max - A.hi;
+      const inc = A.hi === 0 ? Math.max(BID_STEP, Math.floor(max * 0.45 / BID_STEP) * BID_STEP) : gap > 160 ? 50 : gap > 60 ? 20 : BID_STEP;
+      return { t: 'bid', a: Math.min(max, A.hi + inc) };
+    }
     if (st.trade && st.trade.to === seat) return { t: !cautious && likes(st, seat, st.trade) ? 'accept' : 'decline' };
     if (st.trade && st.trade.from === seat) return cautious ? { t: 'cancel' } : null;
     if (st.turn !== seat || st.trade) return null;
@@ -1296,7 +1456,7 @@ const Engine = (() => {
   function stop(st) { if (st.phase !== 'lobby' && st.phase !== 'over') finish(st, 'stop'); }
 
   return {
-    mulberry, newLobby, lobbyJoin, lobbyAct, seatOf, cleanName, act, legal, botMove, stop,
+    mulberry, newLobby, lobbyJoin, lobbyAct, seatOf, cleanName, act, legal, botMove, stop, hammer, throwSeed, BID_STEP,
     rentAt, buildBlock, canSell, canMort, buildCost, mortValue, unmortCost, raiseMax, worth, ranking,
     groupOwner, countOf, tradeBlock, cleanSide, activeSeats, FEATHER
   };
@@ -1311,7 +1471,7 @@ if (typeof module !== 'undefined') module.exports = Engine;
 // is in the room. If the host disappears, the next player in seat order takes over with their copy of the state.
 // "local" is a game on this device only (people taking turns and computer players), without any network.
 
-const PROTO = 2;                 // 2: a move's steps are in 'steps' (in 1 they hid the event's number)
+const PROTO = 3;                 // 3: auctions, and the dice's throw from the game's seed (2: a move's steps in 'steps')
 const ONLINE = {
   ws: 'wss://wnpqmcucnqcpcceqwega.supabase.co/realtime/v1',
   key: 'sb_publishable_DEGb_dkdj1s3QEJFrxc-Aw_apfCzfNx',
@@ -1319,8 +1479,11 @@ const ONLINE = {
   gone: 10000,      // the host silent this long: the next player takes over
   away: 5000,       // a player missing from the room this long counts as away
   awayWait: 12000,  // on an away player's turn, wait this long before the computer plays for them
-  tradeWait: 60000  // an offer nobody answers is declined after this long
+  tradeWait: 60000, // an offer nobody answers is declined after this long
+  seenMax: 2500     // the computer players wait for the others' screens to catch up, but not longer than this
 };
+// the auction's hammer falls this long after the last bid (the first bid gets longer, to read the card)
+const AUCTION = { first: 9000, after: 7000 };
 const randCode = n => Array.from({ length: n }, () => ONLINE.abc[Math.floor(Math.random() * ONLINE.abc.length)]).join('');
 const rndHost = () => { try { return crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296; } catch (e) { return Math.random(); } };
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -1431,7 +1594,8 @@ function newRoom(mode, role, code) {
   return {
     mode, role, code, me: myPid(), st: null, net: null, peers: {}, up: false, err: '',
     hostPid: '', heardHost: 0, joinedAt: now(), aid: 0, seenAid: {}, sent: null, sentAt: 0,
-    driveT: null, beatT: null, helloT: null, missing: {}, tradeAt: 0, tradeKey: '', awayAt: {}
+    driveT: null, beatT: null, helloT: null, missing: {}, tradeAt: 0, tradeKey: '', awayAt: {},
+    seen: {}, commitAt: 0, aucKey: '', aucAt: 0
   };
 }
 function meta() {
@@ -1447,6 +1611,7 @@ function send(t, d, to) {
 function commit() {
   const st = ROOM.st;
   st.seq++;
+  ROOM.commitAt = now();
   if (ROOM.mode === 'online') {
     store.set('room.' + ROOM.code, { st, at: now() });
     send('st', { p: PROTO, st });
@@ -1591,6 +1756,7 @@ function onMsg(m) {
       return;
     }
     if (m.t === 'bye') { markAway(m.f, true); return; }
+    if (m.t === 'seen') { ROOM.seen[m.f] = d.n | 0; return; }
     return;
   }
   // a guest
@@ -1733,15 +1899,39 @@ function takeOver(st) {
   commit();
 }
 
+// ----- how far the screens have got -----
+// A guest's screen says when it has shown everything (the event it got to); the host's computer players wait for it.
+function caughtUp(n) {
+  if (!ROOM || ROOM.mode !== 'online' || ROOM.role !== 'guest' || !ROOM.st) return;
+  if (ROOM.seenGame !== ROOM.st.dseed) { ROOM.seenGame = ROOM.st.dseed; ROOM.seenSent = 0; }      // a new game counts from the start
+  if (n <= (ROOM.seenSent || 0)) return;
+  ROOM.seenSent = n;
+  send('seen', { n }, ROOM.hostPid || undefined);
+}
+// how much longer to wait for the others' screens (0: they are there, or they have had long enough)
+function screensWait() {
+  if (!ROOM || ROOM.mode !== 'online') return 0;
+  const st = ROOM.st, since = now() - ROOM.commitAt;
+  if (since >= ONLINE.seenMax) return 0;
+  for (const p of st.players) {
+    if (p.bot || p.out || p.away || p.pid === ROOM.me || !ROOM.peers[p.pid]) continue;
+    const seen = ROOM.seen[p.pid];
+    if (seen != null && seen < st.evn) return ONLINE.seenMax - since;
+  }
+  return 0;
+}
+
 // ----- the computer players, and players who are away -----
 // A computer player waits until the screen has shown everything that happened, then a moment more (so one can see where it
 // landed before it buys, say), and only then makes its move. The others' phones play the same things at the same time.
-const BEAT = { roll: 550, buy: 700, skip: 700, end: 300, build: 450, sell: 450, mort: 450, unmort: 450, offer: 700, accept: 900, decline: 900, cancel: 500 };
+// how long a computer player takes over a move (buy or not: long enough for the others to read who is deciding, and where)
+const BEAT = { roll: 550, buy: 1100, skip: 1100, end: 300, build: 450, sell: 450, mort: 450, unmort: 450, offer: 700, accept: 900, decline: 900, cancel: 500 };
 function drive() {
   if (!ROOM || !isHost()) return;
   clearTimeout(ROOM.driveT);
   const st = ROOM.st;
   if (!st || st.phase === 'lobby' || st.phase === 'over') return;
+  if (st.phase === 'auction' && st.auc) return driveAuction(st);
   const seat = st.trade ? st.trade.to : st.turn, p = st.players[seat];
   if (!p) return;
   const key = st.trade ? st.tn + ':' + st.trade.from + '>' + st.trade.to : '';
@@ -1756,11 +1946,39 @@ function drive() {
   const beat = plan ? BEAT[plan.t] || 650 : 0;
   const go = () => {
     if (ROOM !== room || ROOM.st !== st) return;
-    const left = Math.max(until - now(), computer ? beat - View.idleFor() : 0);
+    const left = Math.max(until - now(), computer ? beat - View.idleFor() : 0, computer ? screensWait() : 0);
     if (left > 0) { ROOM.driveT = setTimeout(go, computer ? Math.min(left, 300) : left); return; }   // the screen is checked often
     const a = computer ? Engine.botMove(st, seat, away) : (st.trade && st.trade.to === seat ? { t: 'decline' } : null);
     if (!a) return;
     if (!Engine.act(st, seat, a, rndHost)) commit();
+  };
+  ROOM.driveT = setTimeout(go, 40);
+}
+
+// The auction: people bid whenever they like; the computer players (and those away, who only step back) one at a time,
+// each a moment after the screens have shown the last bid; and when nobody has bid for a while, the hammer falls.
+function driveAuction(st) {
+  const A = st.auc, room = ROOM, key = st.tn + ':' + A.i + ':' + A.n;
+  if (key !== ROOM.aucKey) { ROOM.aucKey = key; ROOM.aucAt = now(); }
+  const go = () => {
+    if (ROOM !== room || ROOM.st !== st || st.phase !== 'auction') return;
+    const seats = Engine.activeSeats(st), from = Math.max(0, seats.indexOf(A.by >= 0 ? A.by : st.turn));
+    for (let k = 1; k <= seats.length; k++) {
+      const s = seats[(from + k) % seats.length], p = st.players[s];
+      const computer = p.bot || (p.away && ROOM.mode === 'online');
+      if (!computer) continue;
+      const plan = Engine.botMove(st, s, !p.bot);
+      if (!plan) continue;
+      const beat = plan.t === 'pass' ? 600 : 900 + 300 * ((s + A.n) % 3);
+      const left = Math.max(beat - View.idleFor(), screensWait());
+      if (left > 0) { ROOM.driveT = setTimeout(go, Math.min(left, 300)); return; }
+      if (!Engine.act(st, s, plan, rndHost)) commit();
+      return;
+    }
+    const left = (A.n ? AUCTION.after : AUCTION.first) - (now() - ROOM.aucAt);
+    if (left > 0) { ROOM.driveT = setTimeout(go, Math.min(left, 400)); return; }
+    Engine.hammer(st);
+    commit();
   };
   ROOM.driveT = setTimeout(go, 40);
 }
@@ -3685,7 +3903,7 @@ const Board3D = (() => {
   const _m = new T.Matrix4(), _q = new T.Quaternion(), _s = new T.Vector3(), _c = new T.Color(), _up = new T.Vector3(0, 1, 0);
   function layoutBuildings(now) {
     if (!BLD.ready) return;
-    shadowDirty = true;
+    shadowLate = true;
     let nt = 0, nc = 0, anim = 0;
     for (let i = 0; i < 40; i++) {
       const k = mark[i];
@@ -4040,24 +4258,27 @@ const Board3D = (() => {
   }
 
   // ===== the frame loop =====
-  // quality follows the device: when frames come slowly the picture gets fewer pixels, then loses its shadows
-  let last = 0, running = false, frame = 0, slow = 0, quality = 2, basePR = 1, shadowDirty = true;
+  // Quality follows the device. Frames drawn one after another (while something moves) that come too slowly make the
+  // picture a step coarser, with fewer pixels. The step is taken in a quiet moment, when nothing moves, so that the
+  // change itself is not seen as a jolt; and the shaders never change mid-game (rebuilding them stalls a phone).
+  let last = 0, running = false, frame = 0, quality = 2, basePR = 1, shadowDirty = true, shadowLate = false, shadowAt = 0;
+  let drewLast = false, busyAvg = 1 / 60, busyN = 0, prStep = 0, prNext = 0;
+  const PR_STEPS = [1, 0.85, 0.72, 0.6];
   function adapt(real) {
-    if (real > 0.2) return;                       // a hiccup (a tab switch), not the device
-    slow = slow * 0.97 + (real > 1 / 26 ? 1 : 0) * 0.03;
-    if (frame % 40 || frame < 40 || slow < 0.55 || quality <= 0) return;
-    quality--;
-    slow = 0;
-    if (quality === 1) { R.setPixelRatio(Math.max(1, basePR * 0.7)); resize(); shadowDirty = true; }
-    if (quality === 0) { R.setPixelRatio(1); R.shadowMap.enabled = false; scene.traverse(o => { if (o.material) [].concat(o.material).forEach(m => { m.needsUpdate = true; }); }); resize(); }
+    if (real > 0.25 || real <= 0) return;                // a hiccup (a tab switch), not the device
+    busyAvg = busyAvg * 0.95 + real * 0.05;
+    if (++busyN < 50 || busyAvg < 1 / 36 || prNext || prStep >= PR_STEPS.length - 1) return;
+    const pr = Math.max(1, basePR * PR_STEPS[prStep + 1]);
+    prStep++; busyN = 0;
+    if (pr < R.getPixelRatio() - 0.01) prNext = pr;
   }
+  function coarser() { R.setPixelRatio(prNext); prNext = 0; busyAvg = 1 / 60; busyN = 0; PERF.coarser = (PERF.coarser || 0) + 1; resize(); }
   function loop(now) {
     if (!running) return;
     requestAnimationFrame(loop);
     const real = last ? (now - last) / 1000 : 0.016, dt = Math.min(0.25, real);
     last = now;
     frame++;
-    adapt(real);
     if (riseAt && frame >= riseAt) riseGo();
     stepTweens(dt * speedK);
     moveCamera(dt * speedK);
@@ -4081,10 +4302,18 @@ const Board3D = (() => {
     const moving = tweens.length > 0 || BLD.busy > 0;
     const camStill = Math.abs(camT.yaw - camS.yaw) < 0.002 && Math.abs(camT.d - camS.d) < 0.01 && Math.abs(camT.x - camS.x) < 0.005 && Math.abs(camT.z - camS.z) < 0.005;
     const still = !moving && camStill && !Dice3D.busy;
-    if (still && frame % (mobile ? 3 : 2)) return;   // only the board's own life moving: fewer frames are enough (a phone stays cool)
+    if (still && prNext) coarser();
+    if (still && frame % (mobile ? 3 : 2)) { drewLast = false; return; }   // only the board's own life moving: fewer frames are enough (a phone stays cool)
+    if (drewLast) adapt(real);
+    drewLast = !still;
     // the shadows are drawn again only when what casts them has moved, or the sun has (it turns with the camera):
-    // not while the dice roll over a board that stands still, nor while only the life of the board goes on
-    if (moving || !camStill || shadowDirty) { R.shadowMap.needsUpdate = true; shadowDirty = false; PERF.shadows++; }
+    // not while the dice roll over a board that stands still, nor while only the life of the board goes on. While
+    // things move they are drawn on every other frame on a phone (every fourth while the dice fly), and once more at
+    // the end, when all has come to rest
+    const need = moving || !camStill;
+    if (need) shadowLate = true;
+    const every = Dice3D.busy ? 4 : mobile ? 2 : 1;
+    if (shadowDirty || (shadowLate && (!need || frame - shadowAt >= every))) { R.shadowMap.needsUpdate = true; shadowDirty = false; shadowLate = false; shadowAt = frame; PERF.shadows++; }
     PERF.frames++;
     const lt = REDUCED ? 3 : t;              // with less motion asked for, the board's life stands still
     U.time.value = lt;
@@ -4293,6 +4522,9 @@ const Board3D = (() => {
 // that this face shows the number that was rolled: the motion stays exactly as simulated.
 // Since a throw does not depend on the numbers, the next one is simulated ahead, a little at a time while the page is
 // idle: a roll starts at once, without a pause for the arithmetic (which a phone would feel).
+// A throw comes from a seed the game gives (Engine.throwSeed), and the simulation uses nothing but arithmetic and
+// square roots, which every browser works out to the same last digit: so on every phone in the room the dice fly,
+// bounce and come to rest exactly alike.
 
 const Dice3D = (() => {
   let T = null, ok = false, scene = null, cam = null, host = null, badge = null;
@@ -4370,7 +4602,7 @@ const Dice3D = (() => {
     badge.hidden = true;
     host.appendChild(badge);
     ok = true;
-    later(spareUp);
+    if (todo.length) later(work);                  // throws asked for before the dice were here
   }
   // the dice are shown over the lower part of the board
   function layout(w, h) {
@@ -4393,7 +4625,7 @@ const Dice3D = (() => {
     const bodies = [0, 1].map(k => ({
       p: new V3((k ? 0.5 : -0.5) + (rnd() - 0.5) * 0.3, 0.75 + rnd() * 0.35, AZ + 0.9),
       v: new V3((rnd() - 0.5) * 1.2 + (k ? -0.35 : 0.35), 1.6 + rnd() * 1.2, -(4.6 + rnd() * 1.3)),
-      q: new Q4().setFromEuler(new T.Euler(rnd() * 6.3, rnd() * 6.3, rnd() * 6.3)),
+      q: new Q4(rnd() - 0.5, rnd() - 0.5, rnd() - 0.5, rnd() - 0.5).normalize(),     // (no sines here: see above)
       w: new V3((rnd() - 0.5) * 30, (rnd() - 0.5) * 20, (rnd() - 0.5) * 30),
       rest: 0, sleep: false
     }));
@@ -4501,36 +4733,53 @@ const Dice3D = (() => {
     };
   }
   function simulate(rnd) { const t = throwOf(rnd); t.run(Infinity); return t.result; }
-  // the next throw, worked out ahead in slices of a few milliseconds
-  let spare = null, making = null;
+  // the throws the game will ask for next, worked out ahead in slices of a few milliseconds (by their seeds)
+  const ahead = new Map(), todo = [];
+  let making = null;
   const later = fn => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 600 }) : setTimeout(fn, 30));
-  const seedRnd = () => { const seed = (Math.random() * 1e9) | 0; return Engine.mulberry ? Engine.mulberry(seed) : Math.random; };
-  function spareUp() {
-    if (spare || making || !ok) return;
-    const job = making = throwOf(seedRnd());
-    const work = () => {
-      if (making !== job) return;
-      const t = performance.now();
-      while (performance.now() - t < 4) if (job.run(12)) { spare = job.result; making = null; return; }
-      later(work);
-    };
+  const rndOf = seed => Engine.mulberry(seed >>> 0);
+  function expect(seed) {
+    seed = seed >>> 0;
+    if (!seed || ahead.has(seed) || (making && making.seed === seed) || todo.includes(seed)) return;
+    todo.push(seed);
+    if (todo.length > 3) todo.shift();
     later(work);
   }
-  function nextThrow() {
-    let sim = spare;
-    spare = null;
-    if (!sim && making) { making.run(Infinity); sim = making.result; }
-    making = null;
-    return sim || simulate(seedRnd());
+  function work() {
+    if (!ok) return;
+    if (!making) {
+      const seed = todo.shift();
+      if (!seed) return;
+      making = throwOf(rndOf(seed)); making.seed = seed;
+    }
+    const job = making, t = performance.now();
+    while (performance.now() - t < 4) {
+      if (!job.run(12)) continue;
+      ahead.set(job.seed, job.result);
+      while (ahead.size > 4) ahead.delete(ahead.keys().next().value);
+      making = null;
+      if (todo.length) later(work);
+      return;
+    }
+    later(work);
+  }
+  // the throw for this seed: ready, half done (finished now), or worked out now (an old game without seeds: any throw)
+  function nextThrow(seed) {
+    seed = seed >>> 0;
+    let sim = null;
+    if (seed && ahead.has(seed)) { sim = ahead.get(seed); ahead.delete(seed); }
+    else if (seed && making && making.seed === seed) { making.run(Infinity); sim = making.result; making = null; }
+    else sim = simulate(rndOf(seed || ((Math.random() * 4294967295) >>> 0) || 1));
+    if (todo.length) later(work);
+    return sim;
   }
 
   // ----- a throw -----
   const qa = () => new T.Quaternion(), tmpQ = [null, null];
-  function roll(values) {
+  function roll(values, seed) {
     if (!ok) return Promise.resolve();
     return new Promise(res => {
-      const sim = nextThrow();
-      later(spareUp);                              // the one after this, while this one plays
+      const sim = nextThrow(seed);
       sim.ends.forEach((en, k) => { dice[k].off.setFromUnitVectors(NORMAL[values[k]], en.u); });
       badge.hidden = true;
       visible = true;
@@ -4571,7 +4820,7 @@ const Dice3D = (() => {
       if (play.after > 1.6) {
         const e = Math.min(1, (play.after - 1.6) / 0.3);
         dice.forEach(d => d.m.scale.setScalar(Math.max(0.001, 1 - e)));
-        if (e >= 1) { visible = false; badge.hidden = true; const r = play.res; play = null; if (r) r(); later(spareUp); }
+        if (e >= 1) { visible = false; badge.hidden = true; const r = play.res; play = null; if (r) r(); }
       }
     }
   }
@@ -4589,7 +4838,7 @@ const Dice3D = (() => {
     R.setViewport(0, 0, W, H);
   }
   // the screen is going away mid-throw: finish at once
-  function skip() { if (play && play.res) { const r = play.res; play.res = null; r(); } play = null; visible = false; if (badge) badge.hidden = true; later(spareUp); }
+  function skip() { if (play && play.res) { const r = play.res; play.res = null; r(); } play = null; visible = false; if (badge) badge.hidden = true; }
   // drawn once, out of sight, so that its shaders are compiled and its pictures uploaded before the first throw
   function warm(R) {
     if (!ok) return;
@@ -4608,8 +4857,10 @@ const Dice3D = (() => {
       return FACES[ax * 2 + (u.getComponent(ax) > 0 ? 0 : 1)];
     });
   }
-  return { init, layout, roll, frame, skip, warm, get busy() { return !!play; }, _sim: (THREE, rnd) => { T = T || THREE; return simulate(rnd); },
-    _top: top, get _spare() { return !!spare; }, get _landed() { return !!(play && play.done); } };
+  // (for tests) where the dice are now
+  const where = () => dice.map(d => [d.m.position.x, d.m.position.y, d.m.position.z, d.m.quaternion.x, d.m.quaternion.y, d.m.quaternion.z, d.m.quaternion.w].map(v => +v.toFixed(5)));
+  return { init, layout, roll, expect, frame, skip, warm, get busy() { return !!play; }, _sim: (THREE, rnd) => { T = T || THREE; return simulate(rnd); },
+    _top: top, _where: where, _ahead: seed => ahead.has(seed >>> 0), get _landed() { return !!(play && play.done); } };
 })();
 
 // ===== the game screen =====
@@ -4638,7 +4889,8 @@ const ERR = {
   even: 'კოშკები კუთხეში თანაბრად შენდება და თანაბრად იყიდება', mort: 'ჯერ ამ კუთხის კოშკები უნდა გაყიდო', max: 'აქ უკვე ციხეა',
   own: 'ეს შენი არ არის', bad: 'ასე არ შეიძლება', empty: 'შეთავაზება ცარიელია', stale: 'შეთავაზება აღარ მოქმედებს',
   host: 'ამას მხოლოდ მასპინძელი აკეთებს', few: 'საჭიროა მინიმუმ ორი მოთამაშე', taken: 'ეს გმირი უკვე დაკავებულია',
-  full: 'ოთახი სავსეა', watch: 'ამ თამაშს მხოლოდ უყურებ', started: 'თამაში უკვე დაიწყო', out: 'შენ გაკოტრდი', over: 'თამაში დასრულდა'
+  full: 'ოთახი სავსეა', watch: 'ამ თამაშს მხოლოდ უყურებ', started: 'თამაში უკვე დაიწყო', out: 'შენ გაკოტრდი', over: 'თამაში დასრულდა',
+  passed: 'აუქციონიდან უკვე გამოხვედი'
 };
 
 // the roll button's picture
@@ -4680,6 +4932,8 @@ const Sound = (() => {
     turn() { tone(660, 0.14, 'sine', 0.09); tone(880, 0.2, 'sine', 0.09, 0.12); },
     build() { tone(220, 0.08, 'square', 0.05); tone(330, 0.12, 'square', 0.05, 0.08); },
     bad() { tone(160, 0.25, 'sawtooth', 0.05); },
+    bid() { tone(990, 0.07, 'triangle', 0.06); tone(1320, 0.09, 'triangle', 0.05, 0.05); },
+    gavel() { noise(0.09, 420, 0.7); noise(0.09, 380, 0.6, 0.2); tone(140, 0.12, 'sine', 0.08, 0.2); },
     // the land growing out of the board: a low rumble
     rumble() { for (let k = 0; k < 7; k++) noise(0.5, 55 + k * 10, 0.55, k * 0.17); tone(46, 1.3, 'sine', 0.06); },
     card() { tone(740, 0.08, 'sine', 0.06); tone(990, 0.12, 'sine', 0.06, 0.06); }
@@ -4731,6 +4985,7 @@ const View = (() => {
     const first = st.evn - st.ev.length + 1;
     if (!built || !shown || shown.phase === 'lobby' || st.evn < lastEv || first > lastEv + 1) { reset(st); return; }
     target = clone(st);
+    expectThrow(target);
     const fresh = target.ev.slice(Math.max(0, lastEv + 1 - first));
     if (fresh.length) batch++;
     for (const e of fresh) { e._b = batch; q.push(e); }     // which change of the state it came with
@@ -4740,8 +4995,12 @@ const View = (() => {
     endsAt = Math.max(endsAt, Date.now()) + estimate(fresh);
     if (!playing) play();
   }
+  // the next throw of the dice is known already: it is worked out while there is time
+  function expectThrow(st) { if (st && st.phase !== 'lobby' && st.phase !== 'over') Dice3D.expect(Engine.throwSeed(st, st.rolls + 1)); }
   function reset(st) {
     target = clone(st); shown = clone(st); lastEv = st.evn; q = []; playing = false; idleAt = Date.now(); speed(1);
+    expectThrow(target);
+    caughtUp(shown.evn);
     gen++;
     if (gl && Board3D.ok) Board3D.halt();
     if (Dice3D.busy) Dice3D.skip();
@@ -4789,7 +5048,7 @@ const View = (() => {
     const my = ++gen;
     playing = true;
     clearTimeout(autoT);
-    hideBuy();
+    if (!(target && target.phase === 'auction' && shown && shown.phase === 'auction')) hideBuy();   // the auction's card stays while bids come in
     while (q.length && gen === my) {
       const e = q.shift();
       current = e;
@@ -4815,13 +5074,14 @@ const View = (() => {
     pos = shown.players.map(p => p.pos);
     cash = shown.players.map(p => p.cash);
     render();
+    caughtUp(shown.evn);                 // the host waits for the slowest screen before the computer players move on
   }
 
   // ----- one event on screen -----
   async function animate(e) {
     const st = target;
     switch (e.k) {
-      case 'roll': if (gl) { Board3D.focus(e.s); Sound.dice(); await Dice3D.roll(e.d); } break;
+      case 'roll': if (gl) { Board3D.focus(e.s); Sound.dice(); await Dice3D.roll(e.d, e.w); } break;
       case 'move': {
         const n = stepsOf(e), g0 = gen;
         Board3D.focus(e.s);
@@ -4829,20 +5089,38 @@ const View = (() => {
         if (gen === g0) pos[e.s] = e.to;
         break;
       }
-      case 'jail': { const g0 = gen; Board3D.focus(e.s); await Board3D.fly(e.s, JAIL); if (gen === g0) pos[e.s] = JAIL; Sound.bad(); await wait(200); break; }
+      case 'jail': { const g0 = gen; Board3D.focus(e.s); bubble(e.s, 'ზინდანში!', 'bad'); await Board3D.fly(e.s, JAIL); if (gen === g0) pos[e.s] = JAIL; Sound.bad(); await wait(200); break; }
+      case 'free': bubble(e.s, 'გამოვიდა ზინდანიდან', 'good'); break;
+      case 'stay': bubble(e.s, 'ზინდანში რჩება', ''); break;
+      case 'debt': bubble(e.s, `ვალი ${coin(e.a)}`, 'bad'); break;
       case 'salary': case 'gain': money(e.s, e.a); Sound.coin(); await wait(260); break;
       case 'pay': {
         money(e.s, -e.a); if (e.to >= 0) money(e.to, e.a);
         if (gl) Board3D.coins(e.s, e.to, e.a);
-        if (e.why === 'rent') toastEv(`${esc(pName(st, e.s))} → ${esc(pName(st, e.to))}: ქირა ${coin(e.a)}`, controls(e.to) ? 'good' : controls(e.s) ? 'bad' : '');
-        else if (e.why === 'tax' && controls(e.s)) toastEv(`${esc(tName(e.i))}: ${coin(e.a)}`, 'bad');
+        if (e.why === 'rent') {                    // the notes by the two chips tell everyone; the toast only those who paid or got it
+          if (controls(e.s) || controls(e.to)) toastEv(`${esc(pName(st, e.s))} → ${esc(pName(st, e.to))}: ქირა ${coin(e.a)}`, controls(e.to) ? 'good' : 'bad');
+          bubble(e.s, `ქირა → ${esc(pName(st, e.to))}`, 'bad'); bubble(e.to, 'მიიღო ქირა', 'good');
+        }
+        else if (e.why === 'tax') { if (controls(e.s)) toastEv(`${esc(tName(e.i))}: ${coin(e.a)}`, 'bad'); bubble(e.s, esc(tName(e.i)), 'bad'); }
+        else bubble(e.s, e.why === 'fine' ? 'ზინდანის გამოსასყიდი' : e.why === 'repair' ? 'შეკეთება' : 'გადაიხადა', 'bad');
         Sound.pay(); await wait(450); break;
       }
-      case 'buy': Board3D.setOwner(e.i, e.s, true); money(e.s, -e.a); Sound.coin(); await wait(450); whole(st, e.s, [e.i]); break;
-      case 'build': case 'sell': Board3D.setLevel(e.i, e.lv, true); money(e.s, e.k === 'build' ? -Engine.buildCost(e.i) : Engine.buildCost(e.i) / 2); Sound.build(); await wait(380); break;
-      case 'mort': Board3D.setMort(e.i, true, true); money(e.s, Engine.mortValue(e.i)); await wait(240); break;
-      case 'unmort': Board3D.setMort(e.i, false, true); money(e.s, -Engine.unmortCost(e.i)); await wait(240); break;
-      case 'card': await showCard(e); break;
+      case 'buy': Board3D.setOwner(e.i, e.s, true); money(e.s, -e.a); bubble(e.s, `იყიდა: ${esc(tName(e.i))}`, 'good'); Sound.coin(); await wait(450); whole(st, e.s, [e.i]); break;
+      case 'skip': bubble(e.s, `აუქციონზე: ${esc(tName(e.i))}`, ''); break;
+      // the auction: its card is drawn from the state; the events only add sound, the notes and the town's owner
+      case 'auction': Sheet.close(true); Board3D.focus(e.s); Board3D.pop(e.i, 0.08); Sound.gavel(); await wait(250); break;
+      case 'bid': bubble(e.s, coin(e.a), 'bid'); Sound.bid(); await wait(120); break;
+      case 'pass': bubble(e.s, 'გავიდა', ''); break;
+      case 'won': {
+        Board3D.setOwner(e.i, e.s, true); money(e.s, -e.a); Sound.gavel(); bubble(e.s, `იყიდა: ${esc(tName(e.i))}`, 'good');
+        toastEv(`${esc(pName(st, e.s))}: ${esc(tName(e.i))} აუქციონზე · ${coin(e.a)}`, controls(e.s) ? 'good' : '');
+        await wait(600); whole(st, e.s, [e.i]); break;
+      }
+      case 'unsold': toastEv(`${esc(tName(e.i))}: აუქციონზე არავინ იყიდა`); await wait(300); break;
+      case 'build': case 'sell': Board3D.setLevel(e.i, e.lv, true); money(e.s, e.k === 'build' ? -Engine.buildCost(e.i) : Engine.buildCost(e.i) / 2); bubble(e.s, e.k === 'build' ? `${LEVEL_NAMES[e.lv]}: ${esc(tName(e.i))}` : `გაყიდა კოშკი: ${esc(tName(e.i))}`, e.k === 'build' ? 'good' : ''); Sound.build(); await wait(380); break;
+      case 'mort': Board3D.setMort(e.i, true, true); money(e.s, Engine.mortValue(e.i)); bubble(e.s, `დააგირავა: ${esc(tName(e.i))}`, 'bad'); await wait(240); break;
+      case 'unmort': Board3D.setMort(e.i, false, true); money(e.s, -Engine.unmortCost(e.i)); bubble(e.s, `გამოისყიდა: ${esc(tName(e.i))}`, 'good'); await wait(240); break;
+      case 'card': bubble(e.s, e.d === 's' ? 'ბედის გრაგნილი' : 'საგანძური', ''); await showCard(e); break;
       case 'turn': {
         Board3D.focus(e.s); Board3D.setTurn(e.s);
         const mine = controls(e.s) && ROOM && ROOM.role !== 'local';
@@ -4861,7 +5139,7 @@ const View = (() => {
         whole(st, e.to, e.give.p); whole(st, e.from, e.get.p);
         toastEv(`${esc(pName(st, e.from))} ⇄ ${esc(pName(st, e.to))}: გარიგება შედგა`, 'good'); Sound.coin(); await wait(500); break;
       }
-      case 'bankrupt': toastEv(`${esc(pName(st, e.s))} გაკოტრდა`, 'bad'); Sound.bad(); await wait(700); break;
+      case 'bankrupt': toastEv(`${esc(pName(st, e.s))} გაკოტრდა`, 'bad'); bubble(e.s, 'გაკოტრდა', 'bad'); Sound.bad(); await wait(700); break;
     }
   }
 
@@ -4888,6 +5166,30 @@ const View = (() => {
       chip.appendChild(f);
       setTimeout(() => f.remove(), 1300);
     }
+  }
+  // a short note by a player's picture at the top of the screen: what just happened to them (everyone sees it)
+  const notes = [];
+  function bubble(s, html, kind) {
+    const chip = $(`#players .pl[data-s="${s}"]`), box = $('#bubbles'), list = $('#players');
+    if (!chip || !box || document.visibilityState === 'hidden') return;
+    const r = chip.getBoundingClientRect(), b = document.createElement('div'), pl = (target || shown).players[s];
+    b.className = 'bub ' + (kind || '');
+    // whose note it is, with their face: a note may lie over someone else's chip
+    b.innerHTML = (pl ? `<img src="${por(pl.hero)}" alt="">` : '') + `<span>${html}</span>`;
+    b.style.setProperty('--c', SEAT_COLORS[s]);
+    if (notes[s]) notes[s].remove();                                                    // one note per player: a newer one replaces it
+    notes[s] = b;
+    box.appendChild(b);
+    if (matchMedia('(orientation: landscape) and (min-width: 640px)').matches) {
+      // the players are listed at the side: the note goes to the left of the list, level with the chip (in two columns
+      // the left one's a little higher, the right one's lower, so that two notes of one row can both be read)
+      const L = (list || chip).getBoundingClientRect(), dy = L.width > r.width * 1.5 ? (r.left - L.left > 10 ? 11 : -11) : 0;
+      b.classList.add('side'); b.style.right = (innerWidth - L.left + 8) + 'px'; b.style.top = (r.top + r.height / 2 + dy) + 'px';
+    } else {                                                                            // hanging from its chip, whole on the screen
+      const cx = r.left + r.width / 2, h = b.offsetWidth / 2 + 6, x = Math.max(h, Math.min(innerWidth - h, cx));
+      b.style.left = x + 'px'; b.style.top = (r.bottom + 3) + 'px'; b.style.setProperty('--tx', (cx - x).toFixed(1) + 'px');
+    }
+    setTimeout(() => { b.classList.add('bye'); setTimeout(() => { b.remove(); if (notes[s] === b) notes[s] = null; }, 350); }, 2600);
   }
   function banner(text, s) {
     const b = $('#banner'); if (!b) return;
@@ -4993,6 +5295,9 @@ const View = (() => {
       acts = `<button class="btn gold" data-sheet="offer">შეთავაზების ნახვა</button>`;
     } else if (st.trade && st.phase !== 'over') {
       extra = `<p class="hint">${esc(pName(st, st.trade.from))} ვაჭრობას სთავაზობს: ${esc(pName(st, st.trade.to))}</p>`;
+    } else if (st.phase === 'auction' && st.auc) {
+      status = `აუქციონი: <b>${esc(tName(st.auc.i))}</b>`;
+      extra = `<p class="hint">ფასს ყველა ასახელებს. ბოლო ფასის შემდეგ რამდენიმე წამში იყიდება.</p>`;
     } else if (st.phase === 'buy') {
       extra = `<p class="hint">ფიქრობს, იყიდოს თუ არა: ${esc(tName(st.pend.i))}</p>`;
     } else if (st.phase === 'over') {
@@ -5007,15 +5312,67 @@ const View = (() => {
     if (ul && !ul.children.length) ul.remove();
     if (busy) $$('[data-a]', c).forEach(b => { b.disabled = true; });
   }
+  // what a square is, in the card's head: its region's colour and picture
+  function cardHead(t, extra) {
+    const col = t.k === 'p' ? GROUPS[t.g].c : '#7b5532';
+    const head = `<span class="chip" style="--g:${col}">${esc(t.k === 'p' ? GROUPS[t.g].n : t.k === 'road' ? 'ქარვასლა' : 'მეურნეობა')}</span>${extra || ''}`;
+    const scene = t.k === 'p' ? SCENES[t.g] : t.k === 'road' ? 'g_pass' : 'g_elbrus', at = t.k === 'p' ? SCENE_POS[t.g] : '50% 50%';
+    return `<div class="bc-h" style="--g:${col};background-image:linear-gradient(180deg,rgba(13,16,22,0),rgba(13,16,22,.8)),url(${ART(scene)});background-position:${at}">${head}<h3>${esc(t.n.replace(/­/g, ''))}</h3></div>`;
+  }
+  // someone else is deciding whether to buy: everyone sees who, which town and its price
+  function renderWatch() {
+    const st = shown, box = $('#watch');
+    if (!box) return;
+    if (!st || st.phase !== 'buy' || !st.pend || controls(st.turn) || playing) { box.hidden = true; box.dataset.k = ''; return; }
+    const t = BOARD[st.pend.i], p = st.players[st.turn], col = t.k === 'p' ? GROUPS[t.g].c : '#7b5532', k = st.tn + ':' + st.pend.i;
+    if (box.dataset.k === k && !box.hidden) return;
+    box.dataset.k = k;
+    box.innerHTML = `<div class="wc" style="--c:${SEAT_COLORS[st.turn]};--g:${col}"><img src="${por(p.hero)}" alt=""><div class="wc-w"><b>${esc(p.name)}</b><span>ყიდვაზე ფიქრობს<i class="dots"><i></i><i></i><i></i></i></span></div>
+      <div class="wc-t"><small>${esc(t.k === 'p' ? GROUPS[t.g].n : t.k === 'road' ? 'ქარვასლა' : 'მეურნეობა')}</small><b>${esc(tName(st.pend.i))}</b>${coin(t.p)}</div></div>`;
+    box.hidden = false; box.classList.remove('go'); void box.offsetWidth; box.classList.add('go');
+  }
+  // the auction, the same card on every screen: the town, the highest bid and who made it, the clock until the
+  // hammer falls, who is still in; and the buttons for whoever bids from this device
+  const AUC_SHOW = { first: 8.5, after: 6.5 };          // seconds the clock shows (the host's hammer falls a little later)
+  let aucKey = '', aucAt = 0;
+  function renderAuction() {
+    const st = shown, box = $('#buycard'), A = st && st.auc;
+    if (!box || !A || st.phase !== 'auction') return false;
+    const t = BOARD[A.i], key = st.tn + ':' + A.i + ':' + A.n;
+    if (key !== aucKey) { aucKey = key; aucAt = performance.now(); }
+    const dur = A.n ? AUC_SHOW.after : AUC_SHOW.first, gone = Math.min(dur, (performance.now() - aucAt) / 1000);
+    const lead = A.by >= 0 ? st.players[A.by] : null;
+    const top = lead ? `<div class="au-bid"><img src="${por(lead.hero)}" alt="" style="--c:${SEAT_COLORS[A.by]}"><span><small>${esc(lead.name)}</small>${coin(A.hi)}</span></div>`
+      : `<div class="au-bid none"><span><small>ჯერ არავის დაუსახელებია ფასი</small><b>დაიწყე ${coin(Engine.BID_STEP)}-დან</b></span></div>`;
+    const who = Engine.activeSeats(st).map(s => `<img src="${por(st.players[s].hero)}" alt="${esc(st.players[s].name)}" title="${esc(st.players[s].name)}" class="${s === A.by ? 'lead' : A.out.includes(s) ? 'out' : ''}" style="--c:${SEAT_COLORS[s]}">`).join('');
+    // this device's bidders: one person online, everyone at this screen in a game of several on one phone
+    const mine = Engine.activeSeats(st).filter(s => controls(s));
+    const many = mine.length > 1;
+    const rows = mine.map(s => {
+      const p = st.players[s], L = Engine.legal(st, s);
+      if (L.lead) return `<p class="hint good">${many ? esc(p.name) + ': ' : ''}შენი ფასია ყველაზე მაღალი</p>`;
+      if (!L.pass) return `<p class="hint">${many ? esc(p.name) + ': ' : ''}აუქციონიდან გამოხვედი</p>`;
+      const btn = inc => `<button class="btn gold" data-a="bid" data-inc="${inc}" data-seat="${s}" ${A.hi + inc <= p.cash ? '' : 'disabled'}>+${inc}</button>`;
+      return `<div class="row au-acts">${many ? `<img class="au-me" src="${por(p.hero)}" alt="${esc(p.name)}" style="--c:${SEAT_COLORS[s]}">` : ''}${btn(10)}${btn(50)}${btn(100)}<button class="btn" data-a="pass" data-seat="${s}">გავდივარ</button></div>`;
+    }).join('');
+    box.innerHTML = `<div class="bc auc">${cardHead(t, '<span class="chip au-tag">აუქციონი</span>')}
+      <div class="bc-b"><div class="au-top">${top}<small class="au-price">ფასი ${coin(t.p)}</small></div>
+      <div class="au-clock"><i style="animation-duration:${dur}s;animation-delay:-${gone.toFixed(2)}s"></i></div>
+      <div class="au-who">${who}</div>${rows || '<p class="hint">უყურებ, ვინ იყიდის</p>'}</div></div>`;
+    if (box.hidden || box.dataset.k !== 'auc') { box.hidden = false; box.dataset.k = 'auc'; box.classList.remove('go'); void box.offsetWidth; box.classList.add('go'); }
+    if (busy) $$('[data-a]', box).forEach(b => { b.disabled = true; });
+    return true;
+  }
   // the town one may buy, as a card over the board
   function renderBuy() {
     const st = shown, box = $('#buycard');
     if (!box) return;
+    renderWatch();
+    if (st && st.phase === 'auction' && !playing) { renderAuction(); return; }
+    if (st && st.phase === 'auction') return;
     const me = acting();
-    if (!st || st.phase !== 'buy' || me !== st.turn || !controls(me) || playing) { hideBuy(); return; }
+    if (!st || st.phase !== 'buy' || me !== st.turn || !controls(me) || playing) { hideCard(); return; }   // (the watching card stays as renderWatch left it)
     const t = BOARD[st.pend.i], p = st.players[me], L = Engine.legal(st, me);
-    const col = t.k === 'p' ? GROUPS[t.g].c : '#7b5532';
-    const head = t.k === 'p' ? `<span class="chip" style="--g:${col}">${esc(GROUPS[t.g].n)}</span>` : `<span class="chip" style="--g:${col}">${t.k === 'road' ? 'ქარვასლა' : 'მეურნეობა'}</span>`;
     let rows = '', hint = '';
     if (t.k === 'p') {
       const mine = GROUP_TILES[t.g].filter(i => st.own[i] && st.own[i].o === me).length, all = GROUP_TILES[t.g].length;
@@ -5028,16 +5385,15 @@ const View = (() => {
       rows = `<li><span>ერთი გაქვს</span><b>კამათელი ×4</b></li><li><span>ორივე გაქვს</span><b>კამათელი ×10</b></li>`;
       hint = 'ქირა კამათლის ჯამზეა დამოკიდებული.';
     }
-    const scene = t.k === 'p' ? SCENES[t.g] : t.k === 'road' ? 'g_pass' : 'g_elbrus', at = t.k === 'p' ? SCENE_POS[t.g] : '50% 50%';
-    box.innerHTML = `<div class="bc">
-      <div class="bc-h" style="--g:${col};background-image:linear-gradient(180deg,rgba(13,16,22,0),rgba(13,16,22,.8)),url(${ART(scene)});background-position:${at}">${head}<h3>${esc(t.n.replace(/­/g, ''))}</h3></div>
+    box.innerHTML = `<div class="bc">${cardHead(t)}
       <div class="bc-b"><ul class="bc-rent">${rows}</ul><p class="hint">${hint}</p>
-      <div class="row"><button class="btn gold big" data-a="buy" ${L.buy ? '' : 'disabled'}>იყიდე ${coin(t.p)}</button><button class="btn" data-a="skip">არა</button></div>
-      ${L.buy ? '' : `<p class="hint bad">ფული არ გყოფნის: გაქვს ${coin(p.cash)}</p>`}</div></div>`;
-    if (box.hidden) { box.hidden = false; box.classList.remove('go'); void box.offsetWidth; box.classList.add('go'); }
+      <div class="row"><button class="btn gold big" data-a="buy" ${L.buy ? '' : 'disabled'}>იყიდე ${coin(t.p)}</button><button class="btn" data-a="skip">აუქციონზე</button></div>
+      ${L.buy ? '' : `<p class="hint bad">ფული არ გყოფნის: გაქვს ${coin(p.cash)}. აუქციონზე იაფადაც შეიძლება წავიდეს.</p>`}</div></div>`;
+    if (box.hidden || box.dataset.k !== 'buy') { box.hidden = false; box.dataset.k = 'buy'; box.classList.remove('go'); void box.offsetWidth; box.classList.add('go'); }
     if (busy) $$('[data-a]', box).forEach(b => { b.disabled = true; });
   }
-  function hideBuy() { const b = $('#buycard'); if (b) b.hidden = true; }
+  function hideCard() { const b = $('#buycard'); if (b) { b.hidden = true; b.dataset.k = ''; } }
+  function hideBuy() { hideCard(); const w = $('#watch'); if (w) { w.hidden = true; w.dataset.k = ''; } }
   // the button over the board: the whole board, or back to the figure
   function viewBtn() {
     const b = $('#bView');
@@ -5077,7 +5433,12 @@ function evText(st, e) {
     case 'start': return 'თამაში დაიწყო';
     case 'roll': return `${n(e.s)}: ${e.d[0]} და ${e.d[1]}${e.d[0] === e.d[1] ? ' · დუბლი' : ''}`;
     case 'buy': return `${n(e.s)}: იყიდა ${t(e.i)} · ${fmt(e.a)}`;
-    case 'skip': return `${n(e.s)}: არ იყიდა ${t(e.i)}`;
+    case 'skip': return `${n(e.s)}: აუქციონზე გაიტანა ${t(e.i)}`;
+    case 'auction': return `აუქციონი: ${t(e.i)}`;
+    case 'bid': return `${n(e.s)}: ფასი ${fmt(e.a)} · ${t(e.i)}`;
+    case 'pass': return '';
+    case 'won': return `${n(e.s)}: იყიდა აუქციონზე ${t(e.i)} · ${fmt(e.a)}`;
+    case 'unsold': return `${t(e.i)}: აუქციონზე არავინ იყიდა`;
     case 'pay':
       if (e.why === 'rent') return `${n(e.s)} → ${n(e.to)}: ქირა ${fmt(e.a)} · ${t(e.i)}`;
       if (e.why === 'tax') return `${n(e.s)}: ${t(e.i)} · ${fmt(e.a)}`;
@@ -5331,6 +5692,7 @@ const Sheet = (() => {
       <ol class="steps">
         <li><b>გააგორე კამათელი</b> და ფიგურა თავისით წავა. სტარტის გავლაზე ${SALARY} გეძლევა.</li>
         <li><b>იყიდე ქალაქი,</b> რომელზეც დადექი. სხვის ქალაქზე ქირას იხდი, თამაში თვითონ გადაიხდის.</li>
+        <li><b>არ იყიდი? აუქციონია.</b> ფასს ყველა ასახელებს, წინაზე ${Engine.BID_STEP}-ით მაინც მეტს; ვისაც აღარ უნდა, გადის. ბოლო ფასის მერე რამდენიმე წამში ქალაქი ყველაზე მაღალი ფასით იყიდება, ხშირად ნომინალზე იაფადაც.</li>
         <li><b>შეაგროვე მთელი კუთხე</b> (ერთი ფერის ქალაქები): ქირა გაორმაგდება და შეგიძლია <b>კოშკები</b> ააშენო. ოთხი კოშკის მერე ციხე-სიმაგრე დგება, ქირა ყველაზე დიდია.</li>
         <li><b>ვინც გაკოტრდება,</b> თამაშიდან გადის. იგებს ბოლო დარჩენილი ან, რაუნდების ლიმიტზე, ყველაზე მდიდარი.</li>
       </ol>
@@ -5638,7 +6000,7 @@ function boot() {
   $('#scr-game').addEventListener('click', ev => {
     Sound.unlock();
     const a = ev.target.closest('#panel [data-a], #buycard [data-a]');
-    if (a && !a.disabled) { const m = { t: a.dataset.a }; if (a.dataset.seat != null) m.seat = +a.dataset.seat; move(m); return; }
+    if (a && !a.disabled) { const m = { t: a.dataset.a }; if (a.dataset.seat != null) m.seat = +a.dataset.seat; if (a.dataset.inc) m.inc = +a.dataset.inc; move(m); return; }
     if (ev.target.closest('#bView')) return View.view();
     const d = ev.target.closest('#panel [data-deed]');
     if (d) return Sheet.open('deed', +d.dataset.deed);

@@ -684,7 +684,7 @@ const Board3D = (() => {
   const _m = new T.Matrix4(), _q = new T.Quaternion(), _s = new T.Vector3(), _c = new T.Color(), _up = new T.Vector3(0, 1, 0);
   function layoutBuildings(now) {
     if (!BLD.ready) return;
-    shadowDirty = true;
+    shadowLate = true;
     let nt = 0, nc = 0, anim = 0;
     for (let i = 0; i < 40; i++) {
       const k = mark[i];
@@ -1039,24 +1039,27 @@ const Board3D = (() => {
   }
 
   // ===== the frame loop =====
-  // quality follows the device: when frames come slowly the picture gets fewer pixels, then loses its shadows
-  let last = 0, running = false, frame = 0, slow = 0, quality = 2, basePR = 1, shadowDirty = true;
+  // Quality follows the device. Frames drawn one after another (while something moves) that come too slowly make the
+  // picture a step coarser, with fewer pixels. The step is taken in a quiet moment, when nothing moves, so that the
+  // change itself is not seen as a jolt; and the shaders never change mid-game (rebuilding them stalls a phone).
+  let last = 0, running = false, frame = 0, quality = 2, basePR = 1, shadowDirty = true, shadowLate = false, shadowAt = 0;
+  let drewLast = false, busyAvg = 1 / 60, busyN = 0, prStep = 0, prNext = 0;
+  const PR_STEPS = [1, 0.85, 0.72, 0.6];
   function adapt(real) {
-    if (real > 0.2) return;                       // a hiccup (a tab switch), not the device
-    slow = slow * 0.97 + (real > 1 / 26 ? 1 : 0) * 0.03;
-    if (frame % 40 || frame < 40 || slow < 0.55 || quality <= 0) return;
-    quality--;
-    slow = 0;
-    if (quality === 1) { R.setPixelRatio(Math.max(1, basePR * 0.7)); resize(); shadowDirty = true; }
-    if (quality === 0) { R.setPixelRatio(1); R.shadowMap.enabled = false; scene.traverse(o => { if (o.material) [].concat(o.material).forEach(m => { m.needsUpdate = true; }); }); resize(); }
+    if (real > 0.25 || real <= 0) return;                // a hiccup (a tab switch), not the device
+    busyAvg = busyAvg * 0.95 + real * 0.05;
+    if (++busyN < 50 || busyAvg < 1 / 36 || prNext || prStep >= PR_STEPS.length - 1) return;
+    const pr = Math.max(1, basePR * PR_STEPS[prStep + 1]);
+    prStep++; busyN = 0;
+    if (pr < R.getPixelRatio() - 0.01) prNext = pr;
   }
+  function coarser() { R.setPixelRatio(prNext); prNext = 0; busyAvg = 1 / 60; busyN = 0; PERF.coarser = (PERF.coarser || 0) + 1; resize(); }
   function loop(now) {
     if (!running) return;
     requestAnimationFrame(loop);
     const real = last ? (now - last) / 1000 : 0.016, dt = Math.min(0.25, real);
     last = now;
     frame++;
-    adapt(real);
     if (riseAt && frame >= riseAt) riseGo();
     stepTweens(dt * speedK);
     moveCamera(dt * speedK);
@@ -1080,10 +1083,18 @@ const Board3D = (() => {
     const moving = tweens.length > 0 || BLD.busy > 0;
     const camStill = Math.abs(camT.yaw - camS.yaw) < 0.002 && Math.abs(camT.d - camS.d) < 0.01 && Math.abs(camT.x - camS.x) < 0.005 && Math.abs(camT.z - camS.z) < 0.005;
     const still = !moving && camStill && !Dice3D.busy;
-    if (still && frame % (mobile ? 3 : 2)) return;   // only the board's own life moving: fewer frames are enough (a phone stays cool)
+    if (still && prNext) coarser();
+    if (still && frame % (mobile ? 3 : 2)) { drewLast = false; return; }   // only the board's own life moving: fewer frames are enough (a phone stays cool)
+    if (drewLast) adapt(real);
+    drewLast = !still;
     // the shadows are drawn again only when what casts them has moved, or the sun has (it turns with the camera):
-    // not while the dice roll over a board that stands still, nor while only the life of the board goes on
-    if (moving || !camStill || shadowDirty) { R.shadowMap.needsUpdate = true; shadowDirty = false; PERF.shadows++; }
+    // not while the dice roll over a board that stands still, nor while only the life of the board goes on. While
+    // things move they are drawn on every other frame on a phone (every fourth while the dice fly), and once more at
+    // the end, when all has come to rest
+    const need = moving || !camStill;
+    if (need) shadowLate = true;
+    const every = Dice3D.busy ? 4 : mobile ? 2 : 1;
+    if (shadowDirty || (shadowLate && (!need || frame - shadowAt >= every))) { R.shadowMap.needsUpdate = true; shadowDirty = false; shadowLate = false; shadowAt = frame; PERF.shadows++; }
     PERF.frames++;
     const lt = REDUCED ? 3 : t;              // with less motion asked for, the board's life stands still
     U.time.value = lt;

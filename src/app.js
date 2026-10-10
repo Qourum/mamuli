@@ -196,7 +196,7 @@ function boot() {
   $('#scr-game').addEventListener('click', ev => {
     Sound.unlock();
     const a = ev.target.closest('#panel [data-a], #buycard [data-a]');
-    if (a && !a.disabled) { const m = { t: a.dataset.a }; if (a.dataset.seat != null) m.seat = +a.dataset.seat; move(m); return; }
+    if (a && !a.disabled) { const m = { t: a.dataset.a }; if (a.dataset.seat != null) m.seat = +a.dataset.seat; if (a.dataset.inc) m.inc = +a.dataset.inc; move(m); return; }
     if (ev.target.closest('#bView')) return View.view();
     const d = ev.target.closest('#panel [data-deed]');
     if (d) return Sheet.open('deed', +d.dataset.deed);

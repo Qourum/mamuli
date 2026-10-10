@@ -243,6 +243,70 @@ img { max-width: 100%; }
 .bc .row { flex-wrap: nowrap; }
 .bc .btn.big { flex: 1; }
 .buycard.go .bc { animation: cardIn .38s cubic-bezier(.2, 1.4, .4, 1); }
+.bc .hint.good { color: #2f6b2a; font-weight: 700; }
+
+/* ----- someone else decides whether to buy: a small card at the top of the board, for everyone to see ----- */
+.watch { position: absolute; left: 10px; right: 62px; top: 8px; z-index: 4; max-width: 420px; margin: 0 auto; pointer-events: none; }   /* clear of the view button */
+.watch.go .wc { animation: watchIn .35s cubic-bezier(.2, 1.3, .4, 1); }
+@keyframes watchIn { from { opacity: 0; transform: translateY(-14px) scale(.94); } }
+.wc { display: flex; align-items: center; gap: 9px; padding: 6px 8px 6px 6px; border-radius: 16px; color: var(--cream);
+  background: linear-gradient(180deg, rgba(90, 58, 34, .97), rgba(44, 27, 16, .97)); border: 1.5px solid var(--gold-lo); box-shadow: 0 6px 18px rgba(0, 0, 0, .55); }
+.wc > img { width: 38px; height: 38px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px var(--c), 0 0 0 3.5px var(--gold-lo); }
+.wc-w { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.wc-w b { font-size: 13.5px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wc-w span { font-size: 11.5px; line-height: 1.25; color: #e3d6b8; }
+.wc-t { display: flex; flex-direction: column; align-items: flex-end; flex: none; padding: 3px 9px 3px 10px; border-radius: 11px; background: var(--paper); color: var(--paper-ink); border-left: 6px solid var(--g); line-height: 1.15; }
+.wc-t small { font-size: 10px; font-weight: 700; color: var(--paper-dim); }
+.wc-t b { font-size: 13px; }
+.wc-t .amt { font-size: 12.5px; color: #6b3a12; }
+.dots { display: inline-flex; gap: 3px; margin-left: 4px; vertical-align: middle; }
+.dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--gold); animation: dot 1.2s ease-in-out infinite; }
+.dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; }
+@keyframes dot { 0%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-2px); } }
+
+/* ----- the auction ----- */
+.bc.auc .bc-h { padding-top: 30px; }
+.chip.au-tag { margin-left: 6px; background: #a3261c; }
+.au-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.au-bid { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.au-bid img { width: 40px; height: 40px; border-radius: 50%; box-shadow: 0 0 0 2.5px var(--c); flex: none; }
+.au-bid span { display: flex; flex-direction: column; min-width: 0; line-height: 1.1; }
+.au-bid small { font-size: 12px; font-weight: 700; color: var(--paper-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.au-bid .amt { font: 400 30px/1 var(--f-num); color: #6b3a12; }
+.au-bid.none b { font-size: 15px; }
+.au-bid.none .amt { font: inherit; }
+.au-price { flex: none; font-weight: 700; color: var(--paper-dim); }
+.au-clock { height: 7px; border-radius: 99px; background: rgba(122, 86, 44, .2); overflow: hidden; }
+.au-clock i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #a3261c, var(--gold)); transform-origin: left center; animation-name: clock; animation-timing-function: linear; animation-fill-mode: both; }
+@keyframes clock { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.au-who { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; }
+.au-who img { width: 30px; height: 30px; border-radius: 50%; box-shadow: 0 0 0 2px var(--c); transition: opacity .2s, filter .2s; }
+.au-who img.out { opacity: .35; filter: grayscale(1); }
+.au-who img.lead { box-shadow: 0 0 0 2px var(--c), 0 0 0 4.5px var(--gold); }
+.au-acts { flex-wrap: nowrap; gap: 6px; }
+.au-acts .btn { flex: 1; min-width: 0; padding-left: 4px; padding-right: 4px; font: 400 17px var(--f-num); }
+.au-acts .btn:last-child { flex: 1.5; font: 700 13.5px var(--f-ui); }
+.au-me { width: 30px; height: 30px; border-radius: 50%; box-shadow: 0 0 0 2px var(--c); align-self: center; flex: none; }
+
+/* ----- a note by a player's picture at the top: what just happened to them ----- */
+.bubbles { position: fixed; inset: 0; z-index: 8; pointer-events: none; overflow: hidden; }
+.bub { position: absolute; transform: translateX(-50%); display: flex; align-items: center; gap: 5px; width: max-content; max-width: 52vw; padding: 3px 10px 3px 3px;
+  border-radius: 99px; font: 700 12px/1.3 var(--f-ui); color: var(--cream); background: rgba(23, 29, 42, .96); border: 1.5px solid var(--c, var(--line));
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .55), 0 0 0 2px rgba(13, 16, 22, .6); animation: bubIn .25s ease-out; transition: opacity .35s; }
+.bub > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bub > img { flex: none; width: 18px; height: 18px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--c); }
+/* the tail pointing up at the chip (the note may have moved aside to stay on the screen) */
+.bub::before { content: ''; position: absolute; left: calc(50% + var(--tx, 0px)); top: -5px; width: 8px; height: 8px; margin-left: -4px; background: inherit;
+  border: solid var(--c, var(--line)); border-width: 1.5px 0 0 1.5px; border-radius: 2px 0 0 0; transform: rotate(45deg); }
+.bub.side::before { display: none; }
+.bub.side { transform: translateY(-50%); animation-name: bubSide; }
+.bub.good { background: linear-gradient(180deg, #2f6a31, #1d4420); }
+.bub.bad { background: linear-gradient(180deg, #7a2a22, #4f1812); }
+.bub.bid { background: linear-gradient(180deg, var(--gold-hi), var(--gold)); color: var(--wood-2); }
+.bub .amt { font: 400 13px var(--f-num); }
+.bub.bye { opacity: 0; }
+@keyframes bubIn { from { opacity: 0; transform: translate(-50%, -5px) scale(.9); } }
+@keyframes bubSide { from { opacity: 0; transform: translate(6px, -50%) scale(.9); } }
 /* little towers drawn in the sheets and on the build button */
 .tws { display: inline-flex; gap: 1px; color: var(--gold); vertical-align: middle; }
 .tws svg { width: 12px; height: 17px; }

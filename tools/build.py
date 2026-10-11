@@ -68,7 +68,8 @@ def read(name):
 
 
 CARD_PICTURES = sorted(n for n in os.listdir(os.path.join(ROOT, 'art')) if n.startswith('card_') and n.endswith('.jpg'))
-FILES = [n + '.webp' for n in ART] + CARD_PICTURES + [m + '.glb' for m in MODELS]
+MOBILE_MODELS = ['mobile/' + m + '.glb' for m in MODELS if m.endswith('_animated')]
+FILES = [n + '.webp' for n in ART] + CARD_PICTURES + [m + '.glb' for m in MODELS] + MOBILE_MODELS
 
 
 def sync_art(dest):
@@ -76,6 +77,9 @@ def sync_art(dest):
     for m in MODELS:
         if not os.path.exists(os.path.join(dest, m + '.glb')):
             sys.exit(f'missing model {m}.glb')
+    for m in MOBILE_MODELS:
+        if not os.path.exists(os.path.join(dest, m)):
+            sys.exit(f'missing mobile model {m}; run tools/mobile-lod.mjs first')
     for n in ART:
         d = os.path.join(dest, n + '.webp')
         if not os.path.exists(d):
@@ -115,6 +119,7 @@ def main():
         os.makedirs(os.path.join(out, 'vendor'), exist_ok=True)
         shutil.copyfile(os.path.join(ROOT, 'vendor', 'GLTFLoader.min.js'), os.path.join(out, 'vendor', 'GLTFLoader.min.js'))
         for f in FILES:
+            os.makedirs(os.path.dirname(os.path.join(out, 'art', f)), exist_ok=True)
             if f.endswith('.glb'):         # (Claude's viewer serves no .glb files: they go as text, base64, glb.js reads them so)
                 with open(os.path.join(art, f), 'rb') as src, open(os.path.join(out, 'art', f + '.txt'), 'w') as dst:
                     dst.write(base64.b64encode(src.read()).decode())

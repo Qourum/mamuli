@@ -45,6 +45,7 @@ const Marine3D = (() => {
   }
 
   function create(opts) {
+    const mobile = !!opts.mobile, ringCapacity = mobile ? 18 : 32, dropCapacity = mobile ? 48 : 120;
     const parent = opts.parent, oceanY = opts.oceanY == null ? -.3 : opts.oceanY;
     const group = new T.Group(); group.name = 'Archipelago marine wildlife'; parent.add(group);
     const actors = [], rings = [], drops = [], own = new Set();
@@ -54,15 +55,15 @@ const Marine3D = (() => {
     const offscreen = new T.Matrix4().makeScale(0, 0, 0);
     const ringMaterial = new T.MeshStandardMaterial({ color: 0xe8ffff, transparent: true, opacity: .53, roughness: .35, depthWrite: false });
     const sprayMaterial = new T.MeshStandardMaterial({ color: 0xc5f8ff, transparent: true, opacity: .76, roughness: .24, depthWrite: false });
-    const ringGeo = new T.TorusGeometry(1, .022, 4, 36); ringGeo.rotateX(Math.PI / 2);
+    const ringGeo = new T.TorusGeometry(1, .022, 4, mobile ? 20 : 36); ringGeo.rotateX(Math.PI / 2);
     const dropGeo = new T.SphereGeometry(1, 5, 4);
-    const ringMesh = new T.InstancedMesh(ringGeo, ringMaterial, 32), dropMesh = new T.InstancedMesh(dropGeo, sprayMaterial, 120);
+    const ringMesh = new T.InstancedMesh(ringGeo, ringMaterial, ringCapacity), dropMesh = new T.InstancedMesh(dropGeo, sprayMaterial, dropCapacity);
     ringMesh.name = 'Expanding 3D wildlife ripples'; dropMesh.name = 'Ballistic 3D splash droplets';
     ringMesh.instanceMatrix.setUsage(T.DynamicDrawUsage); dropMesh.instanceMatrix.setUsage(T.DynamicDrawUsage);
     ringMesh.frustumCulled = false; dropMesh.frustumCulled = false; ringMesh.renderOrder = 2; dropMesh.renderOrder = 2;
     own.add(ringGeo); own.add(dropGeo); own.add(ringMaterial); own.add(sprayMaterial);
-    for (let i = 0; i < 32; i++) { rings.push({ born: -100 }); ringMesh.setMatrixAt(i, offscreen); }
-    for (let i = 0; i < 120; i++) { drops.push({ born: -100 }); dropMesh.setMatrixAt(i, offscreen); }
+    for (let i = 0; i < ringCapacity; i++) { rings.push({ born: -100 }); ringMesh.setMatrixAt(i, offscreen); }
+    for (let i = 0; i < dropCapacity; i++) { drops.push({ born: -100 }); dropMesh.setMatrixAt(i, offscreen); }
     group.add(ringMesh, dropMesh);
     let ringCursor = 0, dropCursor = 0;
     function waterAt(x, z, t) {
@@ -73,7 +74,7 @@ const Marine3D = (() => {
     }
     function splash(x, z, t, size) {
       ripple(x, z, t, size); ripple(x, z, t + .16, size * .7);
-      for (let j = 0; j < 30; j++) {
+      for (let j = 0; j < (mobile ? 12 : 30); j++) {
         const d = drops[dropCursor++ % drops.length], a = j * 2.39996, speed = (.38 + (j % 5) * .095) * size;
         Object.assign(d, { x, z, y0: oceanY + .08, born: t, vx: Math.cos(a) * speed, vz: Math.sin(a) * speed, vy: (.65 + (j % 7) * .12) * Math.sqrt(size), r: .024 + (j % 4) * .008, life: 1.45 });
       }
@@ -182,34 +183,40 @@ const Marine3D = (() => {
         if (!frozen && a.k === 'bluewhale' && !a.calf && breath !== a.lastBlow) {
           a.lastBlow = breath;
           const x = v.x + forward.x * a.size * .21, z = v.z + forward.z * a.size * .21;
-          for (let j = 0; j < 16; j++) {
+          for (let j = 0; j < (mobile ? 8 : 16); j++) {
             const d = drops[dropCursor++ % drops.length], angle = j * 2.39996;
             Object.assign(d, { x, z, y0: v.y + up.y * a.size * .116 + .02, born: time + j * .025, vx: Math.cos(angle) * .11, vz: Math.sin(angle) * .11, vy: 1.8 + (j % 4) * .12, r: .026, life: 1.45 });
           }
         }
         a.prevY = y;
       }
+      // Pack live instances: zero-scaled particles still ran the vertex shader.
+      let visibleRings = 0, visibleDrops = 0;
       for (let i = 0; i < rings.length; i++) {
         const r = rings[i], age = time - r.born, p = age / r.life;
-        if (age < 0 || p >= 1) { ringMesh.setMatrixAt(i, offscreen); continue; }
+        if (age < 0 || p >= 1 || !Number.isFinite(p)) continue;
         const size = r.size * (.28 + p * 2.1);
         temp.position.set(r.x, waterAt(r.x, r.z, time) + .016, r.z); temp.rotation.set(0, 0, 0);
-        temp.scale.set(size, Math.max(.08, 1 - p) * size, size * (r.wake ? .58 : 1)); temp.updateMatrix(); ringMesh.setMatrixAt(i, temp.matrix);
+        temp.scale.set(size, Math.max(.08, 1 - p) * size, size * (r.wake ? .58 : 1)); temp.updateMatrix(); ringMesh.setMatrixAt(visibleRings++, temp.matrix);
       }
       for (let i = 0; i < drops.length; i++) {
         const d = drops[i], age = time - d.born;
-        if (age < 0 || age >= d.life) { dropMesh.setMatrixAt(i, offscreen); continue; }
+        if (age < 0 || age >= d.life || !Number.isFinite(d.life)) continue;
         const y = d.y0 + d.vy * age - 1.7 * age * age;
-        if (y < waterAt(d.x, d.z, time)) { dropMesh.setMatrixAt(i, offscreen); continue; }
-        temp.position.set(d.x + d.vx * age, y, d.z + d.vz * age); temp.rotation.set(0, 0, 0); temp.scale.set(d.r, d.r * 1.7, d.r); temp.updateMatrix(); dropMesh.setMatrixAt(i, temp.matrix);
+        if (y < waterAt(d.x, d.z, time)) continue;
+        temp.position.set(d.x + d.vx * age, y, d.z + d.vz * age); temp.rotation.set(0, 0, 0); temp.scale.set(d.r, d.r * 1.7, d.r); temp.updateMatrix(); dropMesh.setMatrixAt(visibleDrops++, temp.matrix);
       }
-      ringMesh.instanceMatrix.needsUpdate = true; dropMesh.instanceMatrix.needsUpdate = true; lastTime = time;
+      ringMesh.count = visibleRings; dropMesh.count = visibleDrops;
+      ringMesh.visible = visibleRings > 0; dropMesh.visible = visibleDrops > 0;
+      if (visibleRings) ringMesh.instanceMatrix.needsUpdate = true;
+      if (visibleDrops) dropMesh.instanceMatrix.needsUpdate = true;
+      lastTime = time;
     }
     update(0, 0);
     return {
       update,
       dispose() { if (dead) return; dead = true; for (const a of actors) if (a.mixer) { a.mixer.stopAllAction(); a.mixer.uncacheRoot(a.model); } parent.remove(group); group.traverse(o => { if (o.isInstancedMesh) o.dispose(); }); group.clear(); for (const item of own) item.dispose(); own.clear(); },
-      stats() { return { animals: actors.length, native: loads, fallbacks: actors.length - loads, failed, rings: rings.length, droplets: drops.length }; },
+      stats() { return { animals: actors.length, native: loads, fallbacks: actors.length - loads, failed, rings: rings.length, droplets: drops.length, activeRings: ringMesh.count, activeDrops: dropMesh.count, mobile }; },
       group
     };
   }

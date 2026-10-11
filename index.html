@@ -918,7 +918,7 @@ pre.diag { margin: 10px 0 0; padding: 10px; max-height: 52vh; overflow: auto; bo
 <script src="vendor/three.min.js"></script>
 <script src="vendor/GLTFLoader.min.js"></script>
 <script>
-const BUILD = "ceefcf9a84";
+const BUILD = "5fbe970660";
 const SITE = true;
 // ===== the technical log: what this phone went through, to copy and send when something goes wrong =====
 // Errors, the 3D board losing or getting back its graphics, slow frames (and what was on the screen then), shaders made
@@ -5350,7 +5350,7 @@ const GLB = (() => {
   const scenes = new Map();
   const jobs = new Map(), queue = [], measuredTextures = new WeakSet(), measuredImages = new WeakMap();
   const policy = { mobile: false, concurrency: 4 };
-  const counts = { completed: 0, failed: 0, fetches: 0, retries: 0, timeouts: 0, maxActive: 0, textures: 0, images: 0, resizedImages: 0, resizeFailures: 0, originalImageBytes: 0, imageBytes: 0, originalTextureBytes: 0, textureBytes: 0 };
+  const counts = { completed: 0, failed: 0, fetches: 0, retries: 0, timeouts: 0, maxActive: 0, lodModels: 0, triangles: 0, vertices: 0, textures: 0, images: 0, resizedImages: 0, resizeFailures: 0, originalImageBytes: 0, imageBytes: 0, originalTextureBytes: 0, textureBytes: 0 };
   const DEADLINE = 90000;
   let active = 0, scheduled = false, serial = 0;
   const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -5413,6 +5413,8 @@ const GLB = (() => {
           if(item.mode==='scene') {
             asset=await deadline(parseScene(buffer,job.url.slice(0,job.url.lastIndexOf('/')+1)),job.url+' parse');
             await deadline(prepareTextures(asset,job.url),job.url+' textures');retainScene(asset.scene);
+            asset.scene.traverse(o => { if (o.isMesh) { const g=o.geometry; counts.vertices+=g.attributes.position.count; counts.triangles+=(g.index?g.index.count:g.attributes.position.count)/3; } });
+            if (job.url.startsWith('art/mobile/')) counts.lodModels++;
           } else asset=await deadline(make(buffer),job.url+' parse');
           item.done=true;if(job.requests.every(r=>r.done)){job.closed=true;if(jobs.get(job.url)===job)jobs.delete(job.url);}item.resolve(asset);
         } catch(error){failed=true;rejectRequest(job,item,error);}
@@ -5643,7 +5645,10 @@ const GLB = (() => {
     const scene = window.MamuliSkeletonClone ? window.MamuliSkeletonClone(gltf.scene) : gltf.scene.clone(true);
     return { scene, animations: gltf.animations || [] };
   }
-  function loadScene(url,priority=0) {return request('scene',url,priority,scenes).then(sceneInstance);}
+  // The mobile files retain the original materials, nodes and clips. Only the
+  // mesh topology is simplified offline; no costly decimation runs on a phone.
+  function sceneURL(url) { return policy.mobile && /^art\/m_[a-z]+_animated\.glb$/.test(url) ? url.replace('art/', 'art/mobile/') : url; }
+  function loadScene(url,priority=0) {return request('scene',sceneURL(url),priority,scenes).then(sceneInstance);}
   return {load,loadScene,configure,stats,_parse:make,_parseScene:parseScene};
 })();
 
@@ -5694,6 +5699,7 @@ const Marine3D = (() => {
   }
 
   function create(opts) {
+    const mobile = !!opts.mobile, ringCapacity = mobile ? 18 : 32, dropCapacity = mobile ? 48 : 120;
     const parent = opts.parent, oceanY = opts.oceanY == null ? -.3 : opts.oceanY;
     const group = new T.Group(); group.name = 'Archipelago marine wildlife'; parent.add(group);
     const actors = [], rings = [], drops = [], own = new Set();
@@ -5703,15 +5709,15 @@ const Marine3D = (() => {
     const offscreen = new T.Matrix4().makeScale(0, 0, 0);
     const ringMaterial = new T.MeshStandardMaterial({ color: 0xe8ffff, transparent: true, opacity: .53, roughness: .35, depthWrite: false });
     const sprayMaterial = new T.MeshStandardMaterial({ color: 0xc5f8ff, transparent: true, opacity: .76, roughness: .24, depthWrite: false });
-    const ringGeo = new T.TorusGeometry(1, .022, 4, 36); ringGeo.rotateX(Math.PI / 2);
+    const ringGeo = new T.TorusGeometry(1, .022, 4, mobile ? 20 : 36); ringGeo.rotateX(Math.PI / 2);
     const dropGeo = new T.SphereGeometry(1, 5, 4);
-    const ringMesh = new T.InstancedMesh(ringGeo, ringMaterial, 32), dropMesh = new T.InstancedMesh(dropGeo, sprayMaterial, 120);
+    const ringMesh = new T.InstancedMesh(ringGeo, ringMaterial, ringCapacity), dropMesh = new T.InstancedMesh(dropGeo, sprayMaterial, dropCapacity);
     ringMesh.name = 'Expanding 3D wildlife ripples'; dropMesh.name = 'Ballistic 3D splash droplets';
     ringMesh.instanceMatrix.setUsage(T.DynamicDrawUsage); dropMesh.instanceMatrix.setUsage(T.DynamicDrawUsage);
     ringMesh.frustumCulled = false; dropMesh.frustumCulled = false; ringMesh.renderOrder = 2; dropMesh.renderOrder = 2;
     own.add(ringGeo); own.add(dropGeo); own.add(ringMaterial); own.add(sprayMaterial);
-    for (let i = 0; i < 32; i++) { rings.push({ born: -100 }); ringMesh.setMatrixAt(i, offscreen); }
-    for (let i = 0; i < 120; i++) { drops.push({ born: -100 }); dropMesh.setMatrixAt(i, offscreen); }
+    for (let i = 0; i < ringCapacity; i++) { rings.push({ born: -100 }); ringMesh.setMatrixAt(i, offscreen); }
+    for (let i = 0; i < dropCapacity; i++) { drops.push({ born: -100 }); dropMesh.setMatrixAt(i, offscreen); }
     group.add(ringMesh, dropMesh);
     let ringCursor = 0, dropCursor = 0;
     function waterAt(x, z, t) {
@@ -5722,7 +5728,7 @@ const Marine3D = (() => {
     }
     function splash(x, z, t, size) {
       ripple(x, z, t, size); ripple(x, z, t + .16, size * .7);
-      for (let j = 0; j < 30; j++) {
+      for (let j = 0; j < (mobile ? 12 : 30); j++) {
         const d = drops[dropCursor++ % drops.length], a = j * 2.39996, speed = (.38 + (j % 5) * .095) * size;
         Object.assign(d, { x, z, y0: oceanY + .08, born: t, vx: Math.cos(a) * speed, vz: Math.sin(a) * speed, vy: (.65 + (j % 7) * .12) * Math.sqrt(size), r: .024 + (j % 4) * .008, life: 1.45 });
       }
@@ -5831,34 +5837,40 @@ const Marine3D = (() => {
         if (!frozen && a.k === 'bluewhale' && !a.calf && breath !== a.lastBlow) {
           a.lastBlow = breath;
           const x = v.x + forward.x * a.size * .21, z = v.z + forward.z * a.size * .21;
-          for (let j = 0; j < 16; j++) {
+          for (let j = 0; j < (mobile ? 8 : 16); j++) {
             const d = drops[dropCursor++ % drops.length], angle = j * 2.39996;
             Object.assign(d, { x, z, y0: v.y + up.y * a.size * .116 + .02, born: time + j * .025, vx: Math.cos(angle) * .11, vz: Math.sin(angle) * .11, vy: 1.8 + (j % 4) * .12, r: .026, life: 1.45 });
           }
         }
         a.prevY = y;
       }
+      // Pack live instances: zero-scaled particles still ran the vertex shader.
+      let visibleRings = 0, visibleDrops = 0;
       for (let i = 0; i < rings.length; i++) {
         const r = rings[i], age = time - r.born, p = age / r.life;
-        if (age < 0 || p >= 1) { ringMesh.setMatrixAt(i, offscreen); continue; }
+        if (age < 0 || p >= 1 || !Number.isFinite(p)) continue;
         const size = r.size * (.28 + p * 2.1);
         temp.position.set(r.x, waterAt(r.x, r.z, time) + .016, r.z); temp.rotation.set(0, 0, 0);
-        temp.scale.set(size, Math.max(.08, 1 - p) * size, size * (r.wake ? .58 : 1)); temp.updateMatrix(); ringMesh.setMatrixAt(i, temp.matrix);
+        temp.scale.set(size, Math.max(.08, 1 - p) * size, size * (r.wake ? .58 : 1)); temp.updateMatrix(); ringMesh.setMatrixAt(visibleRings++, temp.matrix);
       }
       for (let i = 0; i < drops.length; i++) {
         const d = drops[i], age = time - d.born;
-        if (age < 0 || age >= d.life) { dropMesh.setMatrixAt(i, offscreen); continue; }
+        if (age < 0 || age >= d.life || !Number.isFinite(d.life)) continue;
         const y = d.y0 + d.vy * age - 1.7 * age * age;
-        if (y < waterAt(d.x, d.z, time)) { dropMesh.setMatrixAt(i, offscreen); continue; }
-        temp.position.set(d.x + d.vx * age, y, d.z + d.vz * age); temp.rotation.set(0, 0, 0); temp.scale.set(d.r, d.r * 1.7, d.r); temp.updateMatrix(); dropMesh.setMatrixAt(i, temp.matrix);
+        if (y < waterAt(d.x, d.z, time)) continue;
+        temp.position.set(d.x + d.vx * age, y, d.z + d.vz * age); temp.rotation.set(0, 0, 0); temp.scale.set(d.r, d.r * 1.7, d.r); temp.updateMatrix(); dropMesh.setMatrixAt(visibleDrops++, temp.matrix);
       }
-      ringMesh.instanceMatrix.needsUpdate = true; dropMesh.instanceMatrix.needsUpdate = true; lastTime = time;
+      ringMesh.count = visibleRings; dropMesh.count = visibleDrops;
+      ringMesh.visible = visibleRings > 0; dropMesh.visible = visibleDrops > 0;
+      if (visibleRings) ringMesh.instanceMatrix.needsUpdate = true;
+      if (visibleDrops) dropMesh.instanceMatrix.needsUpdate = true;
+      lastTime = time;
     }
     update(0, 0);
     return {
       update,
       dispose() { if (dead) return; dead = true; for (const a of actors) if (a.mixer) { a.mixer.stopAllAction(); a.mixer.uncacheRoot(a.model); } parent.remove(group); group.traverse(o => { if (o.isInstancedMesh) o.dispose(); }); group.clear(); for (const item of own) item.dispose(); own.clear(); },
-      stats() { return { animals: actors.length, native: loads, fallbacks: actors.length - loads, failed, rings: rings.length, droplets: drops.length }; },
+      stats() { return { animals: actors.length, native: loads, fallbacks: actors.length - loads, failed, rings: rings.length, droplets: drops.length, activeRings: ringMesh.count, activeDrops: dropMesh.count, mobile }; },
       group
     };
   }
@@ -5876,6 +5888,7 @@ const Lagoon3D = (() => {
   const mix = (a, b, t) => a * (1 - t) + b * t;
 
   function create(opts) {
+    const mobile = !!opts.mobile;
     const parent = opts.parent, center = { x: opts.center.x, z: opts.center.z };
     const waterY = opts.waterY == null ? .02 : opts.waterY;
     const radius = Math.max(.56, opts.radius || .59), holeRadius = .55, depth = .72;
@@ -5916,7 +5929,7 @@ const Lagoon3D = (() => {
 
     // A circular annulus, densely sampled in radius, forms a visibly concave
     // funnel. Its central neck is open until the deep dark bottom.
-    const FP = [], FC = [], FI = [], RAD = 32, ANG = 96, deep = new T.Color(0x063749), rim = new T.Color(0x46bec2), color = new T.Color();
+    const FP = [], FC = [], FI = [], RAD = mobile ? 18 : 32, ANG = mobile ? 64 : 96, deep = new T.Color(0x063749), rim = new T.Color(0x46bec2), color = new T.Color();
     for (let j = 0; j <= RAD; j++) {
       const r = .034 + (radius - .034) * j / RAD;
       for (let k = 0; k <= ANG; k++) {
@@ -5944,14 +5957,15 @@ const Lagoon3D = (() => {
 
     const foamMaterial = material(0xc8f1e9, .58, { transparent: true, opacity: .78, depthWrite: false });
     const spiralHolder = new T.Group(); spiralHolder.position.set(center.x, waterY, center.z); group.add(spiralHolder);
+    const spiralSegments = mobile ? 96 : 160;
     for (let arm = 0; arm < 2; arm++) {
       const points = [];
-      for (let i = 0; i <= 160; i++) { const u = i / 160, r = .055 + (radius - .066) * u, a = arm * Math.PI + u * TAU * 2.3; points.push(new T.Vector3(Math.cos(a) * r, funnelY(r) + .009, Math.sin(a) * r)); }
-      const curve = new T.CatmullRomCurve3(points); mesh(new T.TubeGeometry(curve, 160, .0045, 5, false), foamMaterial, spiralHolder);
+      for (let i = 0; i <= spiralSegments; i++) { const u = i / spiralSegments, r = .055 + (radius - .066) * u, a = arm * Math.PI + u * TAU * 2.3; points.push(new T.Vector3(Math.cos(a) * r, funnelY(r) + .009, Math.sin(a) * r)); }
+      const curve = new T.CatmullRomCurve3(points); mesh(new T.TubeGeometry(curve, spiralSegments, .0045, 5, false), foamMaterial, spiralHolder);
     }
-    const foamGeo = keep(new T.SphereGeometry(1, 6, 4)), foam = new T.InstancedMesh(foamGeo, foamMaterial, 96);
+    const foamGeo = keep(new T.SphereGeometry(1, 6, 4)), foam = new T.InstancedMesh(foamGeo, foamMaterial, mobile ? 40 : 96);
     foam.name = 'Foam following the spiral current'; foam.instanceMatrix.setUsage(T.DynamicDrawUsage); foam.frustumCulled = false; group.add(foam);
-    const wakeGeo = keep(new T.TorusGeometry(1, .018, 4, 24)); wakeGeo.rotateX(Math.PI / 2);
+    const wakeGeo = keep(new T.TorusGeometry(1, .018, 4, mobile ? 18 : 24)); wakeGeo.rotateX(Math.PI / 2);
     const wakes = new T.InstancedMesh(wakeGeo, foamMaterial, 21); wakes.instanceMatrix.setUsage(T.DynamicDrawUsage); wakes.frustumCulled = false; group.add(wakes);
     const wakePool = Array.from({ length: 21 }, () => ({ born: -100 })); let wakeCursor = 0;
     for (let i = 0; i < wakePool.length; i++) wakes.setMatrixAt(i, hidden);
@@ -6096,8 +6110,8 @@ const Lagoon3D = (() => {
         facing.multiply(bank.setFromAxisAngle(LOCAL_X, roll));
         if (lastTime == null || reduced || !a.holder.visible) a.holder.quaternion.copy(facing); else a.holder.quaternion.slerp(facing, 1 - Math.exp(-delta * 9));
         for (const m of a.mats) m.opacity = alpha;
-        if (a.mixer) a.mixer.setTime(t + a.phase);
-        for (const cloth of a.wind) {
+        if (a.mixer && a.holder.visible) a.mixer.setTime(t + a.phase);
+        for (const cloth of a.holder.visible ? a.wind : []) {
           const at = cloth.mesh.geometry.attributes.position, rest = cloth.rest;
           for (let j = 0; j < at.count; j++) { const k = j * 3; at.setX(j, rest[k] + .010 * Math.sin(t * 2.7 + rest[k + 2] * 17 + rest[k + 1] * 5)); }
           at.needsUpdate = true; if (stepNumber % 4 === 0 || lastTime == null) cloth.mesh.geometry.computeVertexNormals();
@@ -6113,18 +6127,20 @@ const Lagoon3D = (() => {
         const scale = (1 - smooth(.89, 1, u)) * smooth(0, .045, u); temp.scale.setScalar(scale); temp.updateMatrix(); propMeshes[item.kind].setMatrixAt(item.slot, temp.matrix);
       }
       for (const im of propMeshes) im.instanceMatrix.needsUpdate = true;
+      let visibleWakes = 0;
       for (let i = 0; i < wakePool.length; i++) {
         const w = wakePool[i], age = t - w.born;
-        if (age < 0 || age > 2.2) { wakes.setMatrixAt(i, hidden); continue; }
-        const r = w.size * (.5 + age * 1.7); temp.position.set(w.x, waterAt(w.x, w.z, t) + .008, w.z); temp.rotation.set(0, 0, 0); temp.scale.set(r, r * (1 - age / 2.2), r * .62); temp.updateMatrix(); wakes.setMatrixAt(i, temp.matrix);
+        if (age < 0 || age > 2.2) continue;
+        const r = w.size * (.5 + age * 1.7); temp.position.set(w.x, waterAt(w.x, w.z, t) + .008, w.z); temp.rotation.set(0, 0, 0); temp.scale.set(r, r * (1 - age / 2.2), r * .62); temp.updateMatrix(); wakes.setMatrixAt(visibleWakes++, temp.matrix);
       }
-      wakes.instanceMatrix.needsUpdate = true; lastTime = t;
+      wakes.count = visibleWakes; wakes.visible = visibleWakes > 0;
+      if (visibleWakes) wakes.instanceMatrix.needsUpdate = true; lastTime = t;
     }
     update(0, 0);
     return {
       mask, group, update,
       dispose() { if (dead) return; dead = true; for (const a of boats) if (a.mixer) { a.mixer.stopAllAction(); a.mixer.uncacheRoot(a.native); } parent.remove(group); group.traverse(o => { if (o.isInstancedMesh) o.dispose(); }); group.clear(); for (const item of own) item.dispose(); own.clear(); },
-      stats() { return { boats: boats.length, native: nativeLoaded, props: props.length, foam: foam.count, wakes: wakePool.length, funnel: { radius, depth }, geometry: true, states: boats.map(a => ({ name: a.holder.name, visible: a.holder.visible, position: a.holder.position.toArray() })) }; }
+      stats() { return { boats: boats.length, native: nativeLoaded, props: props.length, foam: foam.count, wakes: wakePool.length, activeWakes: wakes.count, mobile, funnel: { radius, depth }, geometry: true, states: boats.map(a => ({ name: a.holder.name, visible: a.holder.visible, position: a.holder.position.toArray() })) }; }
     };
   }
   return { create };
@@ -6359,17 +6375,19 @@ const Weather3D = (() => {
   const fragmentHeader = `uniform vec4 uWeatherZone;
     varying vec3 vWeatherWorld;
     float localWeatherShade() {
+      if (uWeatherZone.w <= .0001) return 0.0;
       float d = length(vWeatherWorld.xz - uWeatherZone.xy) / max(.01, uWeatherZone.z);
       return clamp(uWeatherZone.w, 0.0, .4) * (1.0 - smoothstep(.18, 1.0, d));
     }\n`;
   function header(source, text) {
     return /^\s*#version[^\n]*\n/.test(source) ? source.replace(/^(\s*#version[^\n]*\n)/, '$1' + text) : text + source;
   }
-  function patchMaterial(mat) {
+  function patchMaterial(mat, mobile = false) {
     if (!mat || mat.isMeshDepthMaterial || mat.isMeshDistanceMaterial) return;
     const record = HOOKS.get(mat);
     if (PATCHED.has(mat) && record && mat.onBeforeCompile === record.wrapper && mat.customProgramCacheKey === record.key) return;
     const oldHook = mat.onBeforeCompile, oldKey = mat.customProgramCacheKey;
+    const modeKey = KEY + (mobile ? '-vertex' : '');
     const defaultKey = oldKey === T.Material.prototype.customProgramCacheKey;
     const originalKey = defaultKey ? oldHook.toString() : null;
     const hookChangedAlone = record && oldHook !== record.wrapper && oldKey === record.key;
@@ -6379,15 +6397,23 @@ const Weather3D = (() => {
       shader.uniforms.uWeatherZone = SHADE;
       // A manually copied wrapper can appear on a new material. Keep declarations
       // unique while still binding the current module-global uniform.
-      if (shader.vertexShader.includes('varying vec3 vWeatherWorld;')) return;
-      shader.vertexShader = header(shader.vertexShader, vertexHeader);
-      shader.fragmentShader = header(shader.fragmentShader, fragmentHeader);
+      if (/varying (vec3 vWeatherWorld|float vWeatherShade);/.test(shader.vertexShader)) return;
+      // The soft, broad storm shade can interpolate across phone geometry. This
+      // avoids a distance/smoothstep and vec3 varying in every scene fragment.
+      shader.vertexShader = header(shader.vertexShader, mobile ? 'uniform vec4 uWeatherZone;\nvarying float vWeatherShade;\n' : vertexHeader);
+      shader.fragmentShader = header(shader.fragmentShader, mobile ? 'varying float vWeatherShade;\nfloat localWeatherShade() { return vWeatherShade; }\n' : fragmentHeader);
+      const shadePosition = mobile ? `vWeatherShade = 0.0;
+        if (uWeatherZone.w > .0001) {
+          vec2 weatherDelta = (modelMatrix * weatherP).xz - uWeatherZone.xy;
+          float weatherD = length(weatherDelta) / max(.01, uWeatherZone.z);
+          vWeatherShade = clamp(uWeatherZone.w, 0.0, .4) * (1.0 - smoothstep(.18, 1.0, weatherD));
+        }` : 'vWeatherWorld = (modelMatrix * weatherP).xyz;';
       const world = `
         vec4 weatherP = vec4(transformed, 1.0);
         #ifdef USE_INSTANCING
           weatherP = instanceMatrix * weatherP;
         #endif
-        vWeatherWorld = (modelMatrix * weatherP).xyz;`;
+        ${shadePosition}`;
       if (shader.vertexShader.includes('#include <project_vertex>')) {
         // transformed already includes native morph/skin and the prior hook's
         // wind. Instancing is applied explicitly before the world matrix.
@@ -6398,7 +6424,7 @@ const Weather3D = (() => {
           #ifdef USE_INSTANCING
             weatherP = instanceMatrix * weatherP;
           #endif
-          vWeatherWorld = (modelMatrix * weatherP).xyz;`);
+          ${shadePosition}`);
       }
       const shade = 'outgoingLight *= 1.0 - localWeatherShade();\n';
       if (shader.fragmentShader.includes('#include <output_fragment>')) shader.fragmentShader = shader.fragmentShader.replace('#include <output_fragment>', shade + '#include <output_fragment>');
@@ -6407,19 +6433,19 @@ const Weather3D = (() => {
     };
     const key = function () {
       const base = replacedKey != null ? replacedKey : defaultKey ? originalKey : oldKey ? oldKey.call(this) : '';
-      return String(base).endsWith(KEY) ? String(base) : String(base) + KEY;
+      return String(base).endsWith(modeKey) ? String(base) : String(base) + modeKey;
     };
     mat.onBeforeCompile = wrapper; mat.customProgramCacheKey = key; mat.needsUpdate = true;
     if (!PATCHED.has(mat)) patchedCount++;
     PATCHED.add(mat); HOOKS.set(mat, { wrapper, key });
   }
 
-  function mergedCloud(seed, storm) {
+  function mergedCloud(seed, storm, mobile) {
     const random = rng(seed), positions = [], normals = [], colors = [], m = new T.Matrix4(), q = new T.Quaternion();
-    const lobes = storm ? 21 : 13;
+    const lobes = mobile ? (storm ? 15 : 9) : (storm ? 21 : 13);
     for (let i = 0; i < lobes; i++) {
       const a = random() * TAU, r = random() * (storm ? 1.35 : .9), size = .34 + random() * (storm ? .43 : .30);
-      const geo = new T.SphereGeometry(1, 12, 8);
+      const geo = new T.SphereGeometry(1, mobile ? 8 : 12, mobile ? 6 : 8);
       m.compose(new T.Vector3(Math.cos(a) * r, .10 + random() * .30, Math.sin(a) * r * .65), q, new T.Vector3(size * 1.4, size * .68, size)); geo.applyMatrix4(m);
       const flat = geo.toNonIndexed(), p = flat.attributes.position, n = flat.attributes.normal;
       const shade = .83 + random() * .15;
@@ -6447,6 +6473,7 @@ const Weather3D = (() => {
   }
 
   function create(opts) {
+    const mobile = !!opts.mobile;
     const parent = opts.parent, waterY = opts.waterY == null ? .02 : opts.waterY, outerY = opts.outerWaterY == null ? -.3 : opts.outerWaterY;
     const seed = opts.seed == null ? Math.floor(Math.random() * 4294967296) >>> 0 : opts.seed >>> 0;
     const owner = {}; activeOwner = owner; SHADE.value.set(0, 0, 1, 0);
@@ -6454,7 +6481,7 @@ const Weather3D = (() => {
     const own = new Set(), ownMats = new Set(), keep = x => { own.add(x); return x; };
     const mat = (constructor, options) => { const m = keep(new constructor(options)); ownMats.add(m); return m; };
     let dead = false, epoch = null, elapsed = 0, lastScan = -100, currentId = 0, lastThunder = '', scans = 0;
-    const temp = new T.Object3D(), off = new T.Matrix4().makeScale(0, 0, 0), rainQ = new T.Quaternion(), rainVelocity = new T.Vector3(), localUp = new T.Vector3(0, 1, 0);
+    const temp = new T.Object3D(), rainQ = new T.Quaternion(), rainVelocity = new T.Vector3(), localUp = new T.Vector3(0, 1, 0);
     const fairColor = new T.Color(0xd8e2e5), stormColor = new T.Color(0x657c89);
     function specification(id) {
       const random = rng((seed ^ Math.imul(id + 1, 2654435761)) >>> 0), angle = random() * TAU, r = 1.15 + random() * 2.3;
@@ -6463,24 +6490,24 @@ const Weather3D = (() => {
     const firstStart = 14 + rng(seed ^ 0x729ac35b)() * 6;
     let start = firstStart, spec = specification(0);
     const cloudMat = mat(T.MeshStandardMaterial, { color: 0xe3ecec, vertexColors: true, roughness: 1, transparent: true, opacity: .81, depthWrite: false });
-    const clouds = new T.InstancedMesh(keep(mergedCloud(seed ^ 413, false)), cloudMat, 4); clouds.name = 'Four drifting 3D fair-weather clouds'; clouds.instanceMatrix.setUsage(T.DynamicDrawUsage); clouds.frustumCulled = false; group.add(clouds);
+    const clouds = new T.InstancedMesh(keep(mergedCloud(seed ^ 413, false, mobile)), cloudMat, 4); clouds.name = 'Four drifting 3D fair-weather clouds'; clouds.instanceMatrix.setUsage(T.DynamicDrawUsage); clouds.frustumCulled = false; group.add(clouds);
     const stormMat = mat(T.MeshStandardMaterial, { color: fairColor, vertexColors: true, roughness: 1, transparent: true, opacity: 0, depthWrite: false });
-    const stormCloud = new T.Mesh(keep(mergedCloud(seed ^ 725, true)), stormMat); stormCloud.name = 'Travelling storm cloud'; group.add(stormCloud);
+    const stormCloud = new T.Mesh(keep(mergedCloud(seed ^ 725, true, mobile)), stormMat); stormCloud.name = 'Travelling storm cloud'; group.add(stormCloud);
     const rainMat = mat(T.MeshBasicMaterial, { color: 0xb8deed, transparent: true, opacity: 0, depthWrite: false });
-    const rain = new T.InstancedMesh(keep(new T.CylinderGeometry(.0035, .0022, .115, 4, 1, false)), rainMat, 144); rain.name = 'Local falling 3D rain'; rain.instanceMatrix.setUsage(T.DynamicDrawUsage); rain.frustumCulled = false; group.add(rain);
+    const rain = new T.InstancedMesh(keep(new T.CylinderGeometry(.0035, .0022, .115, 4, 1, false)), rainMat, mobile ? 48 : 144); rain.name = 'Local falling 3D rain'; rain.instanceMatrix.setUsage(T.DynamicDrawUsage); rain.frustumCulled = false; group.add(rain);
     const boltGeos = Array.from({ length: 3 }, (_, i) => keep(lightningGeo(seed + i * 703)));
     const boltMat = mat(T.MeshBasicMaterial, { color: 0xe4f4ff, transparent: true, opacity: .94, depthWrite: false });
     const bolt = new T.Mesh(boltGeos[0], boltMat); bolt.name = 'Thin branched 3D lightning'; bolt.visible = false; group.add(bolt);
     const rippleGeo = keep(new T.TorusGeometry(1, .032, 4, 18)); rippleGeo.rotateX(Math.PI / 2);
     const rippleMat = mat(T.MeshBasicMaterial, { color: 0xc5e9eb, transparent: true, opacity: 0, depthWrite: false });
-    const ripples = new T.InstancedMesh(rippleGeo, rippleMat, 24); ripples.name = 'Rain ripples on the sea'; ripples.instanceMatrix.setUsage(T.DynamicDrawUsage); ripples.frustumCulled = false; group.add(ripples);
+    const ripples = new T.InstancedMesh(rippleGeo, rippleMat, mobile ? 9 : 24); ripples.name = 'Rain ripples on the sea'; ripples.instanceMatrix.setUsage(T.DynamicDrawUsage); ripples.frustumCulled = false; group.add(ripples);
     const random = rng(seed ^ 1221);
     const raindata = Array.from({ length: rain.count }, () => ({ phase: random(), a: random() * TAU, r: Math.sqrt(random()) * .87, speed: .88 + random() * .28 }));
     const cloudData = Array.from({ length: clouds.count }, (_, i) => ({ a: random() * TAU, r: 8.3 + random() * 4.3, y: 4.1 + random() * 1.5, scale: .7 + random() * .5, speed: .008 + i * .0025 }));
     let state = { active: false, raining: false, strength: 0, zone: [0, 0, spec.radius], lightning: false, nextFlash: start + spec.boltOffset, time: 0 };
     function scan() {
       parent.traverse(o => {
-        for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : []) if (!ownMats.has(m)) patchMaterial(m);
+        for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : []) if (!ownMats.has(m)) patchMaterial(m, mobile);
       }); scans++;
     }
     scan(); lastScan = 0;
@@ -6516,13 +6543,13 @@ const Weather3D = (() => {
         const floor = Math.max(Math.abs(x), Math.abs(z)) > 6.2 ? outerY : waterY;
         temp.position.set(x, spec.height - .23 - (spec.height - .23 - floor) * u, z); temp.quaternion.copy(rainQ); temp.scale.set(1, .83 + .44 * d.phase, 1); temp.updateMatrix(); rain.setMatrixAt(i, temp.matrix);
       }
-      else for (let i = 0; i < rain.count; i++) rain.setMatrixAt(i, off);
-      rain.instanceMatrix.needsUpdate = true;
+      // Hidden rain does not need its GPU instance buffer rewritten each frame.
+      if (rain.visible) rain.instanceMatrix.needsUpdate = true;
       if (ripples.visible) for (let i = 0; i < ripples.count; i++) {
         const d = raindata[i * 5], u = frac(elapsed * .72 + d.phase), x = zx + Math.cos(d.a) * d.r * spec.radius, z = zz + Math.sin(d.a) * d.r * spec.radius;
         temp.position.set(x, (Math.max(Math.abs(x), Math.abs(z)) > 6.2 ? outerY : waterY) + .008, z); temp.rotation.set(0, 0, 0); const r = .019 + u * .070; temp.scale.set(r, r * (1 - u), r); temp.updateMatrix(); ripples.setMatrixAt(i, temp.matrix);
       }
-      ripples.instanceMatrix.needsUpdate = true;
+      if (ripples.visible) ripples.instanceMatrix.needsUpdate = true;
       const boltAge = age - spec.boltOffset, strike = Math.floor(boltAge / spec.boltInterval), flashAge = boltAge - strike * spec.boltInterval;
       const flash = !reduced && envelope > .15 && boltAge >= 0 && age < spec.duration - 1 && flashAge >= 0 && flashAge < .16;
       bolt.visible = flash;
@@ -6543,7 +6570,7 @@ const Weather3D = (() => {
     return {
       group, update,
       dispose() { if (dead) return; dead = true; if (activeOwner === owner) { activeOwner = null; SHADE.value.set(0, 0, 1, 0); } parent.remove(group); group.traverse(o => { if (o.isInstancedMesh) o.dispose(); }); group.clear(); for (const item of own) item.dispose(); own.clear(); ownMats.clear(); },
-      stats() { return { ...state, zone: state.zone.slice(), seed, cycle: currentId, stormStart: start, duration: spec.duration, quiet: spec.quiet, firstStorm: firstStart, clouds: clouds.count + 1, drops: rain.count, ripples: ripples.count, maxFlash: .16, minimumFlashGap: 3.8, scans, patchedMaterials: patchedCount }; }
+      stats() { return { ...state, zone: state.zone.slice(), seed, cycle: currentId, stormStart: start, duration: spec.duration, quiet: spec.quiet, firstStorm: firstStart, clouds: clouds.count + 1, drops: rain.count, ripples: ripples.count, maxFlash: .16, minimumFlashGap: 3.8, scans, patchedMaterials: patchedCount, mobile, shade: mobile ? 'vertex' : 'fragment' }; }
     };
   }
   return { create };
@@ -7251,18 +7278,22 @@ const PlaceFX3D = (() => {
     const ringMat = new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .63, depthWrite: false });
     const dropMat = new T.MeshStandardMaterial({ color: 0xffffff, roughness: .23, metalness: .12 });
     const coinMat = new T.MeshStandardMaterial({ color: 0xffd777, metalness: .72, roughness: .28, emissive: 0x4d2904, emissiveIntensity: .18 });
-    function pool(geo, mat, n, name) { const mesh = new T.InstancedMesh(geo, mat, n); mesh.name = name; mesh.frustumCulled = false; mesh.instanceMatrix.setUsage(T.DynamicDrawUsage); group.add(mesh); return mesh; }
+    function pool(geo, mat, n, name) { const mesh = new T.InstancedMesh(geo, mat, n); mesh.name = name; mesh.frustumCulled = false; mesh.instanceMatrix.setUsage(T.DynamicDrawUsage); mesh.count = 0; mesh.visible = false; group.add(mesh); return mesh; }
     const rings = pool(ringGeo, ringMat, MAX * 2, 'Landing and ownership ripples');
     const drops = pool(dropGeo, dropMat, MAX * PER, 'Solid water and gem particles');
     const coins = pool(coinGeo, coinMat, MAX * PER, 'Purchase doubloons');
     rings.renderOrder = 3;
     let time = 0, initialized = false, disposed = false, sequence = 0;
-    const zero = new T.Matrix4().makeScale(0, 0, 0), color = new T.Color(), pearl = new T.Color(0xe2fff4), spray = new T.Color(0xd7fbfa);
-    const clear = (m, a, n) => { for (let k = a; k < a + n; k++) m.setMatrixAt(k, zero); };
+    const color = new T.Color(), pearl = new T.Color(0xe2fff4), spray = new T.Color(0xd7fbfa);
+    function show(m, count) {
+      m.count = count; m.visible = count > 0;
+      // Hidden pools submit no vertices. Their stale buffer tail stays outside
+      // count; a later event overwrites every live instance before showing it.
+      if (count) { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
+    }
     function reset() {
       for (let i = 0; i < MAX; i++) events[i] = null;
-      clear(rings, 0, MAX * 2); clear(drops, 0, MAX * PER); clear(coins, 0, MAX * PER);
-      for (const m of [rings, drops, coins]) m.instanceMatrix.needsUpdate = true;
+      for (const m of [rings, drops, coins]) show(m, 0);
     }
     reset();
     // Allocate instance colours before the first shader warmup, never mid-turn.
@@ -7281,9 +7312,9 @@ const PlaceFX3D = (() => {
       if (disposed) return;
       time = Number.isFinite(t) ? t : time; initialized = true;
       if (!events.some(Boolean)) return;
+      let ringCount = 0, dropCount = 0, coinCount = 0;
       for (let slot = 0; slot < MAX; slot++) {
         const e = events[slot];
-        clear(rings, slot * 2, 2); clear(drops, slot * PER, PER); clear(coins, slot * PER, PER);
         if (!e) continue;
         if (e.start == null) e.start = time;
         const u = Math.max(0, (time - e.start) / e.duration);
@@ -7294,8 +7325,8 @@ const PlaceFX3D = (() => {
           obj.position.copy(e.at); obj.position.y += .018 + j * .009;
           obj.rotation.set(Math.PI / 2, 0, 0); const r = e.scale * (.52 + q * .83);
           obj.scale.set(r, r, Math.max(.001, (1 - q) * .85)); obj.updateMatrix();
-          rings.setMatrixAt(slot * 2 + j, obj.matrix);
-          rings.setColorAt(slot * 2 + j, color.copy(e.color).lerp(pearl, .42));
+          rings.setMatrixAt(ringCount, obj.matrix);
+          rings.setColorAt(ringCount++, color.copy(e.color).lerp(pearl, .42));
         }
         const count = e.treasure ? PER : 10;
         for (let k = 0; k < count; k++) {
@@ -7303,13 +7334,14 @@ const PlaceFX3D = (() => {
           if (q >= 1) continue;
           const a = k / count * TAU + e.phase, r = e.scale * (.2 + q * .85);
           const arc = Math.sin(q * Math.PI), shrink = Math.min(1, q * 12) * Math.pow(1 - q, .5);
+          if (!shrink) continue;
           obj.position.set(e.at.x + Math.cos(a) * r, e.at.y + .045 + arc * (e.treasure ? .78 : .42) * (.7 + (k % 4) * .1), e.at.z + Math.sin(a) * r);
           obj.rotation.set(q * 9 + a, q * 7 + k, q * 4);
-          if (e.treasure) { obj.scale.setScalar(shrink * (k % 3 ? 1 : 1.25)); obj.updateMatrix(); coins.setMatrixAt(slot * PER + k, obj.matrix); }
-          else { obj.scale.set(.023 * shrink, .046 * shrink, .023 * shrink); obj.updateMatrix(); drops.setMatrixAt(slot * PER + k, obj.matrix); drops.setColorAt(slot * PER + k, color.copy(e.color).lerp(spray, .76)); }
+          if (e.treasure) { obj.scale.setScalar(shrink * (k % 3 ? 1 : 1.25)); obj.updateMatrix(); coins.setMatrixAt(coinCount++, obj.matrix); }
+          else { obj.scale.set(.023 * shrink, .046 * shrink, .023 * shrink); obj.updateMatrix(); drops.setMatrixAt(dropCount, obj.matrix); drops.setColorAt(dropCount++, color.copy(e.color).lerp(spray, .76)); }
         }
       }
-      for (const m of [rings, drops, coins]) { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
+      show(rings, ringCount); show(drops, dropCount); show(coins, coinCount);
     }
     function dispose() { if (disposed) return; disposed = true; parent.remove(group); for (const m of [rings, drops, coins]) m.dispose(); for (const g of [ringGeo, dropGeo, coinGeo]) g.dispose(); for (const m of [ringMat, dropMat, coinMat]) m.dispose(); events.fill(null); }
     return { update, trigger, reset, dispose, stats: () => ({ places: lookup.size, active: events.filter(Boolean).length, capacity: MAX, meshes: 3, disposed }) };
@@ -8063,7 +8095,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     yield* buildLife();
     if (MOD.world === 'sea' && typeof Marine3D !== 'undefined' && Marine3D) {
       marineLife = Marine3D.create({
-        parent: root, oceanY: Terrain.OCEAN_Y, reducedMotion: REDUCED,
+        parent: root, oceanY: Terrain.OCEAN_Y, reducedMotion: REDUCED, mobile,
         focus: () => {
           const seat = turnSeat >= 0 ? turnSeat : st && st.turn;
           const at = seat != null && pos[seat] != null ? pos[seat] : 0;
@@ -8080,7 +8112,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       const vortex = Terrain.VORTEX;
       lagoonLife = Lagoon3D.create({
         parent: root, center: { x: vortex.x, z: vortex.z }, radius: vortex.radius + 0.01,
-        waterY: Terrain.SEA_Y, reducedMotion: REDUCED,
+        waterY: Terrain.SEA_Y, reducedMotion: REDUCED, mobile,
         waterHeight: (x, z, t) => {
           const nativeCoast = smooth(3.2, 3.7, Math.hypot(x, z));
           return Terrain.SEA_Y - 0.055 * (1 - nativeCoast) + 0.48 * nativeCoast
@@ -8103,7 +8135,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     }
     if (MOD.world === 'sea' && typeof Weather3D !== 'undefined' && Weather3D) {
       weatherLife = Weather3D.create({
-        parent: root, waterY: Terrain.SEA_Y, outerWaterY: Terrain.OCEAN_Y, reducedMotion: REDUCED,
+        parent: root, waterY: Terrain.SEA_Y, outerWaterY: Terrain.OCEAN_Y, reducedMotion: REDUCED, mobile,
         onThunder: event => { if (typeof Sound !== 'undefined' && Sound.thunder) Sound.thunder(event.strength); }
       });
     }
@@ -9216,9 +9248,9 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   }
 
   // ===== the frame loop =====
-  // Quality follows measured drawn frames, including idle animations. Frames that come too slowly make the
-  // picture a step coarser, with fewer pixels. The step is taken in a quiet moment, when nothing moves, so that the
-  // change itself is not seen as a jolt; and the shaders never change mid-game (rebuilding them stalls a phone).
+  // Phone geometry/effects have a fixed budget. Keep its canvas sharp: reducing
+  // pixels did not help the measured vertex bottleneck, but blurred the board.
+  // Desktop can still lower resolution when sustained frame cadence is slow.
   let last = 0, running = false, frame = 0, quality = 2, basePR = 1, shadowDirty = true, shadowLate = false, shadowAt = 0;
   let pacer = RenderPacer.create(false), busyAvg = 1 / 60, busyN = 0, prStep = 0, prNext = 0, shadowTime = 0;
   let drewAt = 0, lostAt = 0, progN = 0;          // when a frame was last drawn; when the graphics were lost; shaders made
@@ -9227,8 +9259,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (real > 1 || real <= 0) return;
     real = Math.min(real, .25);                // bound isolated stalls without ignoring a consistently slow phone
     busyAvg = busyAvg * 0.95 + real * 0.05;
-    if (++busyN < 45 || busyAvg < Math.max(target * 1.25, 1 / 36) || prNext || prStep >= PR_STEPS.length - 1) return;
-    const pr = Math.max(mobile ? .85 : 1, basePR * PR_STEPS[prStep + 1]);
+    if (mobile || ++busyN < 45 || busyAvg < Math.max(target * 1.25, 1 / 36) || prNext || prStep >= PR_STEPS.length - 1) return;
+    const pr = Math.max(1, basePR * PR_STEPS[prStep + 1]);
     prStep++; busyN = 0;
     if (pr < R.getPixelRatio() - 0.01) prNext = pr;
   }
@@ -9250,6 +9282,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (still && prNext) coarser();
     // Do not deform meshes, update animals or upload instances for an unpainted frame.
     if (!pacer.step(now, !still)) return;
+    const cpuStart = performance.now();
     const visualDt = Math.min(.25, pacer.delta), t = now / 1000;
     if (marineLife) marineLife.update(REDUCED ? 3 : t, visualDt);
     if (lagoonLife) lagoonLife.update(REDUCED ? 3 : t, visualDt);
@@ -9295,6 +9328,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     U.time.value = lt;
     lifeStep(lt);
     draw(visualDt * speedK);
+    const cpuMs = performance.now() - cpuStart;
+    PERF.cpuMs = PERF.cpuMs == null ? cpuMs : PERF.cpuMs * .95 + cpuMs * .05;
     adapt(pacer.delta, pacer.interval);
   }
   function draw(diceDt) {
@@ -9303,6 +9338,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     R.setViewport(0, 0, W, H); R.setScissorTest(false);
     R.clear();
     R.render(scene, cam);
+    PERF.calls = R.info.render.calls; PERF.tris = R.info.render.triangles;
     Dice3D.frame(R, diceDt);
     drewAt = performance.now();
     const pn = R.info.programs.length;                  // a shader made now, in the middle of a game, stalls a phone
@@ -9354,7 +9390,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     try {
       R = new T.WebGLRenderer({ antialias: !mobile, alpha: true, powerPreference: mobile ? 'default' : 'high-performance' });
     } catch (e) { console.warn('no WebGL', e); failed = true; return; }
-    basePR = Math.min(window.devicePixelRatio || 1, mobile ? 1.25 : 1.75);
+    basePR = Math.min(window.devicePixelRatio || 1, mobile ? 1.5 : 1.75);
     quality = mobile ? 1 : 2;
     if (/[?&]lq\b/.test(location.search)) { basePR = 1; quality = 0; }
     R.setPixelRatio(basePR);
@@ -9364,7 +9400,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     R.shadowMap.autoUpdate = false;                // drawn again only when something moved (see the frame loop)
     R.setClearColor(0x000000, 0);
     R.autoClear = false;
-    maxAniso = Math.min(mobile ? 2 : 8, R.capabilities.getMaxAnisotropy());
+    maxAniso = Math.min(mobile ? 4 : 8, R.capabilities.getMaxAnisotropy());
     const cv = R.domElement;
     cv.className = 'board3d';
     el.appendChild(cv);
@@ -9574,8 +9610,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       let name = '';
       try { const gl = R.getContext(), x = gl.getExtension('WEBGL_debug_renderer_info'); name = x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); } catch (e) { }
       const m = R.info.memory, assets = typeof GLB !== 'undefined' && GLB && GLB.stats ? GLB.stats() : null;
-      const models = assets ? ` · models ${assets.completed} ready/${assets.queued + assets.active} loading/${assets.failed} failed · model textures ~${Math.round(assets.textureBytes / 1048576)} MiB` : '';
-      return `gpu ${name} · webgl${R.capabilities.isWebGL2 ? 2 : 1} · pixel ratio ${R.getPixelRatio().toFixed(2)} (${prStep} steps down) · quality ${quality} · render ${Math.round(busyAvg * 1000)} ms / ${mobile ? 30 : 60} fps target · ${mobile ? 'phone' : 'computer'} · shaders ${R.info.programs.length} · textures ${m.textures} · geometries ${m.geometries}${models}${lostAt ? ' · GRAPHICS LOST' : ''}`;
+      const models = assets ? ` · models ${assets.completed} ready/${assets.queued + assets.active} loading/${assets.failed} failed · mobile LOD ${assets.lodModels || 0} · model textures ~${Math.round(assets.textureBytes / 1048576)} MiB` : '';
+      return `gpu ${name} · webgl${R.capabilities.isWebGL2 ? 2 : 1} · pixel ratio ${R.getPixelRatio().toFixed(2)} (${prStep} steps down) · quality ${quality} · frame ${Math.round(busyAvg * 1000)} ms (~${Math.round(1 / busyAvg)} fps / ${mobile ? 30 : 60} target) · CPU submit ${(PERF.cpuMs || 0).toFixed(1)} ms · draw ${PERF.calls || 0}/${Math.round((PERF.tris || 0) / 1000)}k triangles · ${mobile ? 'phone' : 'computer'} · shaders ${R.info.programs.length} · textures ${m.textures} · geometries ${m.geometries}${models}${lostAt ? ' · GRAPHICS LOST' : ''}`;
     },
     onPick(cb) { pickCb = cb; },
     setPos(seat, at) { pos[seat] = at; },
@@ -11633,10 +11669,12 @@ function offlineHelper() {
   if (!box || !status || !bar || !button || offlineHelper.started) return;
   offlineHelper.started = true;
   box.hidden = false;
+  const profile = ((typeof screen !== 'undefined' && Math.min(screen.width, screen.height) < 700)
+    || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1 && /iPhone|iPad|iPod|Android|Macintosh/.test(navigator.userAgent || ''))) ? 'mobile' : 'desktop';
   const note = text => { try { if (typeof Diag !== 'undefined' && Diag.note) Diag.note('files', text); } catch (_) { } };
   const version = value => /^[A-Za-z0-9_.-]{1,40}$/.test(String(value || '')) ? String(value) : 'unknown';
   const failure = error => version(error && error.name) || 'Error';
-  note('helper page ' + version(typeof BUILD === 'undefined' ? '' : BUILD));
+  note('helper page ' + version(typeof BUILD === 'undefined' ? '' : BUILD) + ', profile ' + profile);
   const local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
   if (!SITE || !('serviceWorker' in navigator) || !(location.protocol === 'https:' || local)) {
     bar.hidden = button.hidden = true;
@@ -11667,7 +11705,7 @@ function offlineHelper() {
     const w = worker();
     if (!w) { note(type + ': no activated worker; ' + health()); return false; }
     senders.add(w);
-    try { w.postMessage({ type }); return true; } catch (error) { note(type + ' message failed: ' + failure(error)); return false; }
+    try { w.postMessage({ type, profile }); return true; } catch (error) { note(type + ' message failed: ' + failure(error)); return false; }
   }
   function waitForReply() {
     clearTimeout(replyTimer);
@@ -11743,7 +11781,7 @@ function offlineHelper() {
       if (['installing', 'page-ready', 'shell-ready', 'ready', 'failed'].includes(data.state)) note('install ' + data.state + ', version ' + version(data.version) + (details.includes(data.detail) ? ', ' + data.detail : ''));
       return;
     }
-    if (data.type !== 'asset-cache-progress') return;
+    if (data.type !== 'asset-cache-progress' || (data.profile && data.profile !== profile)) return;
     if (progressVersion !== data.version) { progressVersion = data.version; note('worker progress version ' + version(data.version)); }
     if (typeof BUILD !== 'undefined' && data.version && data.version !== BUILD) {
       clearTimeout(replyTimer); clearTimeout(autoTimer);

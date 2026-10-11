@@ -47,10 +47,11 @@ const estimate=(w,h)=>Math.ceil(w*h*4*4/3);
 async function actualAssets(){
   const h=harness();h.glb.configure({mobile:true});
   const urls=['art/m_oak_animated.glb','art/m_heligoland_animated.glb','art/m_volcano_animated.glb','art/m_gotland_animated.glb','art/m_cocos_animated.glb'];
+  const mobileURLs=urls.map(url=>url.replace('art/','art/mobile/'));
   const tasks=urls.map(url=>h.glb.loadScene(url,url.includes('volcano')?10:0));
   const again=h.glb.loadScene(urls[2],10),assets=await Promise.all(tasks),clone=await again;
-  assert.equal(h.order[0],urls[2],'central priority is serviced first');assert.ok(h.fetchPeak()<=2);assert.equal(h.glb.stats().maxActive,2);
-  assert.equal(h.calls.get(urls[2]),1,'concurrent scene requests deduplicate');assert.notEqual(assets[2].scene,clone.scene);
+  assert.equal(h.order[0],mobileURLs[2],'central priority is serviced first');assert.ok(h.fetchPeak()<=2);assert.equal(h.glb.stats().maxActive,2);
+  assert.equal(h.calls.get(mobileURLs[2]),1,'concurrent scene requests deduplicate');assert.notEqual(assets[2].scene,clone.scene);
   for(let i=0;i<assets.length;i++){
     const limit=i===2?1024:512,images=new Set();
     for(const texture of maps(assets[i].scene)){images.add(texture.image);assert.ok(texture.image.width<=limit&&texture.image.height<=limit);assert.equal(texture.flipY,false);assert.ok(texture.version>0);}
@@ -63,6 +64,9 @@ async function actualAssets(){
   const stats=h.glb.stats();assert.ok(stats.resizedImages>0);assert.ok(stats.imageBytes<=stats.originalImageBytes*.251,'mobile image budget saves at least75%');
   assert.ok(bitmaps.every(b=>b.closed===1),'each replaced real asset bitmap closes exactly once');
   await sleep(2);assert.equal(h.glb.stats().active,0);assert.equal(h.glb.stats().queued,0);assert.equal(h.glb.stats().completed,urls.length);
+  assert.equal(stats.lodModels,urls.length);assert.ok(stats.triangles<150000,'real mobile variants reduce vertex load');
+  assert.ok(h.order.every(url=>url.startsWith('art/mobile/')),'phone never requests original animated assets');
+  const desktop=harness();await desktop.glb.loadScene(urls[1]);assert.equal(desktop.order[0],urls[1],'desktop retains full detail');assert.equal(desktop.glb.stats().lodModels,0);
 }
 async function sharedImages(){
   const refs=[],bitmap={width:2048,height:1024,closed:0,close(){assert.ok(refs.every(t=>t.image!==this),'every material/parser ref changes before close');this.closed++;}};
@@ -89,9 +93,9 @@ async function failures(){
     if(mode==='stalled')return new Promise((_resolve,reject)=>options.signal.addEventListener('abort',()=>{aborts++;reject(new Error('aborted'));},{once:true}));
     const b=fs.readFileSync(path.join(root,url));return{ok:true,arrayBuffer:async()=>b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength)};
   }});h.glb.configure({mobile:true,concurrency:1});
-  const failed=h.glb.loadScene(url),checked=assert.rejects(failed,/timed out/);await sleep(5);h.fireDeadline();await sleep(5);assert.equal(h.calls.get(url),2);h.fireDeadline();await checked;await sleep(2);
+  const failed=h.glb.loadScene(url),checked=assert.rejects(failed,/timed out/);await sleep(5);h.fireDeadline();await sleep(5);assert.equal(h.calls.get(url.replace('art/','art/mobile/')),2);h.fireDeadline();await checked;await sleep(2);
   assert.equal(aborts,2);assert.equal(h.glb.stats().active,0);assert.equal(h.glb.stats().failed,1);assert.equal(h.glb.stats().retries,1);
-  mode='ready';const recovered=await h.glb.loadScene(url);assert.ok(recovered.scene.children.length);assert.equal(h.calls.get(url),3,'failure evicts cached rejected promise');
+  mode='ready';const recovered=await h.glb.loadScene(url);assert.ok(recovered.scene.children.length);assert.equal(h.calls.get(url.replace('art/','art/mobile/')),3,'failure evicts cached rejected promise');
   let parses=0;
   class FlakyLoader{parse(_d,_p,resolve,reject){parses++;if(parses===1)return reject(new Error('bad GLB'));resolve({scene:new THREE.Group(),animations:[]});}}
   const parse=harness({Loader:FlakyLoader,fetch:async()=>({ok:true,arrayBuffer:async()=>new ArrayBuffer(8)})});await assert.rejects(parse.glb.loadScene('art/fix.glb'),/bad GLB/);await parse.glb.loadScene('art/fix.glb');assert.equal(parses,2);assert.equal(parse.calls.get('art/fix.glb'),2);

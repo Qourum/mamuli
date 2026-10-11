@@ -14,7 +14,7 @@ const GLB = (() => {
   const scenes = new Map();
   const jobs = new Map(), queue = [], measuredTextures = new WeakSet(), measuredImages = new WeakMap();
   const policy = { mobile: false, concurrency: 4 };
-  const counts = { completed: 0, failed: 0, fetches: 0, retries: 0, timeouts: 0, maxActive: 0, textures: 0, images: 0, resizedImages: 0, resizeFailures: 0, originalImageBytes: 0, imageBytes: 0, originalTextureBytes: 0, textureBytes: 0 };
+  const counts = { completed: 0, failed: 0, fetches: 0, retries: 0, timeouts: 0, maxActive: 0, lodModels: 0, triangles: 0, vertices: 0, textures: 0, images: 0, resizedImages: 0, resizeFailures: 0, originalImageBytes: 0, imageBytes: 0, originalTextureBytes: 0, textureBytes: 0 };
   const DEADLINE = 90000;
   let active = 0, scheduled = false, serial = 0;
   const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -77,6 +77,8 @@ const GLB = (() => {
           if(item.mode==='scene') {
             asset=await deadline(parseScene(buffer,job.url.slice(0,job.url.lastIndexOf('/')+1)),job.url+' parse');
             await deadline(prepareTextures(asset,job.url),job.url+' textures');retainScene(asset.scene);
+            asset.scene.traverse(o => { if (o.isMesh) { const g=o.geometry; counts.vertices+=g.attributes.position.count; counts.triangles+=(g.index?g.index.count:g.attributes.position.count)/3; } });
+            if (job.url.startsWith('art/mobile/')) counts.lodModels++;
           } else asset=await deadline(make(buffer),job.url+' parse');
           item.done=true;if(job.requests.every(r=>r.done)){job.closed=true;if(jobs.get(job.url)===job)jobs.delete(job.url);}item.resolve(asset);
         } catch(error){failed=true;rejectRequest(job,item,error);}
@@ -307,6 +309,9 @@ const GLB = (() => {
     const scene = window.MamuliSkeletonClone ? window.MamuliSkeletonClone(gltf.scene) : gltf.scene.clone(true);
     return { scene, animations: gltf.animations || [] };
   }
-  function loadScene(url,priority=0) {return request('scene',url,priority,scenes).then(sceneInstance);}
+  // The mobile files retain the original materials, nodes and clips. Only the
+  // mesh topology is simplified offline; no costly decimation runs on a phone.
+  function sceneURL(url) { return policy.mobile && /^art\/m_[a-z]+_animated\.glb$/.test(url) ? url.replace('art/', 'art/mobile/') : url; }
+  function loadScene(url,priority=0) {return request('scene',sceneURL(url),priority,scenes).then(sceneInstance);}
   return {load,loadScene,configure,stats,_parse:make,_parseScene:parseScene};
 })();

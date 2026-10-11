@@ -100,10 +100,12 @@ function offlineHelper() {
   if (!box || !status || !bar || !button || offlineHelper.started) return;
   offlineHelper.started = true;
   box.hidden = false;
+  const profile = ((typeof screen !== 'undefined' && Math.min(screen.width, screen.height) < 700)
+    || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1 && /iPhone|iPad|iPod|Android|Macintosh/.test(navigator.userAgent || ''))) ? 'mobile' : 'desktop';
   const note = text => { try { if (typeof Diag !== 'undefined' && Diag.note) Diag.note('files', text); } catch (_) { } };
   const version = value => /^[A-Za-z0-9_.-]{1,40}$/.test(String(value || '')) ? String(value) : 'unknown';
   const failure = error => version(error && error.name) || 'Error';
-  note('helper page ' + version(typeof BUILD === 'undefined' ? '' : BUILD));
+  note('helper page ' + version(typeof BUILD === 'undefined' ? '' : BUILD) + ', profile ' + profile);
   const local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
   if (!SITE || !('serviceWorker' in navigator) || !(location.protocol === 'https:' || local)) {
     bar.hidden = button.hidden = true;
@@ -134,7 +136,7 @@ function offlineHelper() {
     const w = worker();
     if (!w) { note(type + ': no activated worker; ' + health()); return false; }
     senders.add(w);
-    try { w.postMessage({ type }); return true; } catch (error) { note(type + ' message failed: ' + failure(error)); return false; }
+    try { w.postMessage({ type, profile }); return true; } catch (error) { note(type + ' message failed: ' + failure(error)); return false; }
   }
   function waitForReply() {
     clearTimeout(replyTimer);
@@ -210,7 +212,7 @@ function offlineHelper() {
       if (['installing', 'page-ready', 'shell-ready', 'ready', 'failed'].includes(data.state)) note('install ' + data.state + ', version ' + version(data.version) + (details.includes(data.detail) ? ', ' + data.detail : ''));
       return;
     }
-    if (data.type !== 'asset-cache-progress') return;
+    if (data.type !== 'asset-cache-progress' || (data.profile && data.profile !== profile)) return;
     if (progressVersion !== data.version) { progressVersion = data.version; note('worker progress version ' + version(data.version)); }
     if (typeof BUILD !== 'undefined' && data.version && data.version !== BUILD) {
       clearTimeout(replyTimer); clearTimeout(autoTimer);

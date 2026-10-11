@@ -723,7 +723,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     yield* buildLife();
     if (MOD.world === 'sea' && typeof Marine3D !== 'undefined' && Marine3D) {
       marineLife = Marine3D.create({
-        parent: root, oceanY: Terrain.OCEAN_Y, reducedMotion: REDUCED,
+        parent: root, oceanY: Terrain.OCEAN_Y, reducedMotion: REDUCED, mobile,
         focus: () => {
           const seat = turnSeat >= 0 ? turnSeat : st && st.turn;
           const at = seat != null && pos[seat] != null ? pos[seat] : 0;
@@ -740,7 +740,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       const vortex = Terrain.VORTEX;
       lagoonLife = Lagoon3D.create({
         parent: root, center: { x: vortex.x, z: vortex.z }, radius: vortex.radius + 0.01,
-        waterY: Terrain.SEA_Y, reducedMotion: REDUCED,
+        waterY: Terrain.SEA_Y, reducedMotion: REDUCED, mobile,
         waterHeight: (x, z, t) => {
           const nativeCoast = smooth(3.2, 3.7, Math.hypot(x, z));
           return Terrain.SEA_Y - 0.055 * (1 - nativeCoast) + 0.48 * nativeCoast
@@ -763,7 +763,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     }
     if (MOD.world === 'sea' && typeof Weather3D !== 'undefined' && Weather3D) {
       weatherLife = Weather3D.create({
-        parent: root, waterY: Terrain.SEA_Y, outerWaterY: Terrain.OCEAN_Y, reducedMotion: REDUCED,
+        parent: root, waterY: Terrain.SEA_Y, outerWaterY: Terrain.OCEAN_Y, reducedMotion: REDUCED, mobile,
         onThunder: event => { if (typeof Sound !== 'undefined' && Sound.thunder) Sound.thunder(event.strength); }
       });
     }
@@ -1876,9 +1876,9 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   }
 
   // ===== the frame loop =====
-  // Quality follows measured drawn frames, including idle animations. Frames that come too slowly make the
-  // picture a step coarser, with fewer pixels. The step is taken in a quiet moment, when nothing moves, so that the
-  // change itself is not seen as a jolt; and the shaders never change mid-game (rebuilding them stalls a phone).
+  // Phone geometry/effects have a fixed budget. Keep its canvas sharp: reducing
+  // pixels did not help the measured vertex bottleneck, but blurred the board.
+  // Desktop can still lower resolution when sustained frame cadence is slow.
   let last = 0, running = false, frame = 0, quality = 2, basePR = 1, shadowDirty = true, shadowLate = false, shadowAt = 0;
   let pacer = RenderPacer.create(false), busyAvg = 1 / 60, busyN = 0, prStep = 0, prNext = 0, shadowTime = 0;
   let drewAt = 0, lostAt = 0, progN = 0;          // when a frame was last drawn; when the graphics were lost; shaders made
@@ -1887,8 +1887,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (real > 1 || real <= 0) return;
     real = Math.min(real, .25);                // bound isolated stalls without ignoring a consistently slow phone
     busyAvg = busyAvg * 0.95 + real * 0.05;
-    if (++busyN < 45 || busyAvg < Math.max(target * 1.25, 1 / 36) || prNext || prStep >= PR_STEPS.length - 1) return;
-    const pr = Math.max(mobile ? .85 : 1, basePR * PR_STEPS[prStep + 1]);
+    if (mobile || ++busyN < 45 || busyAvg < Math.max(target * 1.25, 1 / 36) || prNext || prStep >= PR_STEPS.length - 1) return;
+    const pr = Math.max(1, basePR * PR_STEPS[prStep + 1]);
     prStep++; busyN = 0;
     if (pr < R.getPixelRatio() - 0.01) prNext = pr;
   }
@@ -1910,6 +1910,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (still && prNext) coarser();
     // Do not deform meshes, update animals or upload instances for an unpainted frame.
     if (!pacer.step(now, !still)) return;
+    const cpuStart = performance.now();
     const visualDt = Math.min(.25, pacer.delta), t = now / 1000;
     if (marineLife) marineLife.update(REDUCED ? 3 : t, visualDt);
     if (lagoonLife) lagoonLife.update(REDUCED ? 3 : t, visualDt);
@@ -1955,6 +1956,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     U.time.value = lt;
     lifeStep(lt);
     draw(visualDt * speedK);
+    const cpuMs = performance.now() - cpuStart;
+    PERF.cpuMs = PERF.cpuMs == null ? cpuMs : PERF.cpuMs * .95 + cpuMs * .05;
     adapt(pacer.delta, pacer.interval);
   }
   function draw(diceDt) {
@@ -1963,6 +1966,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     R.setViewport(0, 0, W, H); R.setScissorTest(false);
     R.clear();
     R.render(scene, cam);
+    PERF.calls = R.info.render.calls; PERF.tris = R.info.render.triangles;
     Dice3D.frame(R, diceDt);
     drewAt = performance.now();
     const pn = R.info.programs.length;                  // a shader made now, in the middle of a game, stalls a phone
@@ -2014,7 +2018,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     try {
       R = new T.WebGLRenderer({ antialias: !mobile, alpha: true, powerPreference: mobile ? 'default' : 'high-performance' });
     } catch (e) { console.warn('no WebGL', e); failed = true; return; }
-    basePR = Math.min(window.devicePixelRatio || 1, mobile ? 1.25 : 1.75);
+    basePR = Math.min(window.devicePixelRatio || 1, mobile ? 1.5 : 1.75);
     quality = mobile ? 1 : 2;
     if (/[?&]lq\b/.test(location.search)) { basePR = 1; quality = 0; }
     R.setPixelRatio(basePR);
@@ -2024,7 +2028,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     R.shadowMap.autoUpdate = false;                // drawn again only when something moved (see the frame loop)
     R.setClearColor(0x000000, 0);
     R.autoClear = false;
-    maxAniso = Math.min(mobile ? 2 : 8, R.capabilities.getMaxAnisotropy());
+    maxAniso = Math.min(mobile ? 4 : 8, R.capabilities.getMaxAnisotropy());
     const cv = R.domElement;
     cv.className = 'board3d';
     el.appendChild(cv);
@@ -2234,8 +2238,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       let name = '';
       try { const gl = R.getContext(), x = gl.getExtension('WEBGL_debug_renderer_info'); name = x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); } catch (e) { }
       const m = R.info.memory, assets = typeof GLB !== 'undefined' && GLB && GLB.stats ? GLB.stats() : null;
-      const models = assets ? ` · models ${assets.completed} ready/${assets.queued + assets.active} loading/${assets.failed} failed · model textures ~${Math.round(assets.textureBytes / 1048576)} MiB` : '';
-      return `gpu ${name} · webgl${R.capabilities.isWebGL2 ? 2 : 1} · pixel ratio ${R.getPixelRatio().toFixed(2)} (${prStep} steps down) · quality ${quality} · render ${Math.round(busyAvg * 1000)} ms / ${mobile ? 30 : 60} fps target · ${mobile ? 'phone' : 'computer'} · shaders ${R.info.programs.length} · textures ${m.textures} · geometries ${m.geometries}${models}${lostAt ? ' · GRAPHICS LOST' : ''}`;
+      const models = assets ? ` · models ${assets.completed} ready/${assets.queued + assets.active} loading/${assets.failed} failed · mobile LOD ${assets.lodModels || 0} · model textures ~${Math.round(assets.textureBytes / 1048576)} MiB` : '';
+      return `gpu ${name} · webgl${R.capabilities.isWebGL2 ? 2 : 1} · pixel ratio ${R.getPixelRatio().toFixed(2)} (${prStep} steps down) · quality ${quality} · frame ${Math.round(busyAvg * 1000)} ms (~${Math.round(1 / busyAvg)} fps / ${mobile ? 30 : 60} target) · CPU submit ${(PERF.cpuMs || 0).toFixed(1)} ms · draw ${PERF.calls || 0}/${Math.round((PERF.tris || 0) / 1000)}k triangles · ${mobile ? 'phone' : 'computer'} · shaders ${R.info.programs.length} · textures ${m.textures} · geometries ${m.geometries}${models}${lostAt ? ' · GRAPHICS LOST' : ''}`;
     },
     onPick(cb) { pickCb = cb; },
     setPos(seat, at) { pos[seat] = at; },

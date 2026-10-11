@@ -28,9 +28,9 @@ function worker({ version = 'test-one', bodies, storage = new CacheStorage(), ar
   const revisions = Object.fromEntries(Object.entries(bodies).map(([name, body]) => [name, digest(body)])), handlers = new Map(), requests = [], timers = new Map(), messages = [];
   const shellPage = '<!doctype html><script>const BUILD = "' + version + '";</script>';
   let timerId = 0, network = async url => response(new URL(url).pathname.endsWith('/index.html') ? shellPage : bodies[new URL(url).pathname.slice('/mamuli/'.length)] || 'shell'), active = 0, maxActive = 0, digestActive = 0, maxDigest = 0, skipped = 0, claimed = 0;
-  const client = { postMessage(value) { messages.push(value); } };
+  const client = { id: 'desktop-client', postMessage(value) { messages.push(value); } }, clients = [client];
   const self = { registration: { scope: SCOPE }, crypto: { subtle: { async digest(...args) { digestActive++; maxDigest = Math.max(maxDigest, digestActive); try { return await webcrypto.subtle.digest(...args); } finally { digestActive--; } } } },
-    clients: { async matchAll() { return [client]; }, async claim() { claimed++; } }, async skipWaiting() { skipped++; }, addEventListener: (type, callback) => handlers.set(type, callback) };
+    clients: { async matchAll() { return clients; }, async claim() { claimed++; } }, async skipWaiting() { skipped++; }, addEventListener: (type, callback) => handlers.set(type, callback) };
   const context = vm.createContext({ self, caches: storage, URL, Request, Response, Headers, AbortController, Uint8Array, console,
     setTimeout(fn, milliseconds) { timers.set(++timerId, { fn, milliseconds }); return timerId; }, clearTimeout(id) { timers.delete(id); },
     async fetch(input, options = {}) { const url = absolute(input); requests.push({ url, options }); active++; maxActive = Math.max(maxActive, active); try { return await network(url, options); } finally { active--; } } });
@@ -39,7 +39,7 @@ function worker({ version = 'test-one', bodies, storage = new CacheStorage(), ar
   async function lifecycle(type) { let completion; handlers.get(type)({ waitUntil(value) { completion = value; } }); await completion; }
   function message(data, source = client) { let completion; handlers.get('message')({ data, source, waitUntil(value) { completion = value; } }); return completion || Promise.resolve(); }
   function fetchAsset(file) { let result; handlers.get('fetch')({ request: new Request(absolute(file)), respondWith(value) { result = value; } }); return result; }
-  return { storage, requests, messages, timers, client, lifecycle, message, fetchAsset, key: input => context.debug.assetKey(input), stats: () => context.debug.stats(), setNetwork(value) { network = value; }, maxActive: () => maxActive, maxDigest: () => maxDigest, skipped: () => skipped, claimed: () => claimed };
+  return { storage, requests, messages, timers, client, clients, lifecycle, message, fetchAsset, key: input => context.debug.assetKey(input), stats: () => context.debug.stats(), setNetwork(value) { network = value; }, maxActive: () => maxActive, maxDigest: () => maxDigest, skipped: () => skipped, claimed: () => claimed };
 }
 async function flush() { for (let i = 0; i < 4; i++) { for (let j = 0; j < 12; j++) await Promise.resolve(); await new Promise(setImmediate); } }
 async function waitFor(predicate) { for (let i = 0; i < 100 && !predicate(); i++) await flush(); assert(predicate(), 'scheduled operation became ready'); }
@@ -85,6 +85,45 @@ const bodies = { 'art/model.glb': 'model version one', 'art/image.webp': 'small 
   held.get('q0.glb')(response('q0')); await waitFor(() => held.has('q4.glb')); assert.equal(pool.requests.at(-1).url.split('?')[0], absolute('art/q4.glb'), 'next free slot serves foreground demand first');
   for (const name of ['q1.glb', 'q2.glb', 'q3.glb', 'q4.glb']) held.get(name)(response(name)); await Promise.all(demands); await waitFor(() => held.has('q5.glb') && held.has('q6.glb'));
   assert.equal(pool.stats().backgroundActive, 2); assert(!held.has('q7.glb'), 'idle preparation has only two network streams'); held.get('q5.glb')(response('q5')); held.get('q6.glb')(response('q6')); await waitFor(() => held.has('q7.glb')); held.get('q7.glb')(response('q7')); await batch; assert(pool.maxActive() <= 4);
+  // The full manifest has 116 assets plus 18 alternate phone GLBs. Each
+  // profile prepares 116, and shared images retain the same revision/cache key.
+  const profileBodies = Object.fromEntries([
+    ...Array.from({ length: 98 }, (_, i) => ['art/shared-' + i + '.webp', 'shared-' + i]),
+    ...Array.from({ length: 18 }, (_, i) => ['art/m_' + i + '_animated.glb', 'desktop-model-' + i]),
+    ...Array.from({ length: 18 }, (_, i) => ['art/mobile/m_' + i + '_animated.glb', 'mobile-model-' + i])
+  ]);
+  const phoneOnly = worker({ bodies: profileBodies });
+  await phoneOnly.message({ type: 'cache-status', profile: 'mobile' });
+  assert.equal(phoneOnly.messages.at(-1).profile, 'mobile'); assert.equal(phoneOnly.messages.at(-1).total, 116);
+  // The legacy compatibility retry must retain this client's explicit profile.
+  await phoneOnly.message('keep-all');
+  assert.equal(phoneOnly.requests.length, 116); assert.equal(phoneOnly.messages.at(-1).done, 116);
+  assert(phoneOnly.messages.at(-1).complete); assert(phoneOnly.messages.every(m => m.profile === 'mobile'));
+  assert.equal(phoneOnly.requests.filter(r => /\/mobile\/m_/.test(r.url)).length, 18);
+  assert.equal(phoneOnly.requests.filter(r => /\/art\/m_/.test(r.url)).length, 0, 'phone preparation never fetches the high-detail GLBs');
+  const phoneTransfers = phoneOnly.requests.length;
+  await phoneOnly.message({ type: 'keep-all', profile: 'mobile' }); assert.equal(phoneOnly.requests.length, phoneTransfers, 'warm phone preparation performs no fetches');
+  // Switching profiles preserves shared files, and only adds the alternate set.
+  await phoneOnly.message({ type: 'cache-status', profile: 'desktop' });
+  assert.equal(phoneOnly.messages.at(-1).done, 98); assert.equal(phoneOnly.messages.at(-1).complete, false);
+  await phoneOnly.message({ type: 'keep-all', profile: 'desktop' });
+  assert.equal(phoneOnly.requests.length, 134); assert(phoneOnly.messages.at(-1).complete);
+  assert(phoneOnly.requests.slice(phoneTransfers).every(r => /\/art\/m_/.test(r.url)));
+  await phoneOnly.message({ type: 'cache-status', profile: 'mobile' }); assert.equal(phoneOnly.messages.at(-1).done, 116);
+  const desktopOnly = worker({ bodies: profileBodies }); await desktopOnly.message({ type: 'keep-all', profile: 'desktop' });
+  assert.equal(desktopOnly.requests.length, 116); assert(!desktopOnly.requests.some(r => r.url.includes('/mobile/')), 'desktop preparation excludes every alternate phone model');
+  const profilesTogether = worker({ bodies: profileBodies }), mobileMessages = [];
+  const phoneClient = { id: 'phone-client', postMessage(value) { mobileMessages.push(value); } }; profilesTogether.clients.push(phoneClient);
+  const phoneRun = profilesTogether.message({ type: 'keep-all', profile: 'mobile' }, phoneClient);
+  const desktopRun = profilesTogether.message({ type: 'keep-all', profile: 'desktop' });
+  await Promise.all([phoneRun, desktopRun]);
+  assert.equal(profilesTogether.requests.length, 134, 'concurrent profiles fetch their common assets once');
+  assert(profilesTogether.maxActive() <= 2, 'both profiles share the same background transfer budget');
+  assert(profilesTogether.messages.every(m => m.profile === 'desktop'));
+  assert(mobileMessages.every(m => m.profile === 'mobile'));
+  for (const stream of [profilesTogether.messages, mobileMessages]) {
+    assert(stream.at(-1).complete); assert.equal(stream.at(-1).done, 116); assert(stream.every(m => m.total === 116 && m.done <= 116));
+  }
   const installed = worker({ bodies }); await installed.lifecycle('install'); await installed.lifecycle('activate'); assert.equal(installed.skipped(), 1); assert.equal(installed.claimed(), 1); assert.equal((await (await installed.storage.open('mamuli-page-test-one')).keys()).length, 8);
   assert.equal(installed.requests.filter(r => new URL(r.url).pathname.endsWith('/index.html')).length, 1, 'one verified HTML transfer supplies both offline page URLs'); assert.equal(installed.requests.filter(r => r.url === SCOPE).length, 0);
   assert(installed.maxActive() <= 2, 'shell installation has only two concurrent network transfers');
@@ -96,5 +135,5 @@ const bodies = { 'art/model.glb': 'model version one', 'art/image.webp': 'small 
   slowShell.setNetwork(async url => { if (new URL(url).pathname.endsWith('/index.html')) return new Promise(resolve => { releasePage = resolve; }); return response(bodies[new URL(url).pathname.slice('/mamuli/'.length)] || 'shell'); });
   const slowInstall = slowShell.lifecycle('install'); await waitFor(() => !!releasePage); assert([...slowShell.timers.values()].every(timer => timer.milliseconds === 90000), 'slow upgrade gets a bounded 90-second page deadline'); assert.equal(slowShell.skipped(), 0); releasePage(response('<script>const BUILD = "test-one";</script>')); await slowInstall; assert.equal(slowShell.skipped(), 1, 'slow current page can complete the handoff');
   const quotaActivation = worker({ bodies, storage: installed.storage }); (await quotaActivation.storage.open('mamuli-files-v2')).failPuts = true; await quotaActivation.lifecycle('activate'); assert.equal(quotaActivation.claimed(), 1, 'optional manifest quota failure never strands worker activation');
-  console.log(JSON.stringify({ passed: true, sharedDemandAndPrefetch: true, warmAssetsNetwork: 0, warmLargeBodyClones: 0, unchangedBuildNetwork: 0, changedRevisionTransfers: 1, verifiedLegacyMigration: true, serialDigest: true, progressAndRetry: true, offlineRecovery: true, quotaRecovery: true, quotaActivationPreserved: true, hungTransferRecovery: true, foregroundPriority: true, backgroundStreams: 2, maximumNetworkStreams: 4, offlineShellAndLibraries: true, verifiedCurrentPageOnly: true, singleShellPageTransfer: true, boundedShellStreams: 2, slowUpgradeDeadline: 90000, installerDiagnostics: true }, null, 2));
+  console.log(JSON.stringify({ passed: true, sharedDemandAndPrefetch: true, warmAssetsNetwork: 0, warmLargeBodyClones: 0, unchangedBuildNetwork: 0, changedRevisionTransfers: 1, verifiedLegacyMigration: true, serialDigest: true, progressAndRetry: true, offlineRecovery: true, quotaRecovery: true, quotaActivationPreserved: true, hungTransferRecovery: true, foregroundPriority: true, backgroundStreams: 2, maximumNetworkStreams: 4, offlineShellAndLibraries: true, verifiedCurrentPageOnly: true, singleShellPageTransfer: true, boundedShellStreams: 2, slowUpgradeDeadline: 90000, installerDiagnostics: true, perProfileAssets: 116, fullManifestAssets: 134, concurrentProfilesShareTransfers: true, legacyRetryRetainsProfile: true }, null, 2));
 })().catch(error => { console.error(error); process.exitCode = 1; });

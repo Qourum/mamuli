@@ -8,10 +8,27 @@ const PAGE = 'mamuli-page-' + VERSION, FILES = 'mamuli-files-v2', FONTS = 'mamul
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'icon-512-maskable.png', 'rt.js'];
 const LIB = ['vendor/three.min.js', 'vendor/GLTFLoader.min.js'];
 const SCOPE = new URL(self.registration.scope), META = new URL('__asset_manifest__', SCOPE).href;
+const artNames = new Set(ARTS), desktopArts = ARTS.filter(name => !name.startsWith('mobile/'));
+const profileEntries = {
+  desktop: desktopArts.map(name => new URL('art/' + name, SCOPE).href),
+  mobile: desktopArts.map(name => new URL('art/' + (artNames.has('mobile/' + name) ? 'mobile/' + name : name), SCOPE).href)
+};
+// Activation retains both profiles; each client prepares only the models it uses.
 const entries = ARTS.map(name => new URL('art/' + name, SCOPE).href);
+const preparations = new Map(), clientProfiles = new Map();
 const tasks = new Map(), queue = [], migrations = [];
-let networkActive = 0, backgroundActive = 0, foregroundDemand = 0, migrationActive = false, keepRun = null;
-let progress = { done: 0, total: entries.length, bytes: 0, failed: 0, running: false, complete: false };
+let networkActive = 0, backgroundActive = 0, foregroundDemand = 0, migrationActive = false;
+function preparation(profile) {
+  if (!preparations.has(profile)) preparations.set(profile, { run: null, progress: { done: 0, total: profileEntries[profile].length, bytes: 0, failed: 0, running: false, complete: false } });
+  return preparations.get(profile);
+}
+const clientKey = source => source && (source.id || source);
+function requestProfile(data, source) {
+  const key = clientKey(source), explicit = data && (data.profile === 'mobile' || data.profile === 'desktop') ? data.profile : null;
+  const profile = explicit || clientProfiles.get(key) || 'desktop';
+  if (key) clientProfiles.set(key, profile);
+  return profile;
+}
 let assetCachePromise = null;
 const assetCache = () => assetCachePromise || (assetCachePromise = caches.open(FILES).catch(error => { assetCachePromise = null; throw error; }));
 function assetKey(input) {
@@ -122,42 +139,55 @@ async function asset(request, background = false) {
     return result.response.clone();
   } finally { if (!background) { foregroundDemand--; pump(); } }
 }
-async function tell(source) {
-  const message = { type: 'asset-cache-progress', version: VERSION, ...progress };
+async function tell(profile, source) {
+  const message = { type: 'asset-cache-progress', version: VERSION, profile, ...preparation(profile).progress };
   if (source && source.postMessage) { source.postMessage(message); return; }
-  try { for (const client of await self.clients.matchAll({ type: 'window', includeUncontrolled: true })) client.postMessage(message); } catch (_) { }
+  try {
+    for (const client of await self.clients.matchAll({ type: 'window', includeUncontrolled: true })) {
+      const requested = clientProfiles.get(clientKey(client));
+      if (!requested || requested === profile) client.postMessage(message);
+    }
+  } catch (_) { }
 }
-async function status(source) {
-  if (!keepRun) {
+async function status(profile, source) {
+  const state = preparation(profile), selected = profileEntries[profile];
+  if (!state.run) {
     try {
       const cache = await assetCache(), keys = new Set((await cache.keys()).map(request => request.url));
-      const done = entries.filter(url => keys.has(assetKey(url))).length;
-      progress = { ...progress, done, total: entries.length, running: false, complete: done === entries.length, failed: Math.min(progress.failed, entries.length - done) };
-    } catch (_) { progress = { ...progress, running: false, complete: false }; }
+      const done = selected.filter(url => keys.has(assetKey(url))).length;
+      state.progress = { ...state.progress, done, total: selected.length, running: false, complete: done === selected.length, failed: Math.min(state.progress.failed, selected.length - done) };
+    } catch (_) { state.progress = { ...state.progress, running: false, complete: false }; }
   }
-  await tell(source);
+  await tell(profile, source);
 }
-function keepAll() {
-  if (keepRun) return keepRun;
-  keepRun = (async () => {
+function keepAll(profile) {
+  const state = preparation(profile), selected = profileEntries[profile];
+  if (state.run) return state.run;
+  state.run = (async () => {
     let keys = new Set(); try { keys = new Set((await (await assetCache()).keys()).map(request => request.url)); } catch (_) { }
-    const todo = entries.filter(url => !keys.has(assetKey(url)));
-    progress = { done: entries.length - todo.length, total: entries.length, bytes: 0, failed: 0, running: true, complete: false }; await tell();
+    const todo = selected.filter(url => !keys.has(assetKey(url)));
+    const progress = state.progress = { done: selected.length - todo.length, total: selected.length, bytes: 0, failed: 0, running: true, complete: false }; await tell(profile);
     const next = async () => {
       for (let url = todo.shift(); url; url = todo.shift()) {
         const result = await asset(new Request(url), true);
         if (result.stored) { progress.done++; progress.bytes += result.bytes; } else progress.failed++;
-        await tell();
+        await tell(profile);
       }
     };
+    // Different profiles share asset tasks and the same two background streams.
     await Promise.all([next(), next()]);
     progress.running = false; progress.complete = progress.done === progress.total && progress.failed === 0;
-    // Verified current files now cover all offline assets; legacy caches no
-    // longer need to consume space. Fonts and revision-keyed files are retained.
-    if (progress.complete) { try { for (const name of await legacyNames()) await caches.delete(name); } catch (_) { } }
-    await tell();
-  })().catch(async () => { progress.running = false; progress.complete = false; progress.failed++; await tell(); }).finally(() => { keepRun = null; });
-  return keepRun;
+    // Legacy data may still supply another profile. Remove it only once every
+    // current revision is covered, not when one phone's smaller set completes.
+    if (progress.complete) {
+      try {
+        const currentKeys = new Set((await (await assetCache()).keys()).map(request => request.url));
+        if (entries.every(url => currentKeys.has(assetKey(url)))) for (const name of await legacyNames()) await caches.delete(name);
+      } catch (_) { }
+    }
+    await tell(profile);
+  })().catch(async () => { state.progress.running = false; state.progress.complete = false; state.progress.failed++; await tell(profile); }).finally(() => { state.run = null; });
+  return state.run;
 }
 async function page(request) {
   let cache; try { cache = await caches.open(PAGE); } catch (_) { }
@@ -235,8 +265,8 @@ self.addEventListener('activate', event => event.waitUntil((async () => {
 })()));
 self.addEventListener('message', event => {
   const type = typeof event.data === 'string' ? event.data : event.data && event.data.type;
-  if (type === 'keep-all') event.waitUntil(keepAll());
-  else if (type === 'cache-status') event.waitUntil(status(event.source));
+  if (type === 'keep-all') event.waitUntil(keepAll(requestProfile(event.data, event.source)));
+  else if (type === 'cache-status') event.waitUntil(status(requestProfile(event.data, event.source), event.source));
 });
 self.addEventListener('fetch', event => {
   const request = event.request, url = new URL(request.url); if (request.method !== 'GET') return;

@@ -1,0 +1,1058 @@
+{
+  "generator": "mobile-lod.mjs / meshoptimizer 1.1",
+  "assets": [
+    {
+      "source": "art/m_castaway_animated.glb",
+      "mobile": "art/mobile/m_castaway_animated.glb",
+      "sourceSHA256": "688c9824757e44bdc2b86b2ea8fb6751e3bf338e99e0a52fb5ca2d5e815c2a0b",
+      "mobileSHA256": "b44a0576051798fd4b9161477b1faf672eeb20b70e4ae875400454113c0a1b2f",
+      "bytesBefore": 1186024,
+      "bytesAfter": 600336,
+      "trianglesBefore": 30000,
+      "trianglesAfter": 6000,
+      "verticesBefore": 22101,
+      "verticesAfter": 6712,
+      "clips": 1,
+      "primitives": [
+        {
+          "mesh": "Mesh_0",
+          "before": 30000,
+          "after": 6000,
+          "error": 0.006175229791551828,
+          "verticesBefore": 22101,
+          "verticesAfter": 6712
+        }
+      ]
+    },
+    {
+      "source": "art/m_cheungchau_animated.glb",
+      "mobile": "art/mobile/m_cheungchau_animated.glb",
+      "sourceSHA256": "3f613b8c1e3c6ab41127d2b2b5894123cd9d262aa2526613d865a4cb92db0105",
+      "mobileSHA256": "f5337383ea10cce9e1d0f25cc86c7663530327549252ed73a787d01bd1c173cb",
+      "bytesBefore": 1659336,
+      "bytesAfter": 1331116,
+      "trianglesBefore": 44757,
+      "trianglesAfter": 28705,
+      "verticesBefore": 52861,
+      "verticesAfter": 39803,
+      "clips": 1,
+      "primitives": [
+        {
+          "mesh": "Mesh_0",
+          "before": 44757,
+          "after": 28705,
+          "error": 0.024970537051558495,
+          "verticesBefore": 52861,
+          "verticesAfter": 39803
+        }
+      ]
+    },
+    {
+      "source": "art/m_cocos_animated.glb",
+      "mobile": "art/mobile/m_cocos_animated.glb",
+      "sourceSHA256": "f60ee36e77135a05e0ec9276c42a1cc8101d9e47b49867f0dd7c1981e55e7b25",
+      "mobileSHA256": "d4404aa1b21468dcd38ef255004bfb9e973c519c5dd46ab961d05b137afa075d",
+      "bytesBefore": 1470600,
+      "bytesAfter": 909668,
+      "trianglesBefore": 28762,
+      "trianglesAfter": 10440,
+      "verticesBefore": 29316,
+      "verticesAfter": 15223,
+      "clips": 1,
+      "primitives": [
+        {
+          "mesh": "Mesh_0",
+          "before": 28762,
+          "after": 10440,
+          "error": 0.024632325395941734,
+          "verticesBefore": 29316,
+          "verticesAfter": 15223
+        }
+      ]
+    },
+    {
+      "source": "art/m_customs_animated.glb",
+      "mobile": "art/mobile/m_customs_animated.glb",
+      "sourceSHA256": "b6599cbed978f29c94a591a3f06f02fcf4fa50b9eb9986b96db65d4958a95519",
+      "mobileSHA256": "51aa4ab1ea557bae949608dde2b49db501f51f21a4367e5d36ab5a8b73ad73d1",
+      "bytesBefore": 815264,
+      "bytesAfter": 445916,
+      "trianglesBefore": 27615,
+      "trianglesAfter": 6676,
+      "verticesBefore": 25793,
+      "verticesAfter": 10783,
+      "clips": 1,
+      "primitives": [
+        {
+          "mesh": "Mesh_0",
+          "before": 27615,
+          "after": 6676,
+          "error": 0.02470148354768753,
+          "verticesBefore": 25793,
+          "verticesAfter": 10783
+        }
+      ]
+    },
+    {
+      "source": "art/m_fortune_animated.glb",
+      "mobile": "art/mobile/m_fortune_animated.glb",
+      "sourceSHA256": "1b51898f3599bf787e4e481ca40e7144cc773af59b5749fd1c5fd9633004de00",
+      "mobileSHA256": "eac592ec8700fc3acba53990e194cb6f6e98dc58e3d8b8540e577d0c60d6a4a9",
+      "bytesBefore": 774500,
+      "bytesAfter": 333440,
+      "trianglesBefore": 30000,
+      "trianglesAfter": 6000,
+      "verticesBefore": 23212,
+      "verticesAfter": 7579,
+      "clips": 1,
+      "primitives": [
+        {
+          "mesh": "Mesh_0",
+          "before": 30000,
+          "after": 6000,
+          "error": 0.006152077112346888,
+          "verticesBefore": 23212,
+          "verticesAfter": 7579
+        }
+      ]
+    },
+    {
+      "source": "art/m_galley_animated.glb",
+      "mobile": "art/mobile/m_galley_animated.glb",
+      "sourceSHA256": "6abbe9f758cb314918e70529cde68e8dc123f1ca47e3b2a13d93ae44cda1ee37",
+      "mobileSHA256": "e9632f0a3863516c58b1a5726f24abdf9840d5910b7bded915b1467feef69668",
+      "bytesBefore": 805572,
+      "bytesAfter": 370192,
+      "trianglesBefore": 30000,
+      "trianglesAfter": 6000,
+      "verticesBefore": 25002,
+      "verticesAfter": 8733,
+      "clips": 1,
+      "primitives": [
+        {
+          "mesh": "Mesh_0",
+          "before": 30000,
+          "after": 6000,
+          "error": 0.007304975297302008,
+          "verticesBefore": 25002,
+          "verticesAfter": 8733
+        }
+      ]
+    },
+    {
+      "source": "art/m_gotland_animated.glb",
+      "mobile": "art/mobile/m_gotland_animated.glb",
+      "sourceSHA256": "530f6bc20c3d93d9ea23497aa3f42b12d9726dea3c7509e789e0160975aa5760",
+      "mobileSHA256": "bd4a80eb4d6cd47096555bfe9198fc46ead44a2c8bc4676ab84d670398b57208",
+      "bytesBefore": 1022792,
+      "bytesAfter": 415832,
+      "trianglesBefore": 45000,
+      "trianglesAfter": 9142,
+      "verticesBefore": 37733,
+      "verticesAfter": 13246,
+      "clips": 0,
+      "primitives": [
+        {
+          "mesh": "Mesh_0",
+          "before": 45000,
+          "after": 9142,
+          "error": 0.024638041853904724,
+          "verticesBefore": 37733,
+          "verticesAfter": 13246
+        }
+      ]
+    },
+    {
+      "source": "art/m_gramvousa_animated.glb",
+      "mobile": "art/mobile/m_gramvousa_animated.glb",
+      "sourceSHA256": "fe1ef609ceb29731bb32ae37c05ab1aba561e1166a42f1e235655798b328a5a6",
+      "mobileSHA256": "e6eacec75613fda312fe14aabf62933ab8207f512c50efbe9b0d3c9388096a0e",
+      "bytesBefore": 1252116,
+      "bytesAfter": 554896,
+      "trianglesBefore": 44123,
+      "trianglesAfter": 9926,
+      "verticesBefore": 36871,
+      "verticesAfter": 13299,
+      "clips": 1,
+      "primitives": [
+        {
+          "mesh": "Mesh_0",
+          "before": 44123,
+          "after": 9926,
+          "error": 0.0246430691331625,
+          "verticesBefore": 36871,
+          "verticesAfter": 13299
+        }
+      ]
+    },
+    {
+      "source": "art/m_heligoland_animated.glb",
+      "mobile": "art/mobile/m_heligoland_animated.glb",
+      "sourceSHA256": "2cb0aba0fe049bf55ea0bfb124e6eeceaf185067f7b8ba3efda87872140dffeb",
+      "mobileSHA256": "e85a659688ea1620d684289b2ea5afdd5538cd3edfc75e68c297f5a11f3904fc",
+      "bytesBefore": 867776,
+      "bytesAfter": 489148,
+      "trianglesBefore": 27410,
+      "trianglesAfter": 6276,
+      "verticesBefore": 23994,
+      "verticesAfter": 8925,
+      "clips": 1,
+      "primitives": [
+        {
+          "mesh": "Mesh_0",
+          "before": 27410,
+          "after": 6276,
+          "error": 0.024682223796844482,
+          "verticesBefore": 23994,
+          "verticesAfter": 8925
+        }
+      ]
+    },
+    {
+      "source": "art/m_kraken_animated.glb",
+      "mobile": "art/mobile/m_kraken_animated.glb",
+      "sourceSHA256": "1bec5068f0bbf49f1a42c3584518ba7cad0fc32b5ca0ab02d3228086baf19291",
+      "mobileSHA256": "364b08f2de91513fadbc975367b61d05de523aa2f0857f06fd7429678017ede2",
+      "bytesBefore": 1110092,
+      "bytesAfter": 470452,
+      "trianglesBefore": 30000,
+      "trianglesAfter": 5998,
+      "verticesBefore": 23149,
+      "verticesAfter": 7217,
+      "clips": 1,
+      "primitives": [
+        {
+          "mesh": "Mesh_0",
+          "before": 30000,
+          "after": 5998,
+          "error": 0.008721215650439262,
+          "verticesBefore": 23149,
+          "verticesAfter": 7217
+        }
+      ]
+    },
+    {
+      "source": "art/m_lighthouse_animated.glb",
+      "mobile": "art/mobile/m_lighthouse_animated.glb",
+      "sourceSHA256": "c5fdcf089f2b8ede7cae838f494de869a503ca4d04311706825b6d8931aed079",
+      "mobileSHA256": "c40190fd84ae8fb772981618b8d6de7539a946fa6678b51d8b4fc3e4a679ae2f",
+      "bytesBefore": 714044,
+      "bytesAfter": 363256,
+      "trianglesBefore": 24800,
+      "trianglesAfter": 5999,
+      "verticesBefore": 18783,
+      "verticesAfter": 6880,
+      "clips": 1,
+      "primitives": [
+        {
+          "mesh": "Mesh_0",
+          "before": 24800,
+          "after": 5999,
+          "error": 0.004254745785146952,
+          "verticesBefore": 18783,
+          "verticesAfter": 6880
+        }
+      ]
+    },
+    {
+      "source": "art/m_oak_animated.glb",
+      "mobile": "art/mobile/m_oak_animated.glb",
+      "sourceSHA256": "3d16b6bfedb32d322f41adb2b9f2c9bda95629217e4ac5a3e5db068d4c6bcf16",
+      "mobileSHA256": "62c58492a5d93121a05b5adeff29f39551146f779de3cfbf87170861b8380eca",
+      "bytesBefore": 2359744,
+      "bytesAfter": 558688,
+      "trianglesBefore": 129378,
+      "trianglesAfter": 19109,
+      "verticesBefore": 43556,
+      "verticesAfter": 7949,
+      "clips": 1,
+      "primitives": [
+        {
+          "mesh": "Oak_Shared_Color_Crowns",
+          "before": 127662,
+          "after": 17393,
+          "error": 0.011711539700627327,
+          "verticesBefore": 39905,
+          "verticesAfter": 4298
+        },
+        {
+          "mesh": "Mesh_0",
+          "before": 1716,
+          "after": 1716,
+          "error": 0,
+          "verticesBefore": 3651,
+          "verticesAfter": 3651
+        }
+      ]
+    },
+    {
+      "source": "art/m_port_animated.glb",
+      "mobile": "art/mobile/m_port_animated.glb",
+      "sourceSHA256": "859bd894cac6f615d5c6aee07683a4b6027783d8aa8e4ff38e24f9aa4ff78faf",
+      "mobileSHA256": "86486e460eda60c46e6892ca5dd0a6286d967587f8566ab645a6dbfb23e6418f",
+      "bytesBefore": 745008,
+      "bytesAfter": 335836,
+      "trianglesBefore": 30000,
+      "trianglesAfter": 6000,
+      "verticesBefore": 25187,
+      "verticesAfter": 8655,
+      "clips": 1,
+      "primitives": [
+        {
+          "mesh": "Mesh_0",
+          "before": 30000,
+          "after": 6000,
+          "error": 0.01949319802224636,
+          "verticesBefore": 25187,
+          "verticesAfter": 8655
+        }
+      ]
+    },
+    {
+      "source": "art/m_qar_animated.glb",
+      "mobile": "art/mobile/m_qar_animated.glb",
+      "sourceSHA256": "ff6e1152f905b0e466a6749aa1f8e82948bf3436ac6b8b2d608a93e9965e6ac3",
+      "mobileSHA256": "52ccaaa407eb429c54df752886c97abf4c9eac123e9809b81189c077365ffb54",
+      "bytesBefore": 876744,
+      "bytesAfter": 349256,
+      "trianglesBefore": 30000,
+      "trianglesAfter": 5998,
+      "verticesBefore": 24742,
+      "verticesAfter": 8009,
+      "clips": 1,
+      "primitives": [
+        {
+          "mesh": "Mesh_0",
+          "before": 30000,
+          "after": 5998,
+          "error": 0.0080209169536829,
+          "verticesBefore": 24742,
+          "verticesAfter": 8009
+        }
+      ]
+    },
+    {
+      "source": "art/m_shipyard_animated.glb",
+      "mobile": "art/mobile/m_shipyard_animated.glb",
+      "sourceSHA256": "bed6501c8e64d2ba877b1a21f7d100c98210993a97202063cc1640371c3a0d13",
+      "mobileSHA256": "b8a76a6df34052796c7be5d9b6cb31b213f1233c0503b6525289718b4a915353",
+      "bytesBefore": 778368,
+      "bytesAfter": 384488,
+      "trianglesBefore": 28693,
+      "trianglesAfter": 7311,
+      "verticesBefore": 26282,
+      "verticesAfter": 10367,
+      "clips": 1,
+      "primitives": [
+        {
+          "mesh": "Mesh_0",
+          "before": 28693,
+          "after": 7311,
+          "error": 0.024693550541996956,
+          "verticesBefore": 26282,
+          "verticesAfter": 10367
+        }
+      ]
+    },
+    {
+      "source": "art/m_tavern_animated.glb",
+      "mobile": "art/mobile/m_tavern_animated.glb",
+      "sourceSHA256": "35fe27d1f51362ecd1983ebb04e5ee476ab8ac187bba1d3f6def28b6162a8c2e",
+      "mobileSHA256": "7dc182bcceed74d960d6443fa507044049cc2c66f636984391cc07642a3e9767",
+      "bytesBefore": 762176,
+      "bytesAfter": 342180,
+      "trianglesBefore": 30000,
+      "trianglesAfter": 6000,
+      "verticesBefore": 24872,
+      "verticesAfter": 8066,
+      "clips": 1,
+      "primitives": [
+        {
+          "mesh": "Mesh_0",
+          "before": 30000,
+          "after": 6000,
+          "error": 0.010756483301520348,
+          "verticesBefore": 24872,
+          "verticesAfter": 8066
+        }
+      ]
+    },
+    {
+      "source": "art/m_volcano_animated.glb",
+      "mobile": "art/mobile/m_volcano_animated.glb",
+      "sourceSHA256": "e5fac10bcf0b7d44650d6c5f1bf977a400e70387dad5cc48dcbb5ab0b5f65fd2",
+      "mobileSHA256": "450cbd66634ca7f948094a9a00dbdb399a2b72cb9b3830cf6b89043278f9ba43",
+      "bytesBefore": 20051904,
+      "bytesAfter": 11273440,
+      "trianglesBefore": 243748,
+      "trianglesAfter": 54962,
+      "verticesBefore": 178610,
+      "verticesAfter": 56601,
+      "clips": 1,
+      "primitives": [
+        {
+          "mesh": "Mesh_0.001",
+          "before": 11872,
+          "after": 11872,
+          "error": 0,
+          "verticesBefore": 9649,
+          "verticesAfter": 9649
+        },
+        {
+          "mesh": "Gull_00_Beak.001",
+          "before": 4,
+          "after": 4,
+          "error": 0,
+          "verticesBefore": 12,
+          "verticesAfter": 12
+        },
+        {
+          "mesh": "Icosphere.042",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.043",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Gull_00_Tail.001",
+          "before": 2,
+          "after": 2,
+          "error": 0,
+          "verticesBefore": 4,
+          "verticesAfter": 4
+        },
+        {
+          "mesh": "Gull_00_Feather_1",
+          "before": 2,
+          "after": 2,
+          "error": 0,
+          "verticesBefore": 6,
+          "verticesAfter": 6
+        },
+        {
+          "mesh": "Gull_00_Feather_1",
+          "before": 1,
+          "after": 1,
+          "error": 0,
+          "verticesBefore": 3,
+          "verticesAfter": 3
+        },
+        {
+          "mesh": "Gull_00_Feather_-1",
+          "before": 2,
+          "after": 2,
+          "error": 0,
+          "verticesBefore": 6,
+          "verticesAfter": 6
+        },
+        {
+          "mesh": "Gull_00_Feather_-1",
+          "before": 1,
+          "after": 1,
+          "error": 0,
+          "verticesBefore": 3,
+          "verticesAfter": 3
+        },
+        {
+          "mesh": "Gull_01_Beak.001",
+          "before": 4,
+          "after": 4,
+          "error": 0,
+          "verticesBefore": 12,
+          "verticesAfter": 12
+        },
+        {
+          "mesh": "Icosphere.044",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.045",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Gull_01_Tail.001",
+          "before": 2,
+          "after": 2,
+          "error": 0,
+          "verticesBefore": 4,
+          "verticesAfter": 4
+        },
+        {
+          "mesh": "Gull_01_Feather_1",
+          "before": 2,
+          "after": 2,
+          "error": 0,
+          "verticesBefore": 6,
+          "verticesAfter": 6
+        },
+        {
+          "mesh": "Gull_01_Feather_1",
+          "before": 1,
+          "after": 1,
+          "error": 0,
+          "verticesBefore": 3,
+          "verticesAfter": 3
+        },
+        {
+          "mesh": "Gull_01_Feather_-1",
+          "before": 2,
+          "after": 2,
+          "error": 0,
+          "verticesBefore": 6,
+          "verticesAfter": 6
+        },
+        {
+          "mesh": "Gull_01_Feather_-1",
+          "before": 1,
+          "after": 1,
+          "error": 0,
+          "verticesBefore": 3,
+          "verticesAfter": 3
+        },
+        {
+          "mesh": "Gull_02_Beak.001",
+          "before": 4,
+          "after": 4,
+          "error": 0,
+          "verticesBefore": 12,
+          "verticesAfter": 12
+        },
+        {
+          "mesh": "Icosphere.046",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.047",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Gull_02_Tail.001",
+          "before": 2,
+          "after": 2,
+          "error": 0,
+          "verticesBefore": 4,
+          "verticesAfter": 4
+        },
+        {
+          "mesh": "Gull_02_Feather_1",
+          "before": 2,
+          "after": 2,
+          "error": 0,
+          "verticesBefore": 6,
+          "verticesAfter": 6
+        },
+        {
+          "mesh": "Gull_02_Feather_1",
+          "before": 1,
+          "after": 1,
+          "error": 0,
+          "verticesBefore": 3,
+          "verticesAfter": 3
+        },
+        {
+          "mesh": "Gull_02_Feather_-1",
+          "before": 2,
+          "after": 2,
+          "error": 0,
+          "verticesBefore": 6,
+          "verticesAfter": 6
+        },
+        {
+          "mesh": "Gull_02_Feather_-1",
+          "before": 1,
+          "after": 1,
+          "error": 0,
+          "verticesBefore": 3,
+          "verticesAfter": 3
+        },
+        {
+          "mesh": "Gull_03_Beak.001",
+          "before": 4,
+          "after": 4,
+          "error": 0,
+          "verticesBefore": 12,
+          "verticesAfter": 12
+        },
+        {
+          "mesh": "Icosphere.048",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.049",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Gull_03_Tail.001",
+          "before": 2,
+          "after": 2,
+          "error": 0,
+          "verticesBefore": 4,
+          "verticesAfter": 4
+        },
+        {
+          "mesh": "Gull_03_Feather_1",
+          "before": 2,
+          "after": 2,
+          "error": 0,
+          "verticesBefore": 6,
+          "verticesAfter": 6
+        },
+        {
+          "mesh": "Gull_03_Feather_1",
+          "before": 1,
+          "after": 1,
+          "error": 0,
+          "verticesBefore": 3,
+          "verticesAfter": 3
+        },
+        {
+          "mesh": "Gull_03_Feather_-1",
+          "before": 2,
+          "after": 2,
+          "error": 0,
+          "verticesBefore": 6,
+          "verticesAfter": 6
+        },
+        {
+          "mesh": "Gull_03_Feather_-1",
+          "before": 1,
+          "after": 1,
+          "error": 0,
+          "verticesBefore": 3,
+          "verticesAfter": 3
+        },
+        {
+          "mesh": "Mesh_0",
+          "before": 228126,
+          "after": 39340,
+          "error": 0.004579425323754549,
+          "verticesBefore": 165876,
+          "verticesAfter": 43867
+        },
+        {
+          "mesh": "Plane",
+          "before": 2,
+          "after": 2,
+          "error": 0,
+          "verticesBefore": 4,
+          "verticesAfter": 4
+        },
+        {
+          "mesh": "Icosphere.037",
+          "before": 20,
+          "after": 20,
+          "error": 0,
+          "verticesBefore": 22,
+          "verticesAfter": 22
+        },
+        {
+          "mesh": "Icosphere.038",
+          "before": 20,
+          "after": 20,
+          "error": 0,
+          "verticesBefore": 22,
+          "verticesAfter": 22
+        },
+        {
+          "mesh": "Icosphere.039",
+          "before": 20,
+          "after": 20,
+          "error": 0,
+          "verticesBefore": 22,
+          "verticesAfter": 22
+        },
+        {
+          "mesh": "Icosphere.040",
+          "before": 20,
+          "after": 20,
+          "error": 0,
+          "verticesBefore": 22,
+          "verticesAfter": 22
+        },
+        {
+          "mesh": "Icosphere.041",
+          "before": 20,
+          "after": 20,
+          "error": 0,
+          "verticesBefore": 22,
+          "verticesAfter": 22
+        },
+        {
+          "mesh": "Icosphere.027",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.028",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.029",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.030",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.031",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.032",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.033",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.034",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.035",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.036",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.001",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.002",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.003",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.004",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.005",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.006",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.007",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.008",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.009",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.010",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.011",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.012",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.013",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.014",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.015",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.016",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.017",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.018",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.019",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.020",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.021",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.022",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.023",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.024",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.025",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        },
+        {
+          "mesh": "Icosphere.026",
+          "before": 80,
+          "after": 80,
+          "error": 0,
+          "verticesBefore": 63,
+          "verticesAfter": 63
+        }
+      ]
+    },
+    {
+      "source": "art/m_whirlpool_animated.glb",
+      "mobile": "art/mobile/m_whirlpool_animated.glb",
+      "sourceSHA256": "ca0b0aea57b8e384b86b2793acdb4b364f919c05a6516328bdcc8d02d682dce9",
+      "mobileSHA256": "bd72e0fc0af870f7d169d08d1275b6aef723d5557f42a5edab760d2db11b3482",
+      "bytesBefore": 666100,
+      "bytesAfter": 424232,
+      "trianglesBefore": 18188,
+      "trianglesAfter": 5999,
+      "verticesBefore": 12769,
+      "verticesAfter": 5757,
+      "clips": 1,
+      "primitives": [
+        {
+          "mesh": "Mesh_0",
+          "before": 18188,
+          "after": 5999,
+          "error": 0.0024885365273803473,
+          "verticesBefore": 12769,
+          "verticesAfter": 5757
+        }
+      ]
+    },
+    {
+      "source": "art/m_whydah_animated.glb",
+      "mobile": "art/mobile/m_whydah_animated.glb",
+      "sourceSHA256": "0f2e69304fbcf51751d255cd338c0d0ad6b7ccfcc514cfe95e46fb3b2d3236ea",
+      "mobileSHA256": "66421f5e52090488986d771a895c9b3b7866d3e3970ed84a4f316e3628c5269c",
+      "bytesBefore": 954804,
+      "bytesAfter": 507312,
+      "trianglesBefore": 30000,
+      "trianglesAfter": 7926,
+      "verticesBefore": 27259,
+      "verticesAfter": 11045,
+      "clips": 1,
+      "primitives": [
+        {
+          "mesh": "Mesh_0",
+          "before": 30000,
+          "after": 7926,
+          "error": 0.024643348529934883,
+          "verticesBefore": 27259,
+          "verticesAfter": 11045
+        }
+      ]
+    }
+  ]
+}

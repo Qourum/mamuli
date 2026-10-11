@@ -32,7 +32,8 @@ function harness(options = {}) {
   const context = vm.createContext({
     ...(options.noDiag ? {} : { Diag: { note(kind, text) { notes.push({ kind, text }); } } }),
     $: selector => elements[selector.slice(1)], SITE: options.site !== false, BUILD: 'test-version',
-    navigator: options.noSW ? {} : { serviceWorker },
+    navigator: { ...(options.noSW ? {} : { serviceWorker }), ...(options.navigator || {}) },
+    ...(options.screen ? { screen: options.screen } : {}),
     location: { protocol: options.protocol || 'http:', hostname: options.hostname || '127.0.0.1' },
     document: { readyState: options.loading ? 'loading' : 'complete' },
     addEventListener(type, fn) { if (type === 'load') loadListeners.push(fn); },
@@ -213,5 +214,21 @@ const progress = h => h.elements.assetDownloadProgress;
     h.serviceWorker.controller = null; h.click(); await flush();
     assert.equal(h.calls.length, 2, 'registration failure remains retryable');
   }
-  console.log('Offline menu: activated-worker handshake, counted progress, retry, secure/local hosts, delayed warmup and legacy fallback passed.');
+  for (const options of [
+    { screen: { width: 412, height: 912 }, expected: 'mobile' },
+    { screen: { width: 1200, height: 900 }, navigator: { userAgent: 'iPad Macintosh Safari', maxTouchPoints: 5 }, expected: 'mobile' },
+    { screen: { width: 1440, height: 900 }, navigator: { userAgent: 'Macintosh Safari', maxTouchPoints: 0 }, expected: 'desktop' },
+    { expected: 'desktop' }
+  ]) {
+    const h = harness(options); await flush(); h.ready(); await flush();
+    assert(h.posts.every(message => message.profile === options.expected), 'status messages select the same mobile profile as the board');
+    h.emit({ profile: options.expected, done: 7, total: 116, running: true }); assert.equal(progress(h).value, 7);
+    const other = options.expected === 'mobile' ? 'desktop' : 'mobile';
+    h.emit({ profile: other, version: 'other-build', done: 116, total: 116, complete: true });
+    assert.equal(state(h), 'running'); assert.equal(progress(h).value, 7, 'other profile cannot overwrite progress or produce an update notice');
+    h.emit({ profile: options.expected, done: 7, total: 116, failed: 1, running: false }); h.click();
+    assert.equal(h.posts.at(-1).type, 'keep-all'); assert.equal(h.posts.at(-1).profile, options.expected);
+    h.emit({ profile: options.expected, done: 116, total: 116, complete: true }); assert.equal(state(h), 'complete');
+  }
+  console.log('Offline menu: activated-worker handshake, counted progress, retry, secure/local hosts, delayed warmup, legacy fallback and isolated mobile/desktop profiles passed.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

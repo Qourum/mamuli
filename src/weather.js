@@ -16,17 +16,19 @@ const Weather3D = (() => {
   const fragmentHeader = `uniform vec4 uWeatherZone;
     varying vec3 vWeatherWorld;
     float localWeatherShade() {
+      if (uWeatherZone.w <= .0001) return 0.0;
       float d = length(vWeatherWorld.xz - uWeatherZone.xy) / max(.01, uWeatherZone.z);
       return clamp(uWeatherZone.w, 0.0, .4) * (1.0 - smoothstep(.18, 1.0, d));
     }\n`;
   function header(source, text) {
     return /^\s*#version[^\n]*\n/.test(source) ? source.replace(/^(\s*#version[^\n]*\n)/, '$1' + text) : text + source;
   }
-  function patchMaterial(mat) {
+  function patchMaterial(mat, mobile = false) {
     if (!mat || mat.isMeshDepthMaterial || mat.isMeshDistanceMaterial) return;
     const record = HOOKS.get(mat);
     if (PATCHED.has(mat) && record && mat.onBeforeCompile === record.wrapper && mat.customProgramCacheKey === record.key) return;
     const oldHook = mat.onBeforeCompile, oldKey = mat.customProgramCacheKey;
+    const modeKey = KEY + (mobile ? '-vertex' : '');
     const defaultKey = oldKey === T.Material.prototype.customProgramCacheKey;
     const originalKey = defaultKey ? oldHook.toString() : null;
     const hookChangedAlone = record && oldHook !== record.wrapper && oldKey === record.key;
@@ -36,15 +38,23 @@ const Weather3D = (() => {
       shader.uniforms.uWeatherZone = SHADE;
       // A manually copied wrapper can appear on a new material. Keep declarations
       // unique while still binding the current module-global uniform.
-      if (shader.vertexShader.includes('varying vec3 vWeatherWorld;')) return;
-      shader.vertexShader = header(shader.vertexShader, vertexHeader);
-      shader.fragmentShader = header(shader.fragmentShader, fragmentHeader);
+      if (/varying (vec3 vWeatherWorld|float vWeatherShade);/.test(shader.vertexShader)) return;
+      // The soft, broad storm shade can interpolate across phone geometry. This
+      // avoids a distance/smoothstep and vec3 varying in every scene fragment.
+      shader.vertexShader = header(shader.vertexShader, mobile ? 'uniform vec4 uWeatherZone;\nvarying float vWeatherShade;\n' : vertexHeader);
+      shader.fragmentShader = header(shader.fragmentShader, mobile ? 'varying float vWeatherShade;\nfloat localWeatherShade() { return vWeatherShade; }\n' : fragmentHeader);
+      const shadePosition = mobile ? `vWeatherShade = 0.0;
+        if (uWeatherZone.w > .0001) {
+          vec2 weatherDelta = (modelMatrix * weatherP).xz - uWeatherZone.xy;
+          float weatherD = length(weatherDelta) / max(.01, uWeatherZone.z);
+          vWeatherShade = clamp(uWeatherZone.w, 0.0, .4) * (1.0 - smoothstep(.18, 1.0, weatherD));
+        }` : 'vWeatherWorld = (modelMatrix * weatherP).xyz;';
       const world = `
         vec4 weatherP = vec4(transformed, 1.0);
         #ifdef USE_INSTANCING
           weatherP = instanceMatrix * weatherP;
         #endif
-        vWeatherWorld = (modelMatrix * weatherP).xyz;`;
+        ${shadePosition}`;
       if (shader.vertexShader.includes('#include <project_vertex>')) {
         // transformed already includes native morph/skin and the prior hook's
         // wind. Instancing is applied explicitly before the world matrix.
@@ -55,7 +65,7 @@ const Weather3D = (() => {
           #ifdef USE_INSTANCING
             weatherP = instanceMatrix * weatherP;
           #endif
-          vWeatherWorld = (modelMatrix * weatherP).xyz;`);
+          ${shadePosition}`);
       }
       const shade = 'outgoingLight *= 1.0 - localWeatherShade();\n';
       if (shader.fragmentShader.includes('#include <output_fragment>')) shader.fragmentShader = shader.fragmentShader.replace('#include <output_fragment>', shade + '#include <output_fragment>');
@@ -64,19 +74,19 @@ const Weather3D = (() => {
     };
     const key = function () {
       const base = replacedKey != null ? replacedKey : defaultKey ? originalKey : oldKey ? oldKey.call(this) : '';
-      return String(base).endsWith(KEY) ? String(base) : String(base) + KEY;
+      return String(base).endsWith(modeKey) ? String(base) : String(base) + modeKey;
     };
     mat.onBeforeCompile = wrapper; mat.customProgramCacheKey = key; mat.needsUpdate = true;
     if (!PATCHED.has(mat)) patchedCount++;
     PATCHED.add(mat); HOOKS.set(mat, { wrapper, key });
   }
 
-  function mergedCloud(seed, storm) {
+  function mergedCloud(seed, storm, mobile) {
     const random = rng(seed), positions = [], normals = [], colors = [], m = new T.Matrix4(), q = new T.Quaternion();
-    const lobes = storm ? 21 : 13;
+    const lobes = mobile ? (storm ? 15 : 9) : (storm ? 21 : 13);
     for (let i = 0; i < lobes; i++) {
       const a = random() * TAU, r = random() * (storm ? 1.35 : .9), size = .34 + random() * (storm ? .43 : .30);
-      const geo = new T.SphereGeometry(1, 12, 8);
+      const geo = new T.SphereGeometry(1, mobile ? 8 : 12, mobile ? 6 : 8);
       m.compose(new T.Vector3(Math.cos(a) * r, .10 + random() * .30, Math.sin(a) * r * .65), q, new T.Vector3(size * 1.4, size * .68, size)); geo.applyMatrix4(m);
       const flat = geo.toNonIndexed(), p = flat.attributes.position, n = flat.attributes.normal;
       const shade = .83 + random() * .15;
@@ -104,6 +114,7 @@ const Weather3D = (() => {
   }
 
   function create(opts) {
+    const mobile = !!opts.mobile;
     const parent = opts.parent, waterY = opts.waterY == null ? .02 : opts.waterY, outerY = opts.outerWaterY == null ? -.3 : opts.outerWaterY;
     const seed = opts.seed == null ? Math.floor(Math.random() * 4294967296) >>> 0 : opts.seed >>> 0;
     const owner = {}; activeOwner = owner; SHADE.value.set(0, 0, 1, 0);
@@ -111,7 +122,7 @@ const Weather3D = (() => {
     const own = new Set(), ownMats = new Set(), keep = x => { own.add(x); return x; };
     const mat = (constructor, options) => { const m = keep(new constructor(options)); ownMats.add(m); return m; };
     let dead = false, epoch = null, elapsed = 0, lastScan = -100, currentId = 0, lastThunder = '', scans = 0;
-    const temp = new T.Object3D(), off = new T.Matrix4().makeScale(0, 0, 0), rainQ = new T.Quaternion(), rainVelocity = new T.Vector3(), localUp = new T.Vector3(0, 1, 0);
+    const temp = new T.Object3D(), rainQ = new T.Quaternion(), rainVelocity = new T.Vector3(), localUp = new T.Vector3(0, 1, 0);
     const fairColor = new T.Color(0xd8e2e5), stormColor = new T.Color(0x657c89);
     function specification(id) {
       const random = rng((seed ^ Math.imul(id + 1, 2654435761)) >>> 0), angle = random() * TAU, r = 1.15 + random() * 2.3;
@@ -120,24 +131,24 @@ const Weather3D = (() => {
     const firstStart = 14 + rng(seed ^ 0x729ac35b)() * 6;
     let start = firstStart, spec = specification(0);
     const cloudMat = mat(T.MeshStandardMaterial, { color: 0xe3ecec, vertexColors: true, roughness: 1, transparent: true, opacity: .81, depthWrite: false });
-    const clouds = new T.InstancedMesh(keep(mergedCloud(seed ^ 413, false)), cloudMat, 4); clouds.name = 'Four drifting 3D fair-weather clouds'; clouds.instanceMatrix.setUsage(T.DynamicDrawUsage); clouds.frustumCulled = false; group.add(clouds);
+    const clouds = new T.InstancedMesh(keep(mergedCloud(seed ^ 413, false, mobile)), cloudMat, 4); clouds.name = 'Four drifting 3D fair-weather clouds'; clouds.instanceMatrix.setUsage(T.DynamicDrawUsage); clouds.frustumCulled = false; group.add(clouds);
     const stormMat = mat(T.MeshStandardMaterial, { color: fairColor, vertexColors: true, roughness: 1, transparent: true, opacity: 0, depthWrite: false });
-    const stormCloud = new T.Mesh(keep(mergedCloud(seed ^ 725, true)), stormMat); stormCloud.name = 'Travelling storm cloud'; group.add(stormCloud);
+    const stormCloud = new T.Mesh(keep(mergedCloud(seed ^ 725, true, mobile)), stormMat); stormCloud.name = 'Travelling storm cloud'; group.add(stormCloud);
     const rainMat = mat(T.MeshBasicMaterial, { color: 0xb8deed, transparent: true, opacity: 0, depthWrite: false });
-    const rain = new T.InstancedMesh(keep(new T.CylinderGeometry(.0035, .0022, .115, 4, 1, false)), rainMat, 144); rain.name = 'Local falling 3D rain'; rain.instanceMatrix.setUsage(T.DynamicDrawUsage); rain.frustumCulled = false; group.add(rain);
+    const rain = new T.InstancedMesh(keep(new T.CylinderGeometry(.0035, .0022, .115, 4, 1, false)), rainMat, mobile ? 48 : 144); rain.name = 'Local falling 3D rain'; rain.instanceMatrix.setUsage(T.DynamicDrawUsage); rain.frustumCulled = false; group.add(rain);
     const boltGeos = Array.from({ length: 3 }, (_, i) => keep(lightningGeo(seed + i * 703)));
     const boltMat = mat(T.MeshBasicMaterial, { color: 0xe4f4ff, transparent: true, opacity: .94, depthWrite: false });
     const bolt = new T.Mesh(boltGeos[0], boltMat); bolt.name = 'Thin branched 3D lightning'; bolt.visible = false; group.add(bolt);
     const rippleGeo = keep(new T.TorusGeometry(1, .032, 4, 18)); rippleGeo.rotateX(Math.PI / 2);
     const rippleMat = mat(T.MeshBasicMaterial, { color: 0xc5e9eb, transparent: true, opacity: 0, depthWrite: false });
-    const ripples = new T.InstancedMesh(rippleGeo, rippleMat, 24); ripples.name = 'Rain ripples on the sea'; ripples.instanceMatrix.setUsage(T.DynamicDrawUsage); ripples.frustumCulled = false; group.add(ripples);
+    const ripples = new T.InstancedMesh(rippleGeo, rippleMat, mobile ? 9 : 24); ripples.name = 'Rain ripples on the sea'; ripples.instanceMatrix.setUsage(T.DynamicDrawUsage); ripples.frustumCulled = false; group.add(ripples);
     const random = rng(seed ^ 1221);
     const raindata = Array.from({ length: rain.count }, () => ({ phase: random(), a: random() * TAU, r: Math.sqrt(random()) * .87, speed: .88 + random() * .28 }));
     const cloudData = Array.from({ length: clouds.count }, (_, i) => ({ a: random() * TAU, r: 8.3 + random() * 4.3, y: 4.1 + random() * 1.5, scale: .7 + random() * .5, speed: .008 + i * .0025 }));
     let state = { active: false, raining: false, strength: 0, zone: [0, 0, spec.radius], lightning: false, nextFlash: start + spec.boltOffset, time: 0 };
     function scan() {
       parent.traverse(o => {
-        for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : []) if (!ownMats.has(m)) patchMaterial(m);
+        for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : []) if (!ownMats.has(m)) patchMaterial(m, mobile);
       }); scans++;
     }
     scan(); lastScan = 0;
@@ -173,13 +184,13 @@ const Weather3D = (() => {
         const floor = Math.max(Math.abs(x), Math.abs(z)) > 6.2 ? outerY : waterY;
         temp.position.set(x, spec.height - .23 - (spec.height - .23 - floor) * u, z); temp.quaternion.copy(rainQ); temp.scale.set(1, .83 + .44 * d.phase, 1); temp.updateMatrix(); rain.setMatrixAt(i, temp.matrix);
       }
-      else for (let i = 0; i < rain.count; i++) rain.setMatrixAt(i, off);
-      rain.instanceMatrix.needsUpdate = true;
+      // Hidden rain does not need its GPU instance buffer rewritten each frame.
+      if (rain.visible) rain.instanceMatrix.needsUpdate = true;
       if (ripples.visible) for (let i = 0; i < ripples.count; i++) {
         const d = raindata[i * 5], u = frac(elapsed * .72 + d.phase), x = zx + Math.cos(d.a) * d.r * spec.radius, z = zz + Math.sin(d.a) * d.r * spec.radius;
         temp.position.set(x, (Math.max(Math.abs(x), Math.abs(z)) > 6.2 ? outerY : waterY) + .008, z); temp.rotation.set(0, 0, 0); const r = .019 + u * .070; temp.scale.set(r, r * (1 - u), r); temp.updateMatrix(); ripples.setMatrixAt(i, temp.matrix);
       }
-      ripples.instanceMatrix.needsUpdate = true;
+      if (ripples.visible) ripples.instanceMatrix.needsUpdate = true;
       const boltAge = age - spec.boltOffset, strike = Math.floor(boltAge / spec.boltInterval), flashAge = boltAge - strike * spec.boltInterval;
       const flash = !reduced && envelope > .15 && boltAge >= 0 && age < spec.duration - 1 && flashAge >= 0 && flashAge < .16;
       bolt.visible = flash;
@@ -200,7 +211,7 @@ const Weather3D = (() => {
     return {
       group, update,
       dispose() { if (dead) return; dead = true; if (activeOwner === owner) { activeOwner = null; SHADE.value.set(0, 0, 1, 0); } parent.remove(group); group.traverse(o => { if (o.isInstancedMesh) o.dispose(); }); group.clear(); for (const item of own) item.dispose(); own.clear(); ownMats.clear(); },
-      stats() { return { ...state, zone: state.zone.slice(), seed, cycle: currentId, stormStart: start, duration: spec.duration, quiet: spec.quiet, firstStorm: firstStart, clouds: clouds.count + 1, drops: rain.count, ripples: ripples.count, maxFlash: .16, minimumFlashGap: 3.8, scans, patchedMaterials: patchedCount }; }
+      stats() { return { ...state, zone: state.zone.slice(), seed, cycle: currentId, stormStart: start, duration: spec.duration, quiet: spec.quiet, firstStorm: firstStart, clouds: clouds.count + 1, drops: rain.count, ripples: ripples.count, maxFlash: .16, minimumFlashGap: 3.8, scans, patchedMaterials: patchedCount, mobile, shade: mobile ? 'vertex' : 'fragment' }; }
     };
   }
   return { create };

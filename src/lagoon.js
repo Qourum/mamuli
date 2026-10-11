@@ -9,6 +9,7 @@ const Lagoon3D = (() => {
   const mix = (a, b, t) => a * (1 - t) + b * t;
 
   function create(opts) {
+    const mobile = !!opts.mobile;
     const parent = opts.parent, center = { x: opts.center.x, z: opts.center.z };
     const waterY = opts.waterY == null ? .02 : opts.waterY;
     const radius = Math.max(.56, opts.radius || .59), holeRadius = .55, depth = .72;
@@ -49,7 +50,7 @@ const Lagoon3D = (() => {
 
     // A circular annulus, densely sampled in radius, forms a visibly concave
     // funnel. Its central neck is open until the deep dark bottom.
-    const FP = [], FC = [], FI = [], RAD = 32, ANG = 96, deep = new T.Color(0x063749), rim = new T.Color(0x46bec2), color = new T.Color();
+    const FP = [], FC = [], FI = [], RAD = mobile ? 18 : 32, ANG = mobile ? 64 : 96, deep = new T.Color(0x063749), rim = new T.Color(0x46bec2), color = new T.Color();
     for (let j = 0; j <= RAD; j++) {
       const r = .034 + (radius - .034) * j / RAD;
       for (let k = 0; k <= ANG; k++) {
@@ -77,14 +78,15 @@ const Lagoon3D = (() => {
 
     const foamMaterial = material(0xc8f1e9, .58, { transparent: true, opacity: .78, depthWrite: false });
     const spiralHolder = new T.Group(); spiralHolder.position.set(center.x, waterY, center.z); group.add(spiralHolder);
+    const spiralSegments = mobile ? 96 : 160;
     for (let arm = 0; arm < 2; arm++) {
       const points = [];
-      for (let i = 0; i <= 160; i++) { const u = i / 160, r = .055 + (radius - .066) * u, a = arm * Math.PI + u * TAU * 2.3; points.push(new T.Vector3(Math.cos(a) * r, funnelY(r) + .009, Math.sin(a) * r)); }
-      const curve = new T.CatmullRomCurve3(points); mesh(new T.TubeGeometry(curve, 160, .0045, 5, false), foamMaterial, spiralHolder);
+      for (let i = 0; i <= spiralSegments; i++) { const u = i / spiralSegments, r = .055 + (radius - .066) * u, a = arm * Math.PI + u * TAU * 2.3; points.push(new T.Vector3(Math.cos(a) * r, funnelY(r) + .009, Math.sin(a) * r)); }
+      const curve = new T.CatmullRomCurve3(points); mesh(new T.TubeGeometry(curve, spiralSegments, .0045, 5, false), foamMaterial, spiralHolder);
     }
-    const foamGeo = keep(new T.SphereGeometry(1, 6, 4)), foam = new T.InstancedMesh(foamGeo, foamMaterial, 96);
+    const foamGeo = keep(new T.SphereGeometry(1, 6, 4)), foam = new T.InstancedMesh(foamGeo, foamMaterial, mobile ? 40 : 96);
     foam.name = 'Foam following the spiral current'; foam.instanceMatrix.setUsage(T.DynamicDrawUsage); foam.frustumCulled = false; group.add(foam);
-    const wakeGeo = keep(new T.TorusGeometry(1, .018, 4, 24)); wakeGeo.rotateX(Math.PI / 2);
+    const wakeGeo = keep(new T.TorusGeometry(1, .018, 4, mobile ? 18 : 24)); wakeGeo.rotateX(Math.PI / 2);
     const wakes = new T.InstancedMesh(wakeGeo, foamMaterial, 21); wakes.instanceMatrix.setUsage(T.DynamicDrawUsage); wakes.frustumCulled = false; group.add(wakes);
     const wakePool = Array.from({ length: 21 }, () => ({ born: -100 })); let wakeCursor = 0;
     for (let i = 0; i < wakePool.length; i++) wakes.setMatrixAt(i, hidden);
@@ -229,8 +231,8 @@ const Lagoon3D = (() => {
         facing.multiply(bank.setFromAxisAngle(LOCAL_X, roll));
         if (lastTime == null || reduced || !a.holder.visible) a.holder.quaternion.copy(facing); else a.holder.quaternion.slerp(facing, 1 - Math.exp(-delta * 9));
         for (const m of a.mats) m.opacity = alpha;
-        if (a.mixer) a.mixer.setTime(t + a.phase);
-        for (const cloth of a.wind) {
+        if (a.mixer && a.holder.visible) a.mixer.setTime(t + a.phase);
+        for (const cloth of a.holder.visible ? a.wind : []) {
           const at = cloth.mesh.geometry.attributes.position, rest = cloth.rest;
           for (let j = 0; j < at.count; j++) { const k = j * 3; at.setX(j, rest[k] + .010 * Math.sin(t * 2.7 + rest[k + 2] * 17 + rest[k + 1] * 5)); }
           at.needsUpdate = true; if (stepNumber % 4 === 0 || lastTime == null) cloth.mesh.geometry.computeVertexNormals();
@@ -246,18 +248,20 @@ const Lagoon3D = (() => {
         const scale = (1 - smooth(.89, 1, u)) * smooth(0, .045, u); temp.scale.setScalar(scale); temp.updateMatrix(); propMeshes[item.kind].setMatrixAt(item.slot, temp.matrix);
       }
       for (const im of propMeshes) im.instanceMatrix.needsUpdate = true;
+      let visibleWakes = 0;
       for (let i = 0; i < wakePool.length; i++) {
         const w = wakePool[i], age = t - w.born;
-        if (age < 0 || age > 2.2) { wakes.setMatrixAt(i, hidden); continue; }
-        const r = w.size * (.5 + age * 1.7); temp.position.set(w.x, waterAt(w.x, w.z, t) + .008, w.z); temp.rotation.set(0, 0, 0); temp.scale.set(r, r * (1 - age / 2.2), r * .62); temp.updateMatrix(); wakes.setMatrixAt(i, temp.matrix);
+        if (age < 0 || age > 2.2) continue;
+        const r = w.size * (.5 + age * 1.7); temp.position.set(w.x, waterAt(w.x, w.z, t) + .008, w.z); temp.rotation.set(0, 0, 0); temp.scale.set(r, r * (1 - age / 2.2), r * .62); temp.updateMatrix(); wakes.setMatrixAt(visibleWakes++, temp.matrix);
       }
-      wakes.instanceMatrix.needsUpdate = true; lastTime = t;
+      wakes.count = visibleWakes; wakes.visible = visibleWakes > 0;
+      if (visibleWakes) wakes.instanceMatrix.needsUpdate = true; lastTime = t;
     }
     update(0, 0);
     return {
       mask, group, update,
       dispose() { if (dead) return; dead = true; for (const a of boats) if (a.mixer) { a.mixer.stopAllAction(); a.mixer.uncacheRoot(a.native); } parent.remove(group); group.traverse(o => { if (o.isInstancedMesh) o.dispose(); }); group.clear(); for (const item of own) item.dispose(); own.clear(); },
-      stats() { return { boats: boats.length, native: nativeLoaded, props: props.length, foam: foam.count, wakes: wakePool.length, funnel: { radius, depth }, geometry: true, states: boats.map(a => ({ name: a.holder.name, visible: a.holder.visible, position: a.holder.position.toArray() })) }; }
+      stats() { return { boats: boats.length, native: nativeLoaded, props: props.length, foam: foam.count, wakes: wakePool.length, activeWakes: wakes.count, mobile, funnel: { radius, depth }, geometry: true, states: boats.map(a => ({ name: a.holder.name, visible: a.holder.visible, position: a.holder.position.toArray() })) }; }
     };
   }
   return { create };

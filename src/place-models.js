@@ -139,11 +139,11 @@ const PlaceModels3D = (() => {
     const reactionMat = new T.MeshStandardMaterial({ color: 0xffffff, emissive: 0x8b7043, emissiveIntensity: .20, transparent: true, opacity: .72, depthWrite: false, roughness: .36 });
     [matte, metal, fabric, green, warm, smokeMat, gold, waterMat, reactionMat].forEach(m => own.add(m));
     const pool = (key, factory, material) => {
-      if (!pools.has(key)) { const geometry = factory(); own.add(geometry); pools.set(key, { key, geometry, material, entries: [], mesh: null }); }
+      if (!pools.has(key)) { const geometry = factory(); own.add(geometry); pools.set(key, { key, geometry, material, entries: [], mesh: null, reaction: key === 'arrival-rings' || key === 'reward-coins' }); }
       return pools.get(key);
     };
     const dynamic = (rec, key, factory, material, base, local = new T.Matrix4(), motion = 'wind', color = 0xffffff, phase = 0, amount = 1) => {
-      const p = pool(key, factory, material), entry = { rec, base: base.clone(), local: local.clone(), motion, phase: phase + rec.i * .47, amount, color: new T.Color(color), index: p.entries.length };
+      const p = pool(key, factory, material), entry = { rec, base: base.clone(), local: local.clone(), motion, phase: phase + rec.i * .47, amount, color: new T.Color(color), index: p.entries.length, drawIndex: -1 };
       p.entries.push(entry); rec.parts.push({ pool: p, entry }); return entry;
     };
     function anchor(rec, x, z, height = 0, ry = 0, s = 1, afloat = false) {
@@ -416,12 +416,23 @@ const PlaceModels3D = (() => {
       if (p.key === 'smoke' || p.key === 'arrival-rings') p.mesh.renderOrder = 2;
       for (const e of p.entries) p.mesh.setColorAt(e.index, e.color);
     }
-    const animated = new T.Matrix4(), local = new T.Matrix4(), out = new T.Matrix4(), q = new T.Quaternion(), v = new T.Vector3(), s = new T.Vector3(), euler = new T.Euler(), zero = new T.Matrix4().makeScale(0,0,0);
+    const animated = new T.Matrix4(), local = new T.Matrix4(), out = new T.Matrix4(), q = new T.Quaternion(), v = new T.Vector3(), s = new T.Vector3(), euler = new T.Euler(), reactionColor = new T.Color();
     function update(t, dt) {
       if (dead) return;
       const time = opts.reducedMotion ? 0 : Number.isFinite(t) ? t : current;
       current = time; if (last === time) return; last = time;
+      let reactionsActive = false;
+      if (!opts.reducedMotion) for (const rec of records.values()) {
+        if (rec.event && time >= rec.event.started && time < rec.event.started + rec.event.duration) { reactionsActive = true; break; }
+      }
       for (const p of pools.values()) {
+        // A zero-scaled instance still submits geometry. Idle reaction pools
+        // need neither GPU draws nor rewritten matrix/color buffers.
+        if (p.reaction && !reactionsActive) {
+          if (p.mesh.count) for (const entry of p.entries) entry.drawIndex = -1;
+          p.mesh.count = 0; p.mesh.visible = false; continue;
+        }
+        let visible = 0;
         if (p.geometry.userData.cloth) {
           const pos = p.geometry.attributes.position, base = p.geometry.userData.cloth, width = p.geometry.userData.width;
           for (let k = 0; k < pos.count; k++) {
@@ -432,6 +443,7 @@ const PlaceModels3D = (() => {
         }
         for (const entry of p.entries) {
           const { rec, motion, phase, amount } = entry, event = rec.event, life = event ? (time-event.started)/event.duration : 2, boost = life >= 0 && life < 1 ? Math.sin(Math.PI*life) : 0;
+          if (p.reaction) { entry.drawIndex = -1; if (life < 0 || life >= 1) continue; }
           v.set(0,0,0); euler.set(0,0,0); s.set(1,1,1);
           switch(motion) {
             case 'crown': euler.x=.019*amount*Math.sin(time*1.1+phase);euler.z=.027*amount*Math.sin(time*1.5+phase);break;
@@ -448,19 +460,27 @@ const PlaceModels3D = (() => {
             case 'lift': v.y=.018*Math.sin(time*.9+phase);break;
             case 'lid': euler.x=-.045-boost*.90;break;
             case 'graze': euler.z=.10*Math.sin(time*.50+phase);euler.y=.09*Math.sin(time*.31+phase);break;
-            case 'reaction-ring': if(opts.reducedMotion || life<0 || life>=1){p.mesh.setMatrixAt(entry.index,zero);continue;}s.setScalar(.08+life*.20);v.y=.008+life*.018;break;
-            case 'reaction-coin': if(opts.reducedMotion || life<0 || life>=1){p.mesh.setMatrixAt(entry.index,zero);continue;}v.set(Math.cos(phase)*life*.16,Math.sin(Math.PI*life)*.23,Math.sin(phase)*life*.12);euler.set(time*6+phase,phase,time*4);s.setScalar(1-life*.55);break;
+            case 'reaction-ring': s.setScalar(.08+life*.20);v.y=.008+life*.018;break;
+            case 'reaction-coin': v.set(Math.cos(phase)*life*.16,Math.sin(Math.PI*life)*.23,Math.sin(phase)*life*.12);euler.set(time*6+phase,phase,time*4);s.setScalar(1-life*.55);break;
           }
           q.setFromEuler(euler);animated.compose(v,q,s);local.copy(entry.local);
           // Boat parts share a carrier motion before their local mast/sail offsets.
           if(motion==='boat')out.copy(entry.base).multiply(animated).multiply(local);else out.copy(entry.base).multiply(local).multiply(animated);
-          p.mesh.setMatrixAt(entry.index,out);
+          const index = p.reaction ? visible++ : entry.index;
+          p.mesh.setMatrixAt(index,out);
+          if (p.reaction) {
+            entry.drawIndex = index; reactionColor.copy(entry.color); if (rec.mort) reactionColor.multiplyScalar(.43);
+            p.mesh.setColorAt(index, reactionColor);
+          }
         }
+        if (p.reaction) { p.mesh.count = visible; p.mesh.visible = visible > 0; p.mesh.instanceColor.needsUpdate = true; }
         p.mesh.instanceMatrix.needsUpdate=true;
       }
     }
     function colorEntry(part) {
-      const color=part.entry.color.clone();if(part.entry.rec.mort)color.multiplyScalar(.43);part.pool.mesh.setColorAt(part.entry.index,color);part.pool.mesh.instanceColor.needsUpdate=true;
+      const index = part.pool.reaction ? part.entry.drawIndex : part.entry.index;
+      if (index < 0) return;
+      const color=part.entry.color.clone();if(part.entry.rec.mort)color.multiplyScalar(.43);part.pool.mesh.setColorAt(index,color);part.pool.mesh.instanceColor.needsUpdate=true;
     }
     function trigger(i,kind,seatColor) {
       const rec=records.get(i);if(dead||!rec)return false;

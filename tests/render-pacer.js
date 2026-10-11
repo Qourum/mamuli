@@ -13,10 +13,10 @@ function simulate(hz, mobile, active, jitter = 0) {
 for (const hz of [60, 75, 90, 120]) {
   for (const active of [false, true]) {
     const r = simulate(hz, true, active);
-    assert.equal(r.count, 301, hz + ' Hz phone paints at 30 Hz, both idle and moving');
+    assert.equal(r.count, 601, hz + ' Hz phone targets 60 Hz, both idle and moving');
     assert(Math.abs(r.elapsed - 10) < 1e-8, 'animations keep all elapsed time');
     for (const jitter of [.4, .7, 1]) {
-      assert(Math.abs(simulate(hz, true, active, jitter).count - 301) <= 1, hz + ' Hz phone retains its 30 Hz target with ' + jitter + ' ms jitter');
+      assert(Math.abs(simulate(hz, true, active, jitter).count - 601) <= 1, hz + ' Hz phone retains its 60 Hz target with ' + jitter + ' ms jitter');
     }
   }
   assert.equal(simulate(hz, false, false).count, 301, 'desktop idle work is bounded');
@@ -28,13 +28,14 @@ for (const hz of [60, 75, 90, 120]) {
 }
 const p = context.pacer.create(true);
 assert(p.step(0, true)); assert(!p.step(10, true)); assert(p.step(480, true)); assert.equal(p.delta, .48);
-assert(!p.step(480, true)); assert(!p.step(481, true)); assert(!p.step(499, true));
+assert(!p.step(480, true)); assert(!p.step(481, true));
 assert(p.step(500, true)); assert.equal(p.delta, .02, 'animation time stays real after a stall');
 assert(!p.step(500, true), 'the same missed deadline cannot paint twice');
 assert(p.step(10000, true)); assert(!p.step(10000, true)); assert(!p.step(10001, true));
 p.reset(); assert(p.step(100000, true)); assert.equal(p.delta, 1 / 60, 'resume excludes hidden time');
-assert(!p.step(100010, false), 'phone active/idle change retains the 30 Hz clock');
-assert(p.step(100034, false)); assert.equal(p.delta, .034);
+assert(!p.step(100010, false), 'phone active/idle change retains the 60 Hz clock');
+assert(p.step(100017, false)); assert.equal(p.delta, .017);
+assert.equal(p.interval, 1 / 60, 'diagnostics expose the phone target interval');
 const desktop = context.pacer.create(false);
 assert(desktop.step(0, false)); assert(!desktop.step(10, false));
 assert(desktop.step(16, true)); assert.equal(desktop.delta, .016, 'interaction immediately follows display callbacks');
@@ -43,4 +44,14 @@ assert(desktop.step(66, false)); assert.equal(desktop.delta, .034);
 assert(!desktop.step(66, false));
 assert(desktop.step(70, true)); assert.equal(desktop.delta, .004, 'mode changes do not lose elapsed animation time');
 desktop.reset(); assert(desktop.step(200000, false)); assert.equal(desktop.delta, 1 / 60);
-console.log('render pacing: 60/75/90/120 Hz, sub-ms jitter, idle/active transitions, elapsed animation time, stalled deadline skipping and resume passed');
+// A 90 Hz phone alternates display intervals to average 60 FPS, never burst
+// draws in a single callback or stretch animation time.
+const ninety = context.pacer.create(true), cadence = [];
+for (let i = 0; i <= 90; i++) {
+  const at = i * 1000 / 90;
+  if (ninety.step(at, false)) { cadence.push(ninety.delta); assert(!ninety.step(at, false), 'one paint at most per phone display callback'); }
+}
+assert.equal(cadence.length, 61);
+assert(cadence.some(d => Math.abs(d - 1 / 90) < 1e-9));
+assert(cadence.some(d => Math.abs(d - 2 / 90) < 1e-9));
+console.log('render pacing: phone60 FPS on60/75/90/120 Hz, desktopidle30 FPS, sub-ms jitter, idle/active transitions, elapsed animation time, stalled deadline skipping and resume passed');

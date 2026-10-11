@@ -115,15 +115,32 @@ for(const [kind,scene] of [['bottle',cachedBottle],['chest',cachedChest],['scrol
  const session=cards.mount(element(),kind);assert.equal(pooled.scene,scene);assert.equal(renderers.length,beforePool+1);session.dispose();
 }
 cards.stop();released(pooled);assert.equal(frames.size,0);assert.equal(events.size,0);
-// Phone reveals update/draw at 30 Hz on a 120 Hz display, preserving 4.8 seconds.
+// Phone reveals use a stable 60 Hz deadline on 60/90/120 Hz displays. Jitter
+// cannot progressively lower the target; a stall does not create catch-up work.
 context.screen={width:412,height:912};
+const phoneFrameCounts={};
+for(const rate of [60,90,120]){
+ const paced=cards.mount(element(),'bottle'),renderer=renderers.at(-1),startDraws=renderer.draws;
+ for(let i=0;i<rate;i++)tick(1000/rate);
+ const count=renderer.draws-startDraws;phoneFrameCounts[rate]=count;
+ assert(count>=59&&count<=60,`phone maintains 60 updates per second at ${rate} Hz`);
+ assert(Math.abs(paced.stats().elapsed-1000)<18,'elapsed time follows real time rather than rendered frame count');
+ tick(3801);assert.equal(paced.stats().elapsed,4800);assert.equal(frames.size,0);paced.dispose();
+}
 const paced=cards.mount(element(),'bottle'),pacedRenderer=renderers.at(-1),startDraws=pacedRenderer.draws;
-for(let i=0;i<120;i++)tick(1000/120);
-assert(pacedRenderer.draws-startDraws>=29&&pacedRenderer.draws-startDraws<=30,'phone caps native reveal work at 30 updates per second');
-assert(Math.abs(paced.stats().elapsed-1000)<34,'elapsed time follows real time rather than rendered frame count');
-tick(3801);assert.equal(paced.stats().elapsed,4800);assert.equal(frames.size,0);
+let previousJitter=0;
+for(let i=0;i<120;i++){const jitter=[.8,-.8,0][i%3];tick(1000/120+jitter-previousJitter);previousJitter=jitter;}
+phoneFrameCounts.jitter=pacedRenderer.draws-startDraws;
+assert(phoneFrameCounts.jitter>=59&&phoneFrameCounts.jitter<=60,'RAF jitter does not drift the 60 Hz deadline');
+const beforeStall=pacedRenderer.draws;tick(250);assert.equal(pacedRenderer.draws,beforeStall+1,'a long stall produces one current frame');
+tick(1);assert.equal(pacedRenderer.draws,beforeStall+1,'missed slots are skipped instead of replayed');
+document.visibilityState='hidden';for(const [fn,type]of events)if(type==='visibilitychange')fn();assert.equal(frames.size,0);
+tick(500);document.visibilityState='visible';for(const [fn,type]of events)if(type==='visibilitychange')fn();
+assert.equal(frames.size,1,'visibility resumes exactly one paced animation loop');
+const resumedDraws=pacedRenderer.draws;tick(1);assert.equal(pacedRenderer.draws,resumedDraws,'resume resets the next deadline');
+tick(4000);assert.equal(paced.stats().elapsed,4800);assert.equal(frames.size,0);
 let prevented=false;pacedRenderer.domElement.handlers.get('webglcontextlost')({preventDefault(){prevented=true;}});
 assert(prevented);released(pacedRenderer);assert.equal(paced.stats().disposed,true);assert.equal(events.size,0);delete context.screen;
 context.window.THREE=null;assert.equal(cards.mount(element(),'bottle'),null,'existing artwork remains fallback without Three');
 context.window.THREE={...THREE,WebGLRenderer:class{constructor(){throw Error('WebGL unavailable');}}};const fallback=element();assert.equal(cards.mount(fallback,'chest'),null);assert.equal(fallback.children.length,0);assert(!fallback.classList.contains('has-3d'));
-console.log(JSON.stringify({passed:true,letterStartsInside:true,neckClearBeforeUnfurl:true,neckSamples,hollowChest:true,backHinge:true,coins:42,gems:9,boundedMs:4800,worstBottleFraming:worstFraming,worstChestFraming,denseWorst,reducedMotion:true,contextAndResourcesReleased:true,oneCachedContext:true,threeCachedScenes:true,phoneReveal30Hz:true,instanceBuffersReleased:true,aspectPreserved:true,sRGBConsistent:true},null,2));
+console.log(JSON.stringify({passed:true,letterStartsInside:true,neckClearBeforeUnfurl:true,neckSamples,hollowChest:true,backHinge:true,coins:42,gems:9,boundedMs:4800,worstBottleFraming:worstFraming,worstChestFraming,denseWorst,reducedMotion:true,contextAndResourcesReleased:true,oneCachedContext:true,threeCachedScenes:true,phoneReveal60Hz:true,phoneFrameCounts,instanceBuffersReleased:true,aspectPreserved:true,sRGBConsistent:true},null,2));

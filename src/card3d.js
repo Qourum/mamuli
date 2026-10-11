@@ -59,13 +59,13 @@ const Card3D = (() => {
   function build(kind) {
     const T = window.THREE;
     let scene, camera, frame = 0, destroyed = false, resize = null, host = null, controller = null;
-    let elapsed = 0, started = 0, lastDraw = -Infinity, previousSize = '', prepared = false, draw = null;
+    let elapsed = 0, started = 0, nextDraw = null, previousSize = '', prepared = false, draw = null;
     const mobile = phone(), objects = new Set(), materials = new Set(), textures = new Set();
     let r;
     function visibility() {
       if (!controller) return;
       cancelAnimationFrame(frame);
-      if (document.visibilityState !== 'hidden') { lastDraw = -Infinity; if (draw) draw(performance.now()); }
+      if (document.visibilityState !== 'hidden') { nextDraw = null; if (draw) draw(performance.now()); }
     }
     function detach() {
       cancelAnimationFrame(frame); frame = 0;
@@ -296,10 +296,14 @@ const Card3D = (() => {
       }
       function render(now) {
         if (destroyed || !controller || document.visibilityState === 'hidden') return;
-        // Keep reveals at 30 Hz on phones, without stretching their wall-clock
-        // duration or running geometry deformation on skipped display frames.
-        if (!mobile || now - lastDraw >= 1000 / 30 - .4 || now - started >= DURATION) {
-          elapsed = reduced() ? DURATION : clamp(now - started, 0, DURATION); lastDraw = now;
+        // The phone reveal targets 60 Hz on 60/90/120 Hz displays. Advance a
+        // stable deadline instead of resetting it to each late RAF; skip missed
+        // slots rather than replaying them in a catch-up burst. The timeline
+        // always uses real elapsed time, independently of the drawing cadence.
+        const interval = 1000 / 60, tolerance = .4;
+        if (!mobile || nextDraw === null || now + tolerance >= nextDraw || now - started >= DURATION) {
+          elapsed = reduced() ? DURATION : clamp(now - started, 0, DURATION);
+          if (mobile) nextDraw = nextDraw === null ? now + interval : nextDraw + Math.max(1, Math.floor((now + tolerance - nextDraw) / interval) + 1) * interval;
           animate(elapsed / 1000); camera.updateProjectionMatrix(); r.render(scene, camera);
         }
         if (elapsed < DURATION) frame = requestAnimationFrame(render);
@@ -307,7 +311,7 @@ const Card3D = (() => {
       draw = render;
       function attach(nextHost) {
         if (destroyed) return null;
-        host = nextHost; elapsed = 0; started = performance.now(); lastDraw = -Infinity; previousSize = '';
+        host = nextHost; elapsed = 0; started = performance.now(); nextDraw = null; previousSize = '';
         let disposed = false, finalElapsed = 0;
         const session = {
           dispose() { if (disposed) return; disposed = true; finalElapsed = elapsed; if (controller === session) detach(); },

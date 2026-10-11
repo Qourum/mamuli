@@ -1309,7 +1309,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   }
   const towerSlots = [[], [0], [-0.17, 0.17], [-0.28, 0, 0.28], [-0.33, -0.11, 0.11, 0.33]];
   // all the towers of the board are drawn as one instanced mesh (and the fortresses as another), roofs coloured per copy
-  const BLD = { ready: false, grow: {}, busy: 0 };
+  const BLD = { ready: false, grow: {}, busy: 0, dirty: false };
   function buildingMeshes() {
     const tw = MOD.tower(), ca = MOD.castle();
     const roofMat = new T.MeshLambertMaterial({ color: 0xffffff });
@@ -1329,6 +1329,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   const _m = new T.Matrix4(), _q = new T.Quaternion(), _s = new T.Vector3(), _c = new T.Color(), _up = new T.Vector3(0, 1, 0);
   function layoutBuildings(now) {
     if (!BLD.ready) return;
+    BLD.dirty = false;
     shadowLate = true;
     let nt = 0, nc = 0, anim = 0;
     for (let i = 0; i < 40; i++) {
@@ -1351,6 +1352,9 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     BLD.tb.count = BLD.tr.count = nt; BLD.cb.count = BLD.cr.count = nc;
     for (const m of [BLD.tb, BLD.tr, BLD.cb, BLD.cr]) { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
     BLD.busy = anim;
+  }
+  function updateBuildings(now) {
+    if (BLD.busy || BLD.dirty) layoutBuildings(now);
   }
   function placeBuildings(i, lv, seat, anim, prev) {
     if (anim && lv > (prev || 0)) {
@@ -1673,7 +1677,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   function bounceTile(i) {
     const m = tiles[i];
     if (!m) return;
-    tween(0.28, e => { m.position.y = -Math.sin(e * Math.PI) * 0.06; }, ease.lin);
+    tween(0.28, e => { m.position.y = -Math.sin(e * Math.PI) * 0.06; BLD.dirty = true; }, ease.lin);
   }
 
   // ===== the players' figures: a coin with the hero's face on a pedestal of the player's colour =====
@@ -1976,7 +1980,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       if(f.glow) f.glow.material.opacity=REDUCED?.35:.33+.09*Math.sin(t*1.8+f.g.position.x);
     }
     if (wheel) wheel.children[0].rotation.z = (REDUCED ? 0 : t) * 1.4;
-    if (BLD.busy || tweens.length) layoutBuildings(now);
+    // Coins, flags and token travel do not change any building instance.
+    updateBuildings(now);
     // A phone retains its contact-shadow map through ambient animation. Repainting
     // all native morph meshes periodically causes stalls even with a small map.
     // Refresh after camera/game-piece motion settles or a model/building changes.
@@ -1989,20 +1994,25 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     const lt = REDUCED ? 3 : t;              // with less motion asked for, the board's life stands still
     U.time.value = lt;
     lifeStep(lt);
+    PERF.effectsMs = PERF.effectsMs == null ? performance.now() - cpuStart : PERF.effectsMs * .95 + (performance.now() - cpuStart) * .05;
     draw(visualDt * speedK);
     const cpuMs = performance.now() - cpuStart;
     PERF.cpuMs = PERF.cpuMs == null ? cpuMs : PERF.cpuMs * .95 + cpuMs * .05;
     adapt(pacer.delta, pacer.interval);
   }
   function draw(diceDt) {
+    const clipsStart = performance.now();
     // Render throttling saves power, but native clips still advance by all elapsed time between drawn frames.
     if (modelDelta) { for (const { mixer } of animatedModels) mixer.update(modelDelta); modelDelta = 0; }
+    const renderStart = performance.now();
+    PERF.clipsMs = PERF.clipsMs == null ? renderStart - clipsStart : PERF.clipsMs * .95 + (renderStart - clipsStart) * .05;
     R.setViewport(0, 0, W, H); R.setScissorTest(false);
     R.clear();
     R.render(scene, cam);
     PERF.calls = R.info.render.calls; PERF.tris = R.info.render.triangles;
     Dice3D.frame(R, diceDt);
     drewAt = performance.now();
+    PERF.drawMs = PERF.drawMs == null ? drewAt - renderStart : PERF.drawMs * .95 + (drewAt - renderStart) * .05;
     const pn = R.info.programs.length;                  // a shader made now, in the middle of a game, stalls a phone
     if (pn !== progN) { if (progN && built) Diag.note('3d', `new shader (${progN} -> ${pn}) while showing ${Diag.doing()}`); progN = pn; }
   }
@@ -2021,6 +2031,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (!ok || REDUCED) return;
     shadowDirty = true;
     for (let i = 0; i < 40; i++) tiles[i].position.y = -0.6;
+    BLD.dirty = true;
     landG.scale.y = 0.001;
     U.fade.value = 0;
     riseAt = frame + 3;
@@ -2029,7 +2040,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     riseAt = 0;
     for (let i = 0; i < 40; i++) {
       const m = tiles[i], d = (i / 40) * 0.9;
-      later(d).then(() => tween(0.45, e => { m.position.y = -0.6 + 0.6 * e; }, ease.back));
+      later(d).then(() => tween(0.45, e => { m.position.y = -0.6 + 0.6 * e; BLD.dirty = true; }, ease.back));
     }
     later(0.5)
       .then(() => { Sound.rumble(); return tween(1.6, e => { landG.scale.y = Math.max(0.001, e); }, ease.back); })
@@ -2142,7 +2153,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     tiles.length = lotMesh.length = lotGround.length = flags.length = mark.length = toks.length = 0;
     labelTex.length = labelMat.length = sideMat.length = cornerTitles.length = 0;
     life.ready = false; life.groups.length = 0; life.models.length = 0; life.pts = null;
-    BLD.ready = false; BLD.grow = {}; BLD.busy = 0;
+    BLD.ready = false; BLD.grow = {}; BLD.busy = 0; BLD.dirty = false;
     built = false; camInit = false;
     yield;
     yield* buildStatic();
@@ -2281,7 +2292,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       try { const gl = R.getContext(), x = gl.getExtension('WEBGL_debug_renderer_info'); name = x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); } catch (e) { }
       const m = R.info.memory, assets = typeof GLB !== 'undefined' && GLB && GLB.stats ? GLB.stats() : null;
       const models = assets ? ` · models ${assets.completed} ready/${assets.queued + assets.active} loading/${assets.failed} failed · mobile LOD ${assets.lodModels || 0} · model textures ~${Math.round(assets.textureBytes / 1048576)} MiB` : '';
-      return `gpu ${name} · webgl${R.capabilities.isWebGL2 ? 2 : 1} · pixel ratio ${R.getPixelRatio().toFixed(2)} (${prStep} steps down) · quality ${quality} · frame ${Math.round(busyAvg * 1000)} ms (~${Math.round(1 / busyAvg)} fps / ${mobile ? 30 : 60} target) · CPU submit ${(PERF.cpuMs || 0).toFixed(1)} ms · draw ${PERF.calls || 0}/${Math.round((PERF.tris || 0) / 1000)}k triangles · ${mobile ? 'phone' : 'computer'} · shaders ${R.info.programs.length} · textures ${m.textures} · geometries ${m.geometries}${models}${lostAt ? ' · GRAPHICS LOST' : ''}`;
+      return `gpu ${name} · webgl${R.capabilities.isWebGL2 ? 2 : 1} · pixel ratio ${R.getPixelRatio().toFixed(2)} (${prStep} steps down) · quality ${quality} · frame ${Math.round(busyAvg * 1000)} ms (~${Math.round(1 / busyAvg)} fps / ${Math.round(1 / pacer.interval)} target) · CPU submit ${(PERF.cpuMs || 0).toFixed(1)} ms (effects ${(PERF.effectsMs || 0).toFixed(1)}, clips ${(PERF.clipsMs || 0).toFixed(1)}, draw ${(PERF.drawMs || 0).toFixed(1)}) · draw ${PERF.calls || 0}/${Math.round((PERF.tris || 0) / 1000)}k triangles · ${mobile ? 'phone' : 'computer'} · shaders ${R.info.programs.length} · textures ${m.textures} · geometries ${m.geometries}${models}${lostAt ? ' · GRAPHICS LOST' : ''}`;
     },
     onPick(cb) { pickCb = cb; },
     setPos(seat, at) { pos[seat] = at; },

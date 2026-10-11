@@ -19,6 +19,14 @@ const parent = new THREE.Group(), model = PM.create({ parent, places });
 assert.equal(model.stats().places, 16); assert.ok(model.stats().drawCalls < 60); assert.ok(model.stats().triangles < 70000);
 const root = parent.children[0], pools = root.children.filter(o => o.isInstancedMesh);
 assert.equal(pools.length, model.stats().pools);
+const rings = pools.find(p => p.name.includes('arrival-rings')), coins = pools.find(p => p.name.includes('reward-coins'));
+assert.ok(rings && coins);
+let reactionMatrixWrites = 0;
+for (const p of [rings, coins]) {
+  const write = p.setMatrixAt; p.setMatrixAt = function (...args) { reactionMatrixWrites++; return write.apply(this, args); };
+  assert.equal(p.count, 0); assert.equal(p.visible, false);
+}
+const idleReactionVersions = [rings.instanceMatrix.version, coins.instanceMatrix.version, rings.instanceColor.version, coins.instanceColor.version];
 const resources = new Set(), disposed = new Map(), staticPositions = new Map(), inverse = new THREE.Matrix4(), world = new THREE.Vector3();
 for (const place of places) {
   const group = model.getObject(place.i); assert.equal(group.userData.i, place.i); assert.equal(group.userData.nativeProcedural, true);
@@ -44,6 +52,8 @@ root.traverse(o => {
 });
 const firstMatrices = pools.map(p => [...p.instanceMatrix.array]);
 for (let k = 1; k <= 180; k++) { model.update(k / 6, 1 / 6); for (const p of pools) assert.ok(Array.from(p.instanceMatrix.array).every(Number.isFinite)); }
+assert.equal(reactionMatrixWrites, 0, 'idle reaction pools never rewrite instance matrices');
+assert.deepEqual([rings.instanceMatrix.version, coins.instanceMatrix.version, rings.instanceColor.version, coins.instanceColor.version], idleReactionVersions, 'idle reactions do not upload matrix or color buffers');
 assert.ok(pools.some((p,i) => p.instanceMatrix.array.some((v,j) => v !== firstMatrices[i][j])), 'parts really animate');
 for (const [mesh, positions] of staticPositions) assert.deepEqual([...mesh.geometry.attributes.position.array], positions, 'architecture never wobbles');
 const unaffected = model.getObject(8).children.map(o => o.material), affectedBase = model.getObject(6).children.map(o => o.material);
@@ -51,12 +61,36 @@ model.setMort(6, true);
 for (const mesh of model.getObject(6).children) { assert.ok(!affectedBase.includes(mesh.material)); resources.add(mesh.material); }
 assert.deepEqual(model.getObject(8).children.map(o => o.material), unaffected, 'mortgage does not dim another place');
 model.setMort(6, false); assert.deepEqual(model.getObject(6).children.map(o => o.material), affectedBase);
-const rings = pools.find(p => p.name.includes('arrival-rings')), coins = pools.find(p => p.name.includes('reward-coins'));
-assert.ok(rings && coins);
 model.update(31, 1); assert.equal(model.trigger(6, 'buy', '#e64c62'), true); model.update(31.6, .6);
+assert.equal(rings.count, 1); assert.equal(coins.count, 6); assert(rings.visible && coins.visible);
 assert.ok(rings.instanceMatrix.array.some(v => v !== 0)); assert.ok(coins.instanceMatrix.array.some(v => v !== 0));
-model.update(35, 3.4); assert.ok([...rings.instanceMatrix.array].filter((_,i) => i % 16 !== 15).every(v => v === 0), 'reaction rings expire');
-assert.ok([...coins.instanceMatrix.array].filter((_,i) => i % 16 !== 15).every(v => v === 0), 'reward coins expire');
+model.update(35, 3.4); assert.equal(rings.count, 0, 'reaction rings expire'); assert.equal(coins.count, 0, 'reward coins expire');
+assert.equal(rings.visible, false); assert.equal(coins.visible, false);
+const writesAfterExpiry = reactionMatrixWrites; model.update(35.5, .5); assert.equal(reactionMatrixWrites, writesAfterExpiry, 'expired pools remain untouched');
+// High original indices pack into the first live slot, retain their player
+// colors, and continue moving each frame at a 60 Hz update rate.
+const readColor = (p, i) => { const color = new THREE.Color(); p.getColorAt(i, color); return color; };
+const expectColor = (actual, expected, message) => assert(Math.max(Math.abs(actual.r-expected.r),Math.abs(actual.g-expected.g),Math.abs(actual.b-expected.b)) < 1e-6, message);
+model.update(36, .5); model.trigger(34, 'buy', '#4c89e6');
+assert.equal(rings.count, 1); assert.equal(coins.count, 6);
+expectColor(readColor(rings, 0), new THREE.Color('#4c89e6'), 'packed ring retains its player color');
+model.setMort(6, true); expectColor(readColor(rings, 0), new THREE.Color('#4c89e6'), 'inactive-place mortgage cannot recolor another packed effect');
+model.setMort(34, true); expectColor(readColor(rings, 0), new THREE.Color('#4c89e6').multiplyScalar(.43), 'active mortgage updates the packed slot');
+for (const mesh of model.getObject(34).children) resources.add(mesh.material);
+model.setMort(34, false); model.setMort(6, false);
+model.update(36.2, .2); model.trigger(8, 'arrival', '#51a97d');
+assert.equal(rings.count, 2); assert.equal(coins.count, 12);
+expectColor(readColor(rings, 0), new THREE.Color('#51a97d'), 'earlier place occupies the first packed slot');
+expectColor(readColor(rings, 1), new THREE.Color('#4c89e6'), 'previously active place moves slots with its color');
+let previousLive = rings.instanceMatrix.array.slice(0, 32);
+for (let k = 1; k <= 60; k++) {
+  model.update(36.2 + k / 60, 1 / 60);
+  assert(rings.instanceMatrix.array.slice(0, 32).some((v, i) => v !== previousLive[i]), 'active reactions advance every 60 Hz frame');
+  previousLive = rings.instanceMatrix.array.slice(0, 32);
+}
+model.update(38.05, .85); assert.equal(rings.count, 1); assert.equal(coins.count, 6);
+expectColor(readColor(rings, 0), new THREE.Color('#51a97d'), 'remaining effect survives another effect expiring');
+model.update(39, .95); assert.equal(rings.count, 0); assert.equal(coins.count, 0);
 assert.equal(model.trigger(999,'arrival'), false); model.update(NaN, .1);
 for (const resource of resources) resource.addEventListener('dispose', () => disposed.set(resource, (disposed.get(resource) || 0) + 1));
 model.dispose(); model.dispose(); model.update(40, 1); assert.equal(parent.children.length, 0); assert.equal(model.stats().disposed, true);
@@ -64,6 +98,7 @@ for (const resource of resources) assert.equal(disposed.get(resource), 1, 'every
 const still = PM.create({ parent, places, reducedMotion: true }), stillPools = parent.children[0].children.filter(o => o.isInstancedMesh), stillMatrices = stillPools.map(p => [...p.instanceMatrix.array]);
 still.update(150, 150); still.trigger(14,'build','#51a97d'); still.update(155, 5);
 stillPools.forEach((p,i) => assert.deepEqual([...p.instanceMatrix.array], stillMatrices[i], 'reduced motion has no animation/reaction movement'));
+for (const p of stillPools.filter(p => /arrival-rings|reward-coins/.test(p.name))) { assert.equal(p.count, 0); assert.equal(p.visible, false); }
 still.dispose(); assert.equal(PM.create({}), null);
 // The original Tortuga mesa is a narrow additive terrain peak. Verify the
 // widened retaining rock actually reaches its uneven hillside at all edges.

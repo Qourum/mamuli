@@ -3,11 +3,13 @@
 // not move every subsequent deadline and silently lower the target frame rate.
 const RenderPacer = (() => {
   function create(mobile = false) {
-    let previous = null, next = null, lastInterval = null, delta = 1 / 60, interval = 1 / 30, count = 0;
-    const tolerance = .4;
+    let previous = null, next = null, lastInterval = null, delta = 1 / 60, interval = mobile ? 1 / 60 : 1 / 30, count = 0;
+    // A 60 Hz display needs a small early margin at a matching 60 FPS target;
+    // otherwise timestamp jitter can discard frames that the display cannot recover.
+    const tolerance = 1.25;
     return {
       step(now, active) {
-        interval = mobile || !active ? 1 / 30 : 0;
+        interval = mobile ? 1 / 60 : active ? 0 : 1 / 30;
         const milliseconds = interval * 1000;
         if (milliseconds !== lastInterval) {
           next = milliseconds && previous !== null ? previous + milliseconds : null;

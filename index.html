@@ -918,7 +918,7 @@ pre.diag { margin: 10px 0 0; padding: 10px; max-height: 52vh; overflow: auto; bo
 <script src="vendor/three.min.js"></script>
 <script src="vendor/GLTFLoader.min.js"></script>
 <script>
-const BUILD = "a8dbe01637";
+const BUILD = "464b77f3f5";
 const SITE = true;
 // ===== the technical log: what this phone went through, to copy and send when something goes wrong =====
 // Errors, the 3D board losing or getting back its graphics, slow frames (and what was on the screen then), shaders made
@@ -6728,11 +6728,11 @@ const PlaceModels3D = (() => {
     const reactionMat = new T.MeshStandardMaterial({ color: 0xffffff, emissive: 0x8b7043, emissiveIntensity: .20, transparent: true, opacity: .72, depthWrite: false, roughness: .36 });
     [matte, metal, fabric, green, warm, smokeMat, gold, waterMat, reactionMat].forEach(m => own.add(m));
     const pool = (key, factory, material) => {
-      if (!pools.has(key)) { const geometry = factory(); own.add(geometry); pools.set(key, { key, geometry, material, entries: [], mesh: null }); }
+      if (!pools.has(key)) { const geometry = factory(); own.add(geometry); pools.set(key, { key, geometry, material, entries: [], mesh: null, reaction: key === 'arrival-rings' || key === 'reward-coins' }); }
       return pools.get(key);
     };
     const dynamic = (rec, key, factory, material, base, local = new T.Matrix4(), motion = 'wind', color = 0xffffff, phase = 0, amount = 1) => {
-      const p = pool(key, factory, material), entry = { rec, base: base.clone(), local: local.clone(), motion, phase: phase + rec.i * .47, amount, color: new T.Color(color), index: p.entries.length };
+      const p = pool(key, factory, material), entry = { rec, base: base.clone(), local: local.clone(), motion, phase: phase + rec.i * .47, amount, color: new T.Color(color), index: p.entries.length, drawIndex: -1 };
       p.entries.push(entry); rec.parts.push({ pool: p, entry }); return entry;
     };
     function anchor(rec, x, z, height = 0, ry = 0, s = 1, afloat = false) {
@@ -7005,12 +7005,23 @@ const PlaceModels3D = (() => {
       if (p.key === 'smoke' || p.key === 'arrival-rings') p.mesh.renderOrder = 2;
       for (const e of p.entries) p.mesh.setColorAt(e.index, e.color);
     }
-    const animated = new T.Matrix4(), local = new T.Matrix4(), out = new T.Matrix4(), q = new T.Quaternion(), v = new T.Vector3(), s = new T.Vector3(), euler = new T.Euler(), zero = new T.Matrix4().makeScale(0,0,0);
+    const animated = new T.Matrix4(), local = new T.Matrix4(), out = new T.Matrix4(), q = new T.Quaternion(), v = new T.Vector3(), s = new T.Vector3(), euler = new T.Euler(), reactionColor = new T.Color();
     function update(t, dt) {
       if (dead) return;
       const time = opts.reducedMotion ? 0 : Number.isFinite(t) ? t : current;
       current = time; if (last === time) return; last = time;
+      let reactionsActive = false;
+      if (!opts.reducedMotion) for (const rec of records.values()) {
+        if (rec.event && time >= rec.event.started && time < rec.event.started + rec.event.duration) { reactionsActive = true; break; }
+      }
       for (const p of pools.values()) {
+        // A zero-scaled instance still submits geometry. Idle reaction pools
+        // need neither GPU draws nor rewritten matrix/color buffers.
+        if (p.reaction && !reactionsActive) {
+          if (p.mesh.count) for (const entry of p.entries) entry.drawIndex = -1;
+          p.mesh.count = 0; p.mesh.visible = false; continue;
+        }
+        let visible = 0;
         if (p.geometry.userData.cloth) {
           const pos = p.geometry.attributes.position, base = p.geometry.userData.cloth, width = p.geometry.userData.width;
           for (let k = 0; k < pos.count; k++) {
@@ -7021,6 +7032,7 @@ const PlaceModels3D = (() => {
         }
         for (const entry of p.entries) {
           const { rec, motion, phase, amount } = entry, event = rec.event, life = event ? (time-event.started)/event.duration : 2, boost = life >= 0 && life < 1 ? Math.sin(Math.PI*life) : 0;
+          if (p.reaction) { entry.drawIndex = -1; if (life < 0 || life >= 1) continue; }
           v.set(0,0,0); euler.set(0,0,0); s.set(1,1,1);
           switch(motion) {
             case 'crown': euler.x=.019*amount*Math.sin(time*1.1+phase);euler.z=.027*amount*Math.sin(time*1.5+phase);break;
@@ -7037,19 +7049,27 @@ const PlaceModels3D = (() => {
             case 'lift': v.y=.018*Math.sin(time*.9+phase);break;
             case 'lid': euler.x=-.045-boost*.90;break;
             case 'graze': euler.z=.10*Math.sin(time*.50+phase);euler.y=.09*Math.sin(time*.31+phase);break;
-            case 'reaction-ring': if(opts.reducedMotion || life<0 || life>=1){p.mesh.setMatrixAt(entry.index,zero);continue;}s.setScalar(.08+life*.20);v.y=.008+life*.018;break;
-            case 'reaction-coin': if(opts.reducedMotion || life<0 || life>=1){p.mesh.setMatrixAt(entry.index,zero);continue;}v.set(Math.cos(phase)*life*.16,Math.sin(Math.PI*life)*.23,Math.sin(phase)*life*.12);euler.set(time*6+phase,phase,time*4);s.setScalar(1-life*.55);break;
+            case 'reaction-ring': s.setScalar(.08+life*.20);v.y=.008+life*.018;break;
+            case 'reaction-coin': v.set(Math.cos(phase)*life*.16,Math.sin(Math.PI*life)*.23,Math.sin(phase)*life*.12);euler.set(time*6+phase,phase,time*4);s.setScalar(1-life*.55);break;
           }
           q.setFromEuler(euler);animated.compose(v,q,s);local.copy(entry.local);
           // Boat parts share a carrier motion before their local mast/sail offsets.
           if(motion==='boat')out.copy(entry.base).multiply(animated).multiply(local);else out.copy(entry.base).multiply(local).multiply(animated);
-          p.mesh.setMatrixAt(entry.index,out);
+          const index = p.reaction ? visible++ : entry.index;
+          p.mesh.setMatrixAt(index,out);
+          if (p.reaction) {
+            entry.drawIndex = index; reactionColor.copy(entry.color); if (rec.mort) reactionColor.multiplyScalar(.43);
+            p.mesh.setColorAt(index, reactionColor);
+          }
         }
+        if (p.reaction) { p.mesh.count = visible; p.mesh.visible = visible > 0; p.mesh.instanceColor.needsUpdate = true; }
         p.mesh.instanceMatrix.needsUpdate=true;
       }
     }
     function colorEntry(part) {
-      const color=part.entry.color.clone();if(part.entry.rec.mort)color.multiplyScalar(.43);part.pool.mesh.setColorAt(part.entry.index,color);part.pool.mesh.instanceColor.needsUpdate=true;
+      const index = part.pool.reaction ? part.entry.drawIndex : part.entry.index;
+      if (index < 0) return;
+      const color=part.entry.color.clone();if(part.entry.rec.mort)color.multiplyScalar(.43);part.pool.mesh.setColorAt(index,color);part.pool.mesh.instanceColor.needsUpdate=true;
     }
     function trigger(i,kind,seatColor) {
       const rec=records.get(i);if(dead||!rec)return false;
@@ -7365,11 +7385,13 @@ const PlaceFX3D = (() => {
 // not move every subsequent deadline and silently lower the target frame rate.
 const RenderPacer = (() => {
   function create(mobile = false) {
-    let previous = null, next = null, lastInterval = null, delta = 1 / 60, interval = 1 / 30, count = 0;
-    const tolerance = .4;
+    let previous = null, next = null, lastInterval = null, delta = 1 / 60, interval = mobile ? 1 / 60 : 1 / 30, count = 0;
+    // A 60 Hz display needs a small early margin at a matching 60 FPS target;
+    // otherwise timestamp jitter can discard frames that the display cannot recover.
+    const tolerance = 1.25;
     return {
       step(now, active) {
-        interval = mobile || !active ? 1 / 30 : 0;
+        interval = mobile ? 1 / 60 : active ? 0 : 1 / 30;
         const milliseconds = interval * 1000;
         if (milliseconds !== lastInterval) {
           next = milliseconds && previous !== null ? previous + milliseconds : null;
@@ -8705,7 +8727,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   }
   const towerSlots = [[], [0], [-0.17, 0.17], [-0.28, 0, 0.28], [-0.33, -0.11, 0.11, 0.33]];
   // all the towers of the board are drawn as one instanced mesh (and the fortresses as another), roofs coloured per copy
-  const BLD = { ready: false, grow: {}, busy: 0 };
+  const BLD = { ready: false, grow: {}, busy: 0, dirty: false };
   function buildingMeshes() {
     const tw = MOD.tower(), ca = MOD.castle();
     const roofMat = new T.MeshLambertMaterial({ color: 0xffffff });
@@ -8725,6 +8747,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   const _m = new T.Matrix4(), _q = new T.Quaternion(), _s = new T.Vector3(), _c = new T.Color(), _up = new T.Vector3(0, 1, 0);
   function layoutBuildings(now) {
     if (!BLD.ready) return;
+    BLD.dirty = false;
     shadowLate = true;
     let nt = 0, nc = 0, anim = 0;
     for (let i = 0; i < 40; i++) {
@@ -8747,6 +8770,9 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     BLD.tb.count = BLD.tr.count = nt; BLD.cb.count = BLD.cr.count = nc;
     for (const m of [BLD.tb, BLD.tr, BLD.cb, BLD.cr]) { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
     BLD.busy = anim;
+  }
+  function updateBuildings(now) {
+    if (BLD.busy || BLD.dirty) layoutBuildings(now);
   }
   function placeBuildings(i, lv, seat, anim, prev) {
     if (anim && lv > (prev || 0)) {
@@ -9069,7 +9095,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   function bounceTile(i) {
     const m = tiles[i];
     if (!m) return;
-    tween(0.28, e => { m.position.y = -Math.sin(e * Math.PI) * 0.06; }, ease.lin);
+    tween(0.28, e => { m.position.y = -Math.sin(e * Math.PI) * 0.06; BLD.dirty = true; }, ease.lin);
   }
 
   // ===== the players' figures: a coin with the hero's face on a pedestal of the player's colour =====
@@ -9372,7 +9398,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       if(f.glow) f.glow.material.opacity=REDUCED?.35:.33+.09*Math.sin(t*1.8+f.g.position.x);
     }
     if (wheel) wheel.children[0].rotation.z = (REDUCED ? 0 : t) * 1.4;
-    if (BLD.busy || tweens.length) layoutBuildings(now);
+    // Coins, flags and token travel do not change any building instance.
+    updateBuildings(now);
     // A phone retains its contact-shadow map through ambient animation. Repainting
     // all native morph meshes periodically causes stalls even with a small map.
     // Refresh after camera/game-piece motion settles or a model/building changes.
@@ -9385,20 +9412,25 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     const lt = REDUCED ? 3 : t;              // with less motion asked for, the board's life stands still
     U.time.value = lt;
     lifeStep(lt);
+    PERF.effectsMs = PERF.effectsMs == null ? performance.now() - cpuStart : PERF.effectsMs * .95 + (performance.now() - cpuStart) * .05;
     draw(visualDt * speedK);
     const cpuMs = performance.now() - cpuStart;
     PERF.cpuMs = PERF.cpuMs == null ? cpuMs : PERF.cpuMs * .95 + cpuMs * .05;
     adapt(pacer.delta, pacer.interval);
   }
   function draw(diceDt) {
+    const clipsStart = performance.now();
     // Render throttling saves power, but native clips still advance by all elapsed time between drawn frames.
     if (modelDelta) { for (const { mixer } of animatedModels) mixer.update(modelDelta); modelDelta = 0; }
+    const renderStart = performance.now();
+    PERF.clipsMs = PERF.clipsMs == null ? renderStart - clipsStart : PERF.clipsMs * .95 + (renderStart - clipsStart) * .05;
     R.setViewport(0, 0, W, H); R.setScissorTest(false);
     R.clear();
     R.render(scene, cam);
     PERF.calls = R.info.render.calls; PERF.tris = R.info.render.triangles;
     Dice3D.frame(R, diceDt);
     drewAt = performance.now();
+    PERF.drawMs = PERF.drawMs == null ? drewAt - renderStart : PERF.drawMs * .95 + (drewAt - renderStart) * .05;
     const pn = R.info.programs.length;                  // a shader made now, in the middle of a game, stalls a phone
     if (pn !== progN) { if (progN && built) Diag.note('3d', `new shader (${progN} -> ${pn}) while showing ${Diag.doing()}`); progN = pn; }
   }
@@ -9417,6 +9449,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (!ok || REDUCED) return;
     shadowDirty = true;
     for (let i = 0; i < 40; i++) tiles[i].position.y = -0.6;
+    BLD.dirty = true;
     landG.scale.y = 0.001;
     U.fade.value = 0;
     riseAt = frame + 3;
@@ -9425,7 +9458,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     riseAt = 0;
     for (let i = 0; i < 40; i++) {
       const m = tiles[i], d = (i / 40) * 0.9;
-      later(d).then(() => tween(0.45, e => { m.position.y = -0.6 + 0.6 * e; }, ease.back));
+      later(d).then(() => tween(0.45, e => { m.position.y = -0.6 + 0.6 * e; BLD.dirty = true; }, ease.back));
     }
     later(0.5)
       .then(() => { Sound.rumble(); return tween(1.6, e => { landG.scale.y = Math.max(0.001, e); }, ease.back); })
@@ -9538,7 +9571,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     tiles.length = lotMesh.length = lotGround.length = flags.length = mark.length = toks.length = 0;
     labelTex.length = labelMat.length = sideMat.length = cornerTitles.length = 0;
     life.ready = false; life.groups.length = 0; life.models.length = 0; life.pts = null;
-    BLD.ready = false; BLD.grow = {}; BLD.busy = 0;
+    BLD.ready = false; BLD.grow = {}; BLD.busy = 0; BLD.dirty = false;
     built = false; camInit = false;
     yield;
     yield* buildStatic();
@@ -9677,7 +9710,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       try { const gl = R.getContext(), x = gl.getExtension('WEBGL_debug_renderer_info'); name = x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); } catch (e) { }
       const m = R.info.memory, assets = typeof GLB !== 'undefined' && GLB && GLB.stats ? GLB.stats() : null;
       const models = assets ? ` · models ${assets.completed} ready/${assets.queued + assets.active} loading/${assets.failed} failed · mobile LOD ${assets.lodModels || 0} · model textures ~${Math.round(assets.textureBytes / 1048576)} MiB` : '';
-      return `gpu ${name} · webgl${R.capabilities.isWebGL2 ? 2 : 1} · pixel ratio ${R.getPixelRatio().toFixed(2)} (${prStep} steps down) · quality ${quality} · frame ${Math.round(busyAvg * 1000)} ms (~${Math.round(1 / busyAvg)} fps / ${mobile ? 30 : 60} target) · CPU submit ${(PERF.cpuMs || 0).toFixed(1)} ms · draw ${PERF.calls || 0}/${Math.round((PERF.tris || 0) / 1000)}k triangles · ${mobile ? 'phone' : 'computer'} · shaders ${R.info.programs.length} · textures ${m.textures} · geometries ${m.geometries}${models}${lostAt ? ' · GRAPHICS LOST' : ''}`;
+      return `gpu ${name} · webgl${R.capabilities.isWebGL2 ? 2 : 1} · pixel ratio ${R.getPixelRatio().toFixed(2)} (${prStep} steps down) · quality ${quality} · frame ${Math.round(busyAvg * 1000)} ms (~${Math.round(1 / busyAvg)} fps / ${Math.round(1 / pacer.interval)} target) · CPU submit ${(PERF.cpuMs || 0).toFixed(1)} ms (effects ${(PERF.effectsMs || 0).toFixed(1)}, clips ${(PERF.clipsMs || 0).toFixed(1)}, draw ${(PERF.drawMs || 0).toFixed(1)}) · draw ${PERF.calls || 0}/${Math.round((PERF.tris || 0) / 1000)}k triangles · ${mobile ? 'phone' : 'computer'} · shaders ${R.info.programs.length} · textures ${m.textures} · geometries ${m.geometries}${models}${lostAt ? ' · GRAPHICS LOST' : ''}`;
     },
     onPick(cb) { pickCb = cb; },
     setPos(seat, at) { pos[seat] = at; },
@@ -10203,13 +10236,13 @@ const Card3D = (() => {
   function build(kind) {
     const T = window.THREE;
     let scene, camera, frame = 0, destroyed = false, resize = null, host = null, controller = null;
-    let elapsed = 0, started = 0, lastDraw = -Infinity, previousSize = '', prepared = false, draw = null;
+    let elapsed = 0, started = 0, nextDraw = null, previousSize = '', prepared = false, draw = null;
     const mobile = phone(), objects = new Set(), materials = new Set(), textures = new Set();
     let r;
     function visibility() {
       if (!controller) return;
       cancelAnimationFrame(frame);
-      if (document.visibilityState !== 'hidden') { lastDraw = -Infinity; if (draw) draw(performance.now()); }
+      if (document.visibilityState !== 'hidden') { nextDraw = null; if (draw) draw(performance.now()); }
     }
     function detach() {
       cancelAnimationFrame(frame); frame = 0;
@@ -10440,10 +10473,14 @@ const Card3D = (() => {
       }
       function render(now) {
         if (destroyed || !controller || document.visibilityState === 'hidden') return;
-        // Keep reveals at 30 Hz on phones, without stretching their wall-clock
-        // duration or running geometry deformation on skipped display frames.
-        if (!mobile || now - lastDraw >= 1000 / 30 - .4 || now - started >= DURATION) {
-          elapsed = reduced() ? DURATION : clamp(now - started, 0, DURATION); lastDraw = now;
+        // The phone reveal targets 60 Hz on 60/90/120 Hz displays. Advance a
+        // stable deadline instead of resetting it to each late RAF; skip missed
+        // slots rather than replaying them in a catch-up burst. The timeline
+        // always uses real elapsed time, independently of the drawing cadence.
+        const interval = 1000 / 60, tolerance = .4;
+        if (!mobile || nextDraw === null || now + tolerance >= nextDraw || now - started >= DURATION) {
+          elapsed = reduced() ? DURATION : clamp(now - started, 0, DURATION);
+          if (mobile) nextDraw = nextDraw === null ? now + interval : nextDraw + Math.max(1, Math.floor((now + tolerance - nextDraw) / interval) + 1) * interval;
           animate(elapsed / 1000); camera.updateProjectionMatrix(); r.render(scene, camera);
         }
         if (elapsed < DURATION) frame = requestAnimationFrame(render);
@@ -10451,7 +10488,7 @@ const Card3D = (() => {
       draw = render;
       function attach(nextHost) {
         if (destroyed) return null;
-        host = nextHost; elapsed = 0; started = performance.now(); lastDraw = -Infinity; previousSize = '';
+        host = nextHost; elapsed = 0; started = performance.now(); nextDraw = null; previousSize = '';
         let disposed = false, finalElapsed = 0;
         const session = {
           dispose() { if (disposed) return; disposed = true; finalElapsed = elapsed; if (controller === session) detach(); },

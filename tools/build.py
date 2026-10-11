@@ -17,7 +17,7 @@ import base64, hashlib, json, os, shutil, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'src')
 METEKHI = os.environ.get('METEKHI', os.path.join(os.path.dirname(ROOT), 'qourum', 'metekhi'))
-JS = ['diag.js', 'data.js', 'themes.js', 'engine.js', 'net.js', 'voice.js', 'terrain.js', 'models.js', 'sea.js', 'glb.js', 'marine.js', 'lagoon.js', 'reef.js', 'weather.js', 'place-models.js', 'map-props.js', 'place-fx.js', 'render-pacer.js', 'board3d.js', 'dice3d.js', 'pictures.js', 'card3d.js', 'ui.js', 'app.js']
+JS = ['diag.js', 'data.js', 'themes.js', 'engine.js', 'trade-insights.js', 'net.js', 'voice.js', 'terrain.js', 'models.js', 'sea.js', 'glb.js', 'marine.js', 'lagoon.js', 'reef.js', 'weather.js', 'place-models.js', 'map-props.js', 'place-fx.js', 'render-pacer.js', 'board3d.js', 'dice3d.js', 'pictures.js', 'card3d.js', 'ui.js', 'app.js']
 THREE_CDN = 'https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js'
 HEROES = ['david', 'tamar', 'gorgasali', 'erekle', 'kakutsa', 'tariel', 'avtandil', 'gurdjieff', 'abrag', 'amirani', 'mikha', 'prometheus']
 PIRATES = ['blackbeard', 'bonny', 'read', 'chingshih', 'omalley', 'morgan', 'kidd', 'roberts', 'barbarossa', 'bellamy', 'labuse', 'stortebeker']
@@ -98,7 +98,7 @@ def asset_revisions():
 
 
 def page(site):
-    css, body = read('style.css'), read('index.html').replace('<!--HEAD-->', '')
+    css, body = read('style.css') + '\n' + read('portfolio.css'), read('index.html').replace('<!--HEAD-->', '')
     code = '\n'.join(read(n) for n in JS)
     # Worker-only fixes and changed asset bytes both identify a new release.
     build = hashlib.sha1((css + body + code + read('sw.js') + json.dumps(asset_revisions(), sort_keys=True)).encode()).hexdigest()[:10]

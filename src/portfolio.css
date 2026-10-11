@@ -1,0 +1,97 @@
+/* Illustrated holdings and trade decisions. These cards use existing artwork;
+   opening a portfolio creates no extra WebGL context or animated effect. */
+.portfolio-summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 16px; }
+.portfolio-stat { flex: 1 1 88px; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 12px; background: #10252d; }
+.portfolio-stat small { color: #beced0; font-size: 11px; line-height: 1.35; }
+.portfolio-stat b { color: var(--gold-hi); font-size: 19px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.portfolio-group { margin: 18px 0 0; }
+.portfolio-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 0 7px; border-bottom: 2px solid var(--g, var(--gold)); }
+.portfolio-heading h3 { min-width: 0; margin: 0; color: var(--cream); font: 900 15px/1.4 var(--f-display); overflow-wrap: anywhere; }
+.portfolio-count { flex: none; padding: 3px 8px; border: 1px solid #61716f; border-radius: 7px; color: #e4ece5; background: #233432; font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.portfolio-count.full { color: #d1f4b9; border-color: #588343; background: #233a24; }
+.portfolio-progress { display: flex; align-items: center; gap: 5px; margin: 8px 0; }
+.collection-pip { display: inline-block; width: 19px; height: 6px; border: 1px solid #7b888a; border-radius: 2px; background: transparent; }
+.collection-pip.owned { border-color: var(--g, var(--gold)); background: var(--g, var(--gold)); }
+.collection-pip.missing { border-style: dashed; }
+.portfolio-note { margin: 7px 0 10px; color: #c3ccc9; font-size: 11.5px; line-height: 1.55; overflow-wrap: anywhere; }
+.portfolio-note strong { color: var(--gold-hi); }
+.asset-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 10px; margin: 10px 0 0; }
+.asset-card { position: relative; min-width: 0; display: flex; flex-direction: column; border: 1px solid #b79353; border-radius: 12px; background: #eddbb2; color: #35291e; box-shadow: 0 2px 0 #090f16; }
+.asset-open, .asset-choice { width: 100%; min-width: 0; flex: 1; display: flex; flex-direction: column; padding: 0; border: 0; border-radius: 11px; background: transparent; color: inherit; text-align: left; text-decoration: none; }
+.asset-open:focus-visible, .asset-choice:focus-visible { outline: 3px solid #fff8dc; outline-offset: 3px; }
+.asset-choice[aria-pressed="true"], .asset-card.is-selected { outline: 3px solid var(--gold); outline-offset: 1px; }
+.asset-art { position: relative; width: 100%; height: 112px; flex: none; overflow: hidden; border-radius: 11px 11px 0 0; border-bottom: 5px solid var(--g, var(--gold)); background: #1e4b53; }
+.asset-picture { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; image-rendering: auto; }
+.asset-picture img, .asset-picture svg { display: block; width: 100%; height: 100%; object-fit: cover; }
+.asset-picture.is-cutout, .asset-picture.is-cutout img { object-fit: contain; padding: 3px; }
+.asset-kind { position: absolute; left: 6px; top: 6px; max-width: calc(100% - 41px); padding: 3px 6px; border: 1px solid #e1cf92; border-radius: 5px; background: #102d36; color: #fff2c9; font-size: 9px; line-height: 1.35; font-weight: 800; overflow-wrap: anywhere; }
+.asset-flag { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 29px; height: 37px; color: var(--owner, var(--gold)); }
+.asset-flag svg { display: block; width: 100%; height: 100%; }
+.asset-check { position: absolute; bottom: 7px; right: 7px; display: grid; place-items: center; width: 24px; height: 24px; border: 2px solid #fceabe; border-radius: 50%; background: #183841; color: var(--gold-hi); font: 900 15px/1 var(--f-ui); }
+.is-selected .asset-check, .asset-choice[aria-pressed="true"] .asset-check { background: var(--gold); border-color: #fff0bd; color: #302312; }
+.asset-copy { display: flex; flex: 1; flex-direction: column; gap: 6px; min-width: 0; width: 100%; padding: 9px; }
+.asset-name { display: block; margin: 0; color: #352619; font: 900 13px/1.45 var(--f-display); overflow-wrap: anywhere; }
+.asset-state { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; min-height: 21px; color: #604a31; font-size: 10px; line-height: 1.4; }
+.asset-buildings { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 3px; font-size: 10px; font-weight: 700; }
+.asset-buildings svg, .asset-buildings img { display: inline-block; width: 19px; height: 19px; flex: none; object-fit: contain; }
+.asset-rent { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 2px 5px; margin-top: auto; padding-top: 6px; border-top: 1px solid #b69e7480; color: #614930; font-size: 10px; line-height: 1.4; }
+.asset-rent strong { color: #12453c; font-size: 15px; font-variant-numeric: tabular-nums; }
+.asset-price { color: #665039; font-size: 10px; line-height: 1.4; }
+.asset-mortgage { display: inline-flex; align-self: flex-start; padding: 2px 5px; border: 1px solid #bc8370; border-radius: 4px; background: #f2cdb8; color: #773923; font-size: 10px; font-weight: 800; line-height: 1.4; }
+.asset-card.is-mortgaged { border-color: #b68066; }
+.asset-card.is-mortgaged .asset-rent strong { color: #773923; }
+.asset-actions { padding: 0 8px 8px; }
+.asset-actions:empty { display: none; }
+.asset-actions .ibs { display: flex; flex-wrap: wrap; gap: 5px; padding-top: 7px; border-top: 1px solid #b69e7480; }
+.asset-actions .ib { min-width: 44px; min-height: 44px; height: auto; flex: 1 1 44px; padding: 7px 5px; border-color: #597071; border-radius: 8px; background: #183b42; color: #fff2cd; font-size: 11px; line-height: 1.35; }
+.asset-actions .ib.gold { border-color: #a9782e; background: #dfac48; color: #342414; }
+.asset-actions .ib:disabled { opacity: .6; }
+.asset-actions .ib:focus-visible { outline: 3px solid #163c47; outline-offset: 2px; }
+.portfolio-empty { margin: 12px 0; padding: 18px 14px; border: 1px dashed #667274; border-radius: 12px; background: #12232b; color: #ccd6d1; text-align: center; font-size: 13px; line-height: 1.6; }
+.trade-sheet .tsides { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.trade-sheet .tside { border-color: #526361; background: #13282f; }
+.trade-sheet .tside h4 { font: 900 15px/1.4 var(--f-display); }
+.trade-assets .asset-grid { margin-top: 8px; }
+.trade-summary { margin: 14px 0; padding: 12px; border: 1px solid #738370; border-radius: 14px; background: #122b32; }
+.trade-summary > h3 { margin: 0 0 10px; color: #fff0bc; font: 900 16px/1.4 var(--f-display); }
+.trade-impact { margin-top: 8px; padding: 10px; border: 1px solid #54696c; border-left-width: 4px; border-radius: 8px; background: #1b343c; color: #ecede0; }
+.trade-impact:first-child { margin-top: 0; }
+.trade-impact.positive { border-color: #73ad79; background: #193a32; }
+.trade-impact.caution { border-color: #daa963; background: #3d3225; }
+.trade-impact.neutral { border-color: #6d9ba7; }
+.trade-impact h4 { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 8px; margin: 0 0 5px; color: #fff0c7; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.trade-count { display: inline-block; padding: 2px 6px; border: 1px solid #829286; border-radius: 5px; color: #fff5d9; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.positive .trade-count { color: #d4f4c2; border-color: #74a77a; }
+.trade-detail, .trade-missing, .trade-steps { margin: 5px 0 0; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.trade-detail { color: #e5e9dd; }
+.trade-missing { color: #dfc9a0; }
+.trade-steps { color: #c4d3cd; }
+.trade-steps strong, .trade-detail strong { color: #fff2c8; }
+.trade-wallet { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 5px 12px; padding: 9px 0; margin: 4px 0 8px; border-bottom: 1px solid #64736c; color: #c7d7d2; font-size: 12px; }
+.trade-wallet b, .trade-wallet strong { color: var(--gold-hi); font-variant-numeric: tabular-nums; }
+.trade-submit { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.trade-submit > .btn { flex: 1 1 140px; min-height: 46px; }
+/* Keep names and actions readable on the smallest supported phone width. */
+@media (max-width: 349px) {
+  .asset-grid { grid-template-columns: minmax(0, 1fr); }
+  .asset-art { height: 136px; }
+  .asset-name { font-size: 14px; }
+  .asset-kind { font-size: 10px; }
+  .trade-summary { padding: 9px; }
+}
+@media (min-width: 480px) {
+  .asset-art { height: 137px; }
+  .asset-copy { padding: 10px; }
+  .asset-name { font-size: 14px; }
+  .asset-kind { font-size: 10px; }
+  .asset-state, .asset-buildings, .asset-rent, .asset-price { font-size: 11px; }
+}
+/* Clip the legacy banner to its sharp square, including at wide card ratios. */
+svg.asset-picture { width: auto; max-width: 100%; aspect-ratio: 1; margin: 0 auto; }
+.asset-rent .amt { color: #12453c; font-size: 15px; }
+.portfolio-bio { margin-top: 18px; color: var(--muted); font-size: 12px; }
+.portfolio-bio summary { cursor: pointer; padding: 10px 0; }
+.trade-glance { position: sticky; top: -1px; z-index: 2; display: flex; align-items: center; gap: 8px; justify-content: space-between; padding: 8px; border: 1px solid #b69657; border-radius: 10px; background: #18333b; color: #fff0c7; font-size: 11px; line-height: 1.5; }
+.trade-glance > span { min-width: 0; }
+.trade-glance .ib { min-height: 44px; flex: none; padding: 8px; }
+.trade-summary { scroll-margin-top: 70px; }

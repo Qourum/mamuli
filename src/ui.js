@@ -971,43 +971,72 @@ const Sheet = (() => {
     return `<div class="manage">${b.join('')}</div>${why && why !== 'cash' && L.build ? `<p class="hint">${esc(ERR[why] || '')}</p>` : ''}`;
   }
 
-  // a player's things
-  function holdings(st, s) {
+  // Illustrated property cards share the same sharp reference art as the deed.
+  function assetPicture(t) {
+    if (sea()) {
+      const picture = seaCardPicture(t);
+      if (picture && picture.crop) return `<svg class="asset-picture" viewBox="${picture.crop.join(' ')}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><image href="${esc(ART(picture.name))}" width="1000" height="400"/></svg>`;
+      return `<img class="asset-picture" src="${picture ? esc(ART(picture.name)) : seaArt(t)}" alt="" decoding="async" loading="lazy">`;
+    }
+    return `<img class="asset-picture" src="${ART(t.k === 'p' ? SCENES[t.g] : t.k === 'road' ? 'g_pass' : 'g_elbrus')}" alt="" decoding="async" loading="lazy">`;
+  }
+  function assetCard(st, i, options = {}) {
+    const t = BOARD[i], o = st.own[i], owner = o && st.players[o.o], lv = o ? o.lv : 0;
+    const color = t.k === 'p' ? GROUPS[t.g].c : t.k === 'road' ? '#a57843' : '#4b929b';
+    const type = sea() ? seaLotType(t) : t.k === 'p' ? W.town : t.k === 'road' ? W.road : W.util;
+    const state = t.k === 'p' ? lv === 5 ? `1 ${W.fort}` : lv ? `${lv} ${W.tower}` : sea() ? 'გაუშენებელი კუნძული' : 'გაუშენებელი მიწა' : t.k === 'road' ? W.roads : W.util;
+    const rent = t.k === 'util' && o && !o.m ? `<b>კამათელი ×${UTIL_MULT[Engine.countOf(st, o.o, UTILS)]}</b>` : coin(Engine.rentAt(st, i, 7));
+    const pick = options.pick, button = pick ? `data-pick="${pick}" data-i="${i}" aria-pressed="${!!options.selected}"` : `data-deed="${i}"`;
+    return `<article class="asset-card${options.selected ? ' is-selected' : ''}${o && o.m ? ' is-mortgaged' : ''}" data-property="${i}" style="--g:${color};--owner:${o ? SEAT_COLORS[o.o] : '#a9874c'}">
+      <button class="asset-open${pick ? ' asset-choice' : ''}" ${button}>
+        <span class="asset-art">${assetPicture(t)}<span class="asset-kind">${esc(type)}</span>${owner ? `<span class="asset-flag" title="${esc(owner.name)}" aria-hidden="true">${PIRATE_FLAG}</span>` : ''}${pick ? `<span class="asset-check" aria-hidden="true">${options.selected ? '✓' : '+'}</span>` : ''}</span>
+        <span class="asset-copy"><strong class="asset-name">${esc(tName(i))}</strong>
+        <span class="asset-state">${lv ? `<span class="asset-buildings" aria-hidden="true">${lvIcons(lv)}</span>` : ''}<span>${esc(state)}</span></span>
+        <span class="asset-rent"><span>${o && o.m ? 'ქირა შეჩერებულია' : 'ქირა'}</span>${rent}</span>
+        ${options.price ? `<span class="asset-price">ბანკის ფასი ${coin(t.p)}</span>` : ''}
+        ${o && o.m ? `<span class="asset-mortgage">დაგირავებულია · გამოსყიდვა ${fmt(Engine.unmortCost(i))}</span>` : ''}</span>
+      </button>${options.actions ? `<div class="asset-actions">${options.actions}</div>` : ''}</article>`;
+  }
+  function holdings(st, seat) {
     const rows = [];
     GROUPS.forEach((g, gi) => {
-      const ts = GROUP_TILES[gi].filter(i => st.own[i] && st.own[i].o === s);
-      if (ts.length) rows.push({ c: g.c, n: g.n, ts, full: Engine.groupOwner(st, gi) === s });
+      const ts = GROUP_TILES[gi].filter(i => st.own[i] && st.own[i].o === seat);
+      if (ts.length) rows.push({ c: g.c, n: g.n, ts, all: GROUP_TILES[gi], gi, full: Engine.groupOwner(st, gi) === seat });
     });
-    const rs = ROADS.filter(i => st.own[i] && st.own[i].o === s), us = UTILS.filter(i => st.own[i] && st.own[i].o === s);
-    if (rs.length) rows.push({ c: '#8a6a4f', n: W.roads, ts: rs });
-    if (us.length) rows.push({ c: '#7a4a2a', n: W.util, ts: us });
+    const rs = ROADS.filter(i => st.own[i] && st.own[i].o === seat), us = UTILS.filter(i => st.own[i] && st.own[i].o === seat);
+    if (rs.length) rows.push({ c: '#a57843', n: W.roads, ts: rs, all: ROADS });
+    if (us.length) rows.push({ c: '#4b929b', n: W.util, ts: us, all: UTILS });
     return rows;
   }
+  function portfolioSummary(st, seat, rows) {
+    return `<div class="portfolio-summary"><span class="portfolio-stat"><small>ხელთ აქვს</small>${coin(st.players[seat].cash)}</span><span class="portfolio-stat"><small>ქონების ქარდი</small><b>${rows.reduce((n,r)=>n+r.ts.length,0)}</b></span><span class="portfolio-stat"><small>სრული ჯგუფი</small><b>${rows.filter(r=>r.full).length}</b></span></div>`;
+  }
+  function portfolio(st, seat, rows, legal) {
+    if (!rows.length) return `<p class="portfolio-empty">${esc(seat === View.mySeat() ? W.nothingYet : 'ჯერ ქონება არ აქვს.')}</p>`;
+    return rows.map(r => {
+      const missing = r.all.filter(i => !r.ts.includes(i)), mort = r.ts.some(i => st.own[i].m);
+      const developed = r.gi != null && r.ts.every(i => st.own[i].lv === 5);
+      const note = r.gi != null ? missing.length ? `აკლია: ${missing.map(tName).join(', ')}` : developed ? 'სრული ჯგუფი · ყველა ადგილი ბოლომდეა აშენებული.' : mort ? 'სრული ჯგუფია. მშენებლობამდე საჭიროა დაგირავებული ქონების გამოსყიდვა.' : 'სრული ჯგუფი · მფლობელს თავის სვლაზე შეუძლია თანაბრად აშენება, საჭირო თანხით.' : r.ts.length === r.all.length ? 'კოლექცია სრულია' : 'კოლექციის დამატება ქირას ზრდის';
+      return `<section class="portfolio-group" style="--g:${r.c}"><div class="portfolio-heading"><h3>${esc(r.n)}</h3><span class="portfolio-count${r.full ? ' full' : ''}">${r.ts.length} / ${r.all.length}${r.full ? ' · სრული' : ''}</span></div>
+        <div class="portfolio-progress" aria-hidden="true">${r.all.map(i=>`<span class="collection-pip ${r.ts.includes(i)?'owned':'missing'}" title="${esc(tName(i))}"></span>`).join('')}</div>
+        <div class="asset-grid">${r.ts.map(i=>assetCard(st,i,{actions:legal && legal.manage ? rowActions(st,seat,i,legal):''})).join('')}</div><p class="portfolio-note">${esc(note)}</p></section>`;
+    }).join('');
+  }
   function player(st) {
-    const s = arg, p = st.players[s];
+    const seat = arg, p = st.players[seat];
     if (!p) return null;
-    const rows = holdings(st, s);
-    const list = rows.length ? rows.map(r => `<div class="hold"><h4 style="--g:${r.c}">${esc(r.n)}${r.full ? ' <span class="tag">მთელი</span>' : ''}</h4>${r.ts.map(i => tileRow(st, i)).join('')}</div>`).join('') : '<p class="prose">ჯერ არაფერი აქვს.</p>';
-    const bio = HEROES[p.hero].b ? `<p class="prose bio">${esc(HEROES[p.hero].b)}</p>` : '';
-    return `<div class="sheet-h"><img class="sh-por" src="${por(p.hero)}" alt="" style="--c:${SEAT_COLORS[s]}"><div><h2>${esc(p.name)}</h2><small>${esc(HEROES[p.hero].n)}</small></div><button class="x" data-close aria-label="დახურვა">×</button></div>
-      ${bio}<p class="facts"><span>ფული ${coin(p.cash)}</span><span>ქონება ${coin(Engine.worth(st, s))}</span>${p.fe.length ? `<span>${esc(W.feather)} ${p.fe.length}</span>` : ''}</p>${list}`;
+    const rows = holdings(st, seat), hero = HEROES[p.hero] || {};
+    const bio = hero.b ? `<details class="portfolio-bio"><summary>${esc(hero.n || 'გმირის ამბავი')}</summary><p class="prose bio">${esc(hero.b)}</p></details>` : '';
+    return `<div class="sheet-h"><img class="sh-por" src="${por(p.hero)}" alt="" style="--c:${SEAT_COLORS[seat]}"><div><h2>${esc(p.name)}</h2><small>${esc(W.estate)} · ${esc(hero.n || '')}</small></div><button class="x" data-close aria-label="დახურვა">×</button></div>
+      ${portfolioSummary(st,seat,rows)}${portfolio(st,seat,rows)}<p class="facts"><span>მთლიანი ქონება ${coin(Engine.worth(st,seat))}</span>${p.fe.length ? `<span>${esc(W.feather)} ×${p.fe.length}</span>` : ''}</p>${bio}`;
   }
-  function tileRow(st, i, actions) {
-    const o = st.own[i], t = BOARD[i];
-    const lv = o && o.lv ? `<span class="lvi" title="${esc(LEVEL_NAMES[o.lv])}">${lvIcons(o.lv)}</span>` : '';
-    const rent = Engine.rentAt(st, i, 7);
-    return `<div class="trow${o && o.m ? ' mort' : ''}"><button class="tlink" data-deed="${i}" style="--g:${t.k === 'p' ? GROUPS[t.g].c : '#8a6a4f'}">${esc(t.n)}</button>${lv}<span class="tr-r">${o && o.m ? '<b class="bad">დაგირავებული</b>' : t.k === 'util' ? '×' + UTIL_MULT[Engine.countOf(st, o.o, UTILS)] : 'ქირა ' + coin(rent)}</span>${actions || ''}</div>`;
-  }
-
-  // managing your own things: towers up and down, pawning
+  // Managing keeps its actions on each card; property art and rent stay visible.
   function estate(st) {
-    const s = View.mySeat(), p = st.players[s];
+    const seat = View.mySeat(), p = st.players[seat];
     if (!p) return null;
-    const L = Engine.legal(st, s), rows = holdings(st, s);
-    const debt = st.phase === 'debt' && st.turn === s ? `<div class="debtbar">ვალი ${coin(st.pend.a)} · გაქვს ${coin(p.cash)} <button class="btn small gold" data-a="pay" ${p.cash >= st.pend.a ? '' : 'disabled'}>გადაიხადე</button></div>` : '';
-    const note = L.manage ? '' : `<p class="hint">${W.buildLater}</p>`;
-    const list = rows.length ? rows.map(r => `<div class="hold"><h4 style="--g:${r.c}">${esc(r.n)}${r.full ? ' <span class="tag">მთელი</span>' : ''}</h4>${r.ts.map(i => tileRow(st, i, L.manage ? rowActions(st, s, i, L) : '')).join('')}</div>`).join('') : `<p class="prose">${W.nothingYet}</p>`;
-    return `<div class="sheet-h"><h2>${esc(W.estate)}</h2><span class="sh-cash">${coin(p.cash)}</span><button class="x" data-close aria-label="დახურვა">×</button></div>${debt}${note}${list}`;
+    const legal = Engine.legal(st,seat), rows = holdings(st,seat);
+    const debt = st.phase === 'debt' && st.turn === seat ? `<div class="debtbar">ვალი ${coin(st.pend.a)} · გაქვს ${coin(p.cash)} <button class="btn small gold" data-a="pay" ${p.cash >= st.pend.a ? '' : 'disabled'}>გადაიხადე</button></div>` : '';
+    return `<div class="sheet-h"><h2>${esc(W.estate)}</h2><button class="x" data-close aria-label="დახურვა">×</button></div>${portfolioSummary(st,seat,rows)}${debt}${portfolio(st,seat,rows,legal)}${legal.manage ? '' : `<p class="hint">${esc(W.buildLater)}</p>`}${p.fe.length ? `<p class="facts">${esc(W.feather)} ×${p.fe.length}</p>` : ''}`;
   }
   function rowActions(st, s, i, L) {
     const t = BOARD[i], o = st.own[i], b = [];
@@ -1040,6 +1069,44 @@ const Sheet = (() => {
     return `${head}<p class="hint">${W.evenHint}</p>${rows}`;
   }
 
+  function tradeSummary(st, tr, seat) {
+    const result = TradeInsights.preview(st,tr,seat);
+    if (!result.valid) return `<section class="trade-summary"><p class="hint">${result.reason === 'empty' ? 'აირჩიე ქარდები: აქ გამოჩნდება, რას მოგცემს გაცვლა.' : 'შეთავაზება შეიცვალა ან აღარ მოქმედებს. გადაამოწმე ქონება და თანხა.'}</p></section>`;
+    const impacts = result.groups.map(g => {
+      const group = GROUPS[g.gi];
+      const title = g.completed ? 'ასრულებ ჯგუფს' : g.broken ? 'კარგავ სრულ ჯგუფს' : g.after > g.before ? 'უახლოვდები სრულ ჯგუფს' : g.after < g.before ? 'ჯგუფში ნაკლები ქონება გრჩება' : 'ჯგუფის რაოდენობა უცვლელია';
+      let detail = '';
+      if (g.after === g.total) {
+        detail = `ჯგუფი შენია. ${sea() ? 'ქოხები' : 'კოშკები'} უნდა აშენდეს თანაბრად; თითო მშენებლობა ${fmt(g.buildCost)} ღირს.`;
+        if (g.mortgaged.length) detail += ` ჯერ გამოისყიდე დაგირავებული ქონება: ${fmt(g.redemptionCost)}.`;
+        if (!g.firstBuildAffordable) detail += ' გარიგების შემდეგ დარჩენილი თანხა გამოსყიდვასა და პირველ მშენებლობას ერთად არ ჰყოფნის.';
+        else detail += g.buildTurnReady ? ' თანხა პირველ მშენებლობასაც ჰყოფნის.' : ' მშენებლობას შენს სვლაზე შეძლებ.';
+      } else if (g.broken) detail = 'ამ ჯგუფში ვეღარ ააშენებ, სანამ სრულად არ დაიბრუნებ. გაუშენებელი ქონების ქირაც მცირდება.';
+      else detail = g.after ? `მშენებლობისთვის საჭიროა ${g.total}-ვე ${W.town}.` : 'ამ ჯგუფში ქონება აღარ გრჩება.';
+      return `<article class="trade-impact ${g.completed ? 'positive' : g.broken || g.after < g.before ? 'caution' : 'neutral'}" style="--g:${group.c}"><h4>${esc(title)} · ${esc(group.n)}</h4><div class="trade-count">${g.before} / ${g.total} <span aria-label="გაცვლის შემდეგ">→</span> <b>${g.after} / ${g.total}</b></div><p class="trade-detail">${esc(detail)}</p>${g.missing.length && g.after ? `<p class="trade-missing">კიდევ აკლია: ${g.missing.map(i=>esc(tName(i))).join(', ')}</p>` : ''}${g.after === g.total ? `<p class="trade-steps">${sea() ? '4 ქოხი თითო კუნძულზე → შემდეგ სასტუმრო' : '4 კოშკი თითო ქალაქში → შემდეგ ციხე-სიმაგრე'}. ყოველი საფეხური ცალკე ფასიანია.</p>` : ''}</article>`;
+    });
+    for (const [key,label] of [['roads',W.roads],['utilities',W.util]]) {
+      const value = result[key];
+      if (!value.received.length && !value.given.length) continue;
+      const before = key === 'roads' ? fmt(value.rentBefore) : 'კამათელი ×'+value.multiplierBefore, after = key === 'roads' ? fmt(value.rentAfter) : 'კამათელი ×'+value.multiplierAfter;
+      impacts.push(`<article class="trade-impact ${value.after > value.before ? 'positive' : value.after < value.before ? 'caution' : 'neutral'}"><h4>${esc(label)} · ${value.before} → ${value.after}</h4><p class="trade-detail">ქირა: ${before} → <b>${after}</b>. დაგირავებულ ქონებაზე ქირას ვერ იღებ.</p></article>`);
+    }
+    if (result.redemptionCost) impacts.push(`<p class="trade-missing">მიღებული დაგირავებული ქონების გამოსყიდვა დამატებით ${coin(result.redemptionCost)} დაგიჯდება.</p>`);
+    if (result.feathersAfter !== result.feathersBefore) impacts.push(`<p class="trade-detail">${esc(W.feather)}: ${result.feathersBefore} → ${result.feathersAfter}</p>`);
+    return `<section class="trade-summary" aria-label="გარიგების შედეგი"><h3>რას ცვლის ეს გარიგება შენთვის</h3><div class="trade-wallet"><span>ფული ახლა ${coin(result.cashBefore)}</span><span>შემდეგ ${coin(result.cashAfter)}</span></div>${impacts.join('') || '<p class="trade-detail">ქონების ჯგუფები უცვლელია.</p>'}</section>`;
+  }
+  function tradeGlance(st, tr, seat) {
+    const r = TradeInsights.preview(st,tr,seat);
+    const complete = r.groups.filter(g=>g.completed), broken = r.groups.filter(g=>g.broken);
+    const label = !r.valid ? r.reason === 'empty' ? 'აირჩიე გასაცვლელი ქარდები' : 'გადაამოწმე შეთავაზება' : [
+      complete.length ? `სრულდება ${complete.length} ჯგუფი` : '',
+      broken.length ? `იშლება ${broken.length} ჯგუფი` : '',
+      !complete.length && !broken.length ? `იღებ ${r.incoming.length} ქარდს · გასცემ ${r.outgoing.length}` : '',
+      `გრჩება ${fmt(r.cashAfter)}`
+    ].filter(Boolean).join(' · ');
+    return `<div class="trade-glance"><span role="status" aria-live="polite">${esc(label)}</span><button class="ib" data-trade-result>შედეგი ↑</button></div>`;
+  }
+
   // making an offer
   const tradeable = (st, s) => st.own.map((o, i) => o && o.o === s && (BOARD[i].k !== 'p' || GROUP_TILES[BOARD[i].g].every(j => !st.own[j] || !st.own[j].lv)) ? i : -1).filter(i => i >= 0);
   function trade(st) {
@@ -1050,26 +1117,32 @@ const Sheet = (() => {
     const d = draft, me = st.players[s], them = st.players[d.to];
     const side = (seat, x, key) => {
       const tl = tradeable(st, seat), pl = st.players[seat];
-      const items = tl.length ? tl.map(i => `<button class="pick${x.p.includes(i) ? ' on' : ''}" data-pick="${key}" data-i="${i}" style="--g:${BOARD[i].k === 'p' ? GROUPS[BOARD[i].g].c : '#8a6a4f'}">${esc(BOARD[i].n)}<small>${BOARD[i].p}${st.own[i].m ? ' · დაგირ.' : ''}</small></button>`).join('') : '<p class="hint">გასაცვლელი ქონება არ აქვს</p>';
-      return `<div class="tside"><h4>${key === 'give' ? 'შენ აძლევ' : 'შენ ითხოვ'}</h4><div class="picks">${items}</div>
+      const items = tl.length ? tl.map(i => assetCard(st,i,{pick:key,selected:x.p.includes(i),price:true})).join('') : '<p class="hint">გასაცვლელი ქონება არ აქვს</p>';
+      return `<div class="tside"><h4>${key === 'give' ? 'შენ აძლევ' : 'შენ ითხოვ'}</h4><div class="asset-grid trade-assets">${items}</div>
         <div class="money"><span>ფული</span><button class="ib" data-cash="${key}" data-d="-50">−50</button><button class="ib" data-cash="${key}" data-d="-10">−10</button><b>${fmt(x.c)}</b><button class="ib" data-cash="${key}" data-d="10">+10</button><button class="ib" data-cash="${key}" data-d="50">+50</button><small>მაქს. ${fmt(pl.cash)}</small></div>
         ${pl.fe.length ? `<div class="money"><span>${esc(W.feather)}</span><button class="ib" data-fe="${key}" data-d="-1">−</button><b>${x.f}</b><button class="ib" data-fe="${key}" data-d="1">+</button><small>აქვს ${pl.fe.length}</small></div>` : ''}</div>`;
     };
     const tabs = others.map(x => `<button class="who${x === d.to ? ' on' : ''}" data-to="${x}" style="--c:${SEAT_COLORS[x]}"><img src="${por(st.players[x].hero)}" alt="">${esc(st.players[x].name)}</button>`).join('');
     const why = Engine.tradeBlock(st, { from: s, to: d.to, give: d.give, get: d.get });
-    return `<div class="sheet-h"><h2>ვაჭრობა</h2><button class="x" data-close aria-label="დახურვა">×</button></div>
-      <div class="whos">${tabs}</div>
+    return `<div class="trade-sheet"><div class="sheet-h"><h2>ვაჭრობა</h2><button class="x" data-close aria-label="დახურვა">×</button></div>
+      <div class="whos">${tabs}</div>${tradeGlance(st,{from:s,to:d.to,give:d.give,get:d.get},s)}${tradeSummary(st,{from:s,to:d.to,give:d.give,get:d.get},s)}
       <div class="tsides">${side(s, d.give, 'give')}${side(d.to, d.get, 'get')}</div>
       <p class="hint">${W.tradeTowers} ${them.bot ? 'ბოტი მხოლოდ მომგებიან გარიგებას ეთანხმება.' : ''}</p>
-      <button class="btn gold wide" data-offer ${why ? 'disabled' : ''}>შეთავაზება: ${esc(them.name)}</button>`;
+      <button class="btn gold wide" data-offer ${why ? 'disabled' : ''}>შეთავაზება: ${esc(them.name)}</button></div>`;
   }
   function tradeClick(ev) {
     const st = View.st, s = View.mySeat();
+    if (ev.target.closest('[data-trade-result]')) { body().querySelector('.trade-summary').scrollIntoView({block:'start'}); return true; }
     const to = ev.target.closest('[data-to]'), pick = ev.target.closest('[data-pick]'), cash = ev.target.closest('[data-cash]'), fe = ev.target.closest('[data-fe]');
-    if (to) { draft = { to: +to.dataset.to, give: { p: [], c: 0, f: 0 }, get: { p: [], c: 0, f: 0 } }; draw(); return true; }
-    if (pick) { const x = draft[pick.dataset.pick], i = +pick.dataset.i; x.p = x.p.includes(i) ? x.p.filter(j => j !== i) : x.p.concat(i); draw(); return true; }
-    if (cash) { const key = cash.dataset.cash, x = draft[key], max = st.players[key === 'give' ? s : draft.to].cash; x.c = Math.max(0, Math.min(max, x.c + +cash.dataset.d)); draw(); return true; }
-    if (fe) { const key = fe.dataset.fe, x = draft[key], max = st.players[key === 'give' ? s : draft.to].fe.length; x.f = Math.max(0, Math.min(max, x.f + +fe.dataset.d)); draw(); return true; }
+    const redraw = () => {
+      const top = body().scrollTop, clicked = pick || cash || fe || to;
+      const attrs = clicked ? [...clicked.attributes].filter(a=>a.name.startsWith('data-')).map(a=>`[${a.name}="${a.value}"]`).join('') : '';
+      draw(); body().scrollTop = top; const next = attrs && body().querySelector(attrs); if(next) next.focus({preventScroll:true});
+    };
+    if (to) { draft = { to: +to.dataset.to, give: { p: [], c: 0, f: 0 }, get: { p: [], c: 0, f: 0 } }; redraw(); return true; }
+    if (pick) { const x = draft[pick.dataset.pick], i = +pick.dataset.i; x.p = x.p.includes(i) ? x.p.filter(j => j !== i) : x.p.concat(i); redraw(); return true; }
+    if (cash) { const key = cash.dataset.cash, x = draft[key], max = st.players[key === 'give' ? s : draft.to].cash; x.c = Math.max(0, Math.min(max, x.c + +cash.dataset.d)); redraw(); return true; }
+    if (fe) { const key = fe.dataset.fe, x = draft[key], max = st.players[key === 'give' ? s : draft.to].fe.length; x.f = Math.max(0, Math.min(max, x.f + +fe.dataset.d)); redraw(); return true; }
     if (ev.target.closest('[data-offer]')) { move({ t: 'offer', to: draft.to, give: draft.give, get: draft.get, seat: s }); close(); return true; }
     return false;
   }
@@ -1078,10 +1151,11 @@ const Sheet = (() => {
     const tr = st.trade;
     if (!tr || !View.controls(tr.to)) return null;
     const from = st.players[tr.from];
-    const list = x => [...x.p.map(i => `<span class="pick on static" style="--g:${BOARD[i].k === 'p' ? GROUPS[BOARD[i].g].c : '#8a6a4f'}">${esc(BOARD[i].n)}<small>${BOARD[i].p}${st.own[i] && st.own[i].m ? ' · დაგირ.' : ''}</small></span>`), x.c ? `<span class="pick static money-p">${coin(x.c)}</span>` : '', x.f ? `<span class="pick static">${esc(W.feather)} ×${x.f}</span>` : ''].join('') || '<span class="hint">არაფერი</span>';
-    return `<div class="sheet-h"><img class="sh-por" src="${por(from.hero)}" alt="" style="--c:${SEAT_COLORS[tr.from]}"><div><h2>${esc(from.name)} გთავაზობს</h2><small>${esc(st.players[tr.to].name)}, შენ წყვეტ</small></div></div>
-      <div class="tsides"><div class="tside"><h4>შენ მიიღებ</h4><div class="picks">${list(tr.give)}</div></div><div class="tside"><h4>შენ მისცემ</h4><div class="picks">${list(tr.get)}</div></div></div>
-      <div class="row"><button class="btn gold" data-a="accept" data-seat="${tr.to}">თანხმობა</button><button class="btn" data-a="decline" data-seat="${tr.to}">უარი</button></div>`;
+    const list = x => `${x.p.length ? `<div class="asset-grid trade-assets">${x.p.map(i=>assetCard(st,i,{price:true})).join('')}</div>` : ''}${x.c ? `<p class="trade-detail">ფული ${coin(x.c)}</p>` : ''}${x.f ? `<p class="trade-detail">${esc(W.feather)} ×${x.f}</p>` : ''}${!x.p.length && !x.c && !x.f ? '<p class="hint">არაფერი</p>' : ''}`;
+    const blocked = !!Engine.tradeBlock(st,tr);
+    return `<div class="trade-sheet"><div class="sheet-h"><img class="sh-por" src="${por(from.hero)}" alt="" style="--c:${SEAT_COLORS[tr.from]}"><div><h2>${esc(from.name)} გთავაზობს</h2><small>${esc(st.players[tr.to].name)}, შენ წყვეტ</small></div><button class="x" data-close aria-label="დახურვა">×</button></div>
+      ${tradeSummary(st,tr,tr.to)}<div class="tsides"><div class="tside"><h4>შენ მიიღებ</h4>${list(tr.give)}</div><div class="tside"><h4>შენ მისცემ</h4>${list(tr.get)}</div></div>
+      <div class="row trade-submit"><button class="btn gold" data-a="accept" data-seat="${tr.to}" ${blocked ? 'disabled' : ''}>თანხმობა</button><button class="btn" data-a="decline" data-seat="${tr.to}">უარი</button></div></div>`;
   }
   function log(st) {
     const lines = st.ev.map(e => evText(st, e)).filter(Boolean).reverse().slice(0, 70);

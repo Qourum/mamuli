@@ -52,7 +52,7 @@ let sourcePointLights = 0; weather.group.traverse(o => { if (o.isPointLight) sou
 for (let frame = 0; frame <= 180 * 60; frame++) {
   sampleTime = frame / 60; weather.update(sampleTime, 1 / 60);
   const stats = weather.stats(); assert(stats.strength >= 0 && stats.strength <= .4); maxShade = Math.max(maxShade, stats.strength);
-  assert(Math.abs(stats.zone[0]) <= 4.25 && Math.abs(stats.zone[1]) <= 4.25); assert(stats.zone[2] >= 1.6 && stats.zone[2] <= 2.25);
+  assert(Math.abs(stats.zone[0]) <= 5.6 && Math.abs(stats.zone[1]) <= 5.6); assert(stats.zone[2] >= 2.05 && stats.zone[2] <= 2.45);
   assert(stats.duration >= 12 && stats.duration <= 18); assert(stats.quiet >= 45 && stats.quiet <= 70);
   if (stats.active && !cycles.has(stats.cycle)) { cycles.add(stats.cycle); zones.push(stats.zone.slice(0, 2)); }
   if (stats.raining) { rainyFrames++; maxRain = Math.max(maxRain, rain.count); for (let j = 0; j < 5; j++) { const m = new THREE.Matrix4(); rain.getMatrixAt(j * 23, m); assert(m.elements.every(Number.isFinite)); } }
@@ -130,4 +130,50 @@ const phoneMat = new THREE.MeshStandardMaterial(); phoneWeather.patchObject(new 
 const phoneShader = compile(phoneMat);
 assert(phoneShader.vertexShader.includes('varying float vWeatherShade;')); assert(!phoneShader.vertexShader.includes('varying vec3 vWeatherWorld;'));
 assert(phoneMat.customProgramCacheKey().endsWith('weather3d-local-v1-vertex')); phoneWeather.dispose();
+// Follow-camera clouds fade without cancelling local weather. The sea uses the
+// same stable zone and wind objects; ripples rest on its current wave height.
+let closeView = true, focusCalls = 0, focusPosition = { x: 5.3, z: -3.4 }, waterCalls = 0;
+const waveTimes = new Set(), coastParent = new THREE.Group(), offset = 100;
+const waveHeight = (x, z, time) => .02 + .07 * Math.sin(x * .8 + z * .4 - time * 1.3);
+const coast = context.weatherAPI.create({ parent: coastParent, mobile: true, seed: 1729,
+  viewFocus: () => ({ close: closeView, distance: 12, x: 5, z: -3 }),
+  focus: () => { focusCalls++; return focusPosition; },
+  waterHeight: (x, z, time) => { waterCalls++; waveTimes.add(time); return waveHeight(x, z, time); }
+});
+assert.equal(coast.waterUniforms, context.weatherAPI.waterUniforms);
+assert.equal(coast.waterUniforms.zone, uniform, 'cached model shade and the ocean share one storm uniform');
+const sharedWind = coast.waterUniforms.wind, coastClouds = coast.group.getObjectByName('Four drifting 3D fair-weather clouds');
+const coastRain = coast.group.getObjectByName('Local falling 3D rain'), coastRipples = coast.group.getObjectByName('Rain ripples on the sea');
+assert.equal(focusCalls, 0, 'menu scene construction does not lock in a fallback player coast');
+coast.update(offset, 1 / 60);
+assert(coastClouds.material.opacity < .1, 'first close frame cannot start with opaque card-covering clouds');
+assert.equal(focusCalls, 0, 'focus remains unresolved before the first storm arrives');
+coast.update(offset + coast.stats().firstStorm - 8, 1 / 60);
+assert.equal(focusCalls, 1, 'the first arriving cloud snapshots the current player coast');
+const activeAt = offset + coast.stats().firstStorm + 5;
+coast.update(activeAt, 1 / 60);
+assert(coast.stats().nearFocus); assert.equal(focusCalls, 1, 'focus is sampled once for the first storm');
+assert(coast.stats().zone[0] > 4, 'the storm reaches the active card coast instead of the central island only');
+assert(coast.stats().strength > .34 && coast.stats().raining, 'strong local shade and rain remain active in close view');
+assert(coast.stats().stormOpacity < .08, 'the overhead storm cloud remains transparent in close view');
+assert(coastRain.material.opacity > .6); assert(coastRipples.material.opacity > .4);
+assert(Math.abs(sharedWind.value.length() - 1) < 1e-9, 'ocean wind is a normalized direction');
+assert(waterCalls >= coastRain.count + coastRipples.count); assert(waveTimes.has(activeAt), 'water sampling receives original board time, not the relative storm clock');
+for (let i = 0; i < coastRipples.count; i++) {
+  const matrix = new THREE.Matrix4(); coastRipples.getMatrixAt(i, matrix); const p = new THREE.Vector3().setFromMatrixPosition(matrix);
+  assert(Math.abs(p.y - waveHeight(p.x, p.z, activeAt) - .012) < 1e-6, 'a rain ripple follows the animated surface');
+}
+const cellBefore = coast.stats().zone.slice(), opacityBefore = coast.stats().cloudOpacity;
+focusPosition = { x: -5.4, z: 5.4 }; closeView = false;
+coast.update(activeAt, 1 / 60);
+assert.deepEqual(coast.stats().zone, cellBefore, 'camera/player changes do not drag the current storm');
+assert.equal(focusCalls, 1); assert(coast.stats().cloudOpacity > opacityBefore && coast.stats().cloudOpacity < .81, 'switching views fades clouds smoothly');
+for (let i = 1; i <= 120; i++) coast.update(activeAt + i / 60, 1 / 60);
+assert(coast.stats().cloudOpacity > .8, 'overview restores the drifting clouds');
+assert.equal(focusCalls, 1, 'future-flash prediction does not repeatedly sample focus');
+const storm0End = coast.stats().stormStart + coast.stats().duration + coast.stats().quiet;
+coast.update(offset + storm0End + 5, 1 / 60); assert.equal(coast.stats().cycle, 1); assert.equal(coast.stats().nearFocus, false); assert.equal(focusCalls, 1, 'alternate storms retain seeded random destinations');
+const storm1End = coast.stats().stormStart + coast.stats().duration + coast.stats().quiet;
+coast.update(offset + storm1End + 5, 1 / 60); assert.equal(coast.stats().cycle, 2); assert(coast.stats().nearFocus); assert.equal(focusCalls, 2); assert(coast.stats().zone[0] < -4, 'a later nearby storm samples the new active coast');
+coast.dispose(); assert.equal(coast.waterUniforms.zone.value.w, 0); assert.deepEqual(sharedWind.value.toArray(), [1, 0]);
 console.log(JSON.stringify({ passed: true, seconds: 180, frames: 10800, storms: cycles.size, zones, maxShade, raindrops: maxRain, thunderEvents: thunder.length, longestFlash: Math.max(...flashLengths), shaderHooksPreserved: true, clonedMaterialsPatched: true, sourceUniformSurvivesRemake: true, geometryDisposals: geometriesDisposed, materialDisposals: materialsDisposed, reducedMotion: true }, null, 2));

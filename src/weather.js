@@ -4,7 +4,10 @@
 const Weather3D = (() => {
   const T = window.THREE;
   if (!T) return null;
-  const SHADE = { value: new T.Vector4(0, 0, 1, 0) }, PATCHED = new WeakSet(), HOOKS = new WeakMap();
+  const SHADE = { value: new T.Vector4(0, 0, 1, 0) }, WIND = { value: new T.Vector2(1, 0) }, PATCHED = new WeakSet(), HOOKS = new WeakMap();
+  // The ocean shares the exact storm cell without a second surface/pass. Keep
+  // these objects stable across worlds, like the cached model shade uniform.
+  const waterUniforms = { zone: SHADE, wind: WIND };
   const KEY = '|weather3d-local-v1', TAU = Math.PI * 2;
   let activeOwner = null, patchedCount = 0;
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
@@ -117,16 +120,28 @@ const Weather3D = (() => {
     const mobile = !!opts.mobile;
     const parent = opts.parent, waterY = opts.waterY == null ? .02 : opts.waterY, outerY = opts.outerWaterY == null ? -.3 : opts.outerWaterY;
     const seed = opts.seed == null ? Math.floor(Math.random() * 4294967296) >>> 0 : opts.seed >>> 0;
-    const owner = {}; activeOwner = owner; SHADE.value.set(0, 0, 1, 0);
+    const owner = {}; activeOwner = owner; SHADE.value.set(0, 0, 1, 0); WIND.value.set(1, 0);
     const group = new T.Group(); group.name = 'Travelling 3D clouds and local thunderstorms'; parent.add(group);
     const own = new Set(), ownMats = new Set(), keep = x => { own.add(x); return x; };
     const mat = (constructor, options) => { const m = keep(new constructor(options)); ownMats.add(m); return m; };
-    let dead = false, epoch = null, elapsed = 0, lastScan = -100, currentId = 0, lastThunder = '', scans = 0;
+    let dead = false, epoch = null, elapsed = 0, lastScan = -100, currentId = 0, lastThunder = '', scans = 0, cloudVisibility = 1;
     const temp = new T.Object3D(), rainQ = new T.Quaternion(), rainVelocity = new T.Vector3(), localUp = new T.Vector3(0, 1, 0);
     const fairColor = new T.Color(0xd8e2e5), stormColor = new T.Color(0x657c89);
     function specification(id) {
-      const random = rng((seed ^ Math.imul(id + 1, 2654435761)) >>> 0), angle = random() * TAU, r = 1.15 + random() * 2.3;
-      return { id, duration: 12 + random() * 6, quiet: 45 + random() * 25, x: Math.cos(angle) * r, z: Math.sin(angle) * r, radius: 1.6 + random() * .65, drift: random() * TAU, wind: .035 + random() * .035, strength: .29 + random() * .095, boltOffset: 3.2 + random() * .8, boltInterval: 3.8 + random() * .9, height: 5.2 + random() * .45 };
+      const random = rng((seed ^ Math.imul(id + 1, 2654435761)) >>> 0), angle = random() * TAU, r = 2.0 + random() * 3.35;
+      return { id, duration: 12 + random() * 6, quiet: 45 + random() * 25, x: Math.cos(angle) * r, z: Math.sin(angle) * r, radius: 2.05 + random() * .4, drift: random() * TAU, wind: .035 + random() * .035, strength: .35 + random() * .045, boltOffset: 3.2 + random() * .8, boltInterval: 3.8 + random() * .9, height: 5.2 + random() * .45, focusAngle: angle, focusResolved: false, nearFocus: false };
+    }
+    function resolveFocus(cell) {
+      cell.focusResolved = true;
+      // Alternate storms visit the active coast. Sample once when the cloud
+      // starts arriving, after menu warm-up, and never chase later turn changes.
+      if (cell.id % 2 === 0 && typeof opts.focus === 'function') {
+        const focus = opts.focus();
+        if (focus && Number.isFinite(focus.x) && Number.isFinite(focus.z)) {
+          cell.x = clamp(focus.x + Math.cos(cell.focusAngle) * .45, -5.6, 5.6);
+          cell.z = clamp(focus.z + Math.sin(cell.focusAngle) * .45, -5.6, 5.6); cell.nearFocus = true;
+        }
+      }
     }
     const firstStart = 14 + rng(seed ^ 0x729ac35b)() * 6;
     let start = firstStart, spec = specification(0);
@@ -165,6 +180,7 @@ const Weather3D = (() => {
     scan(); lastScan = 0;
     function update(time, dt) {
       if (dead || activeOwner !== owner) return;
+      const firstUpdate = epoch == null;
       if (epoch == null) epoch = time;
       const reduced = typeof opts.reducedMotion === 'function' ? opts.reducedMotion() : !!opts.reducedMotion;
       elapsed = reduced ? 3 : Math.max(0, time - epoch);
@@ -173,33 +189,42 @@ const Weather3D = (() => {
       // storm has long cleared. The travelling cloud therefore does not pop in at
       // the instant the next shower begins.
       while (elapsed >= start + spec.duration + spec.quiet - 8) { start += spec.duration + spec.quiet; spec = specification(++currentId); }
+      if (!spec.focusResolved && elapsed >= start - 8) resolveFocus(spec);
       if (elapsed - lastScan >= 1 || elapsed < lastScan) { scan(); lastScan = elapsed; }
+      const view = typeof opts.viewFocus === 'function' ? opts.viewFocus() : null;
+      const closeView = !!(view && view.close);
+      const distance = view && Number.isFinite(view.distance) ? view.distance : 12;
+      const desiredVisibility = closeView ? .08 + .10 * smooth(10, 24, distance) : 1;
+      // Fade only the overhead geometry; the same rain, shadow, lightning and
+      // ocean storm remain visible beside the player's cards at close range.
+      cloudVisibility += (desiredVisibility - cloudVisibility) * (firstUpdate || reduced || dt == null ? 1 : 1 - Math.exp(-clamp(dt, 0, .1) * 6));
+      cloudMat.opacity = .81 * cloudVisibility;
       for (let i = 0; i < clouds.count; i++) {
         const a = cloudData[i], angle = a.a + elapsed * a.speed;
         temp.position.set(Math.cos(angle) * a.r, a.y + .07 * Math.sin(elapsed * .09 + a.a), Math.sin(angle) * a.r); temp.rotation.set(0, -angle + .4, 0); temp.scale.setScalar(a.scale); temp.updateMatrix(); clouds.setMatrixAt(i, temp.matrix);
       }
       clouds.instanceMatrix.needsUpdate = true;
       const age = elapsed - start, envelope = reduced ? 0 : smooth(0, 3.2, age) * (1 - smooth(spec.duration - 3.2, spec.duration, age));
-      const driftTime = clamp(age, 0, spec.duration), zx = clamp(spec.x + Math.cos(spec.drift) * spec.wind * driftTime, -4.25, 4.25), zz = clamp(spec.z + Math.sin(spec.drift) * spec.wind * driftTime, -4.25, 4.25);
+      const driftTime = clamp(age, 0, spec.duration), zx = clamp(spec.x + Math.cos(spec.drift) * spec.wind * driftTime, -5.6, 5.6), zz = clamp(spec.z + Math.sin(spec.drift) * spec.wind * driftTime, -5.6, 5.6);
       const arrive = smooth(-8, 0, age), depart = smooth(spec.duration, spec.duration + 7, age), outX = Math.cos(spec.drift + Math.PI) * 7.4, outZ = Math.sin(spec.drift + Math.PI) * 7.4;
       stormCloud.position.set(zx * arrive + outX * (1 - arrive) + Math.cos(spec.drift) * depart * 3.5, spec.height + .10 * Math.sin(elapsed * .16), zz * arrive + outZ * (1 - arrive) + Math.sin(spec.drift) * depart * 3.5);
       stormCloud.rotation.y = spec.drift + .035 * Math.sin(elapsed * .1); stormCloud.scale.setScalar(spec.radius / 1.75 * .78);
-      stormMat.color.copy(fairColor).lerp(stormColor, envelope); stormMat.opacity = reduced ? 0 : .66 * smooth(-8, -4, age) * (1 - depart); stormCloud.visible = stormMat.opacity > .01;
+      stormMat.color.copy(fairColor).lerp(stormColor, envelope); stormMat.opacity = reduced ? 0 : .66 * smooth(-8, -4, age) * (1 - depart) * cloudVisibility; stormCloud.visible = stormMat.opacity > .01;
       const strength = envelope * spec.strength;
-      SHADE.value.set(zx, zz, spec.radius, strength);
-      rainMat.opacity = envelope * .53; rain.visible = envelope > .01; rippleMat.opacity = envelope * .31; ripples.visible = rain.visible;
+      SHADE.value.set(zx, zz, spec.radius, strength); WIND.value.set(Math.cos(spec.drift), Math.sin(spec.drift));
+      rainMat.opacity = envelope * .64; rain.visible = envelope > .01; rippleMat.opacity = envelope * .44; ripples.visible = rain.visible;
       const windX = Math.cos(spec.drift) * .28, windZ = Math.sin(spec.drift) * .28;
       rainQ.setFromUnitVectors(localUp, rainVelocity.set(windX, -1, windZ).normalize());
       if (rain.visible) for (let i = 0; i < rain.count; i++) {
         const d = raindata[i], u = frac(elapsed * d.speed + d.phase), x = zx + Math.cos(d.a) * d.r * spec.radius + windX * u, z = zz + Math.sin(d.a) * d.r * spec.radius + windZ * u;
-        const floor = Math.max(Math.abs(x), Math.abs(z)) > 6.2 ? outerY : waterY;
+        const floor = sampleWater(x, z, reduced ? 3 : time);
         temp.position.set(x, spec.height - .23 - (spec.height - .23 - floor) * u, z); temp.quaternion.copy(rainQ); temp.scale.set(1, .83 + .44 * d.phase, 1); temp.updateMatrix(); rain.setMatrixAt(i, temp.matrix);
       }
       // Hidden rain does not need its GPU instance buffer rewritten each frame.
       if (rain.visible) rain.instanceMatrix.needsUpdate = true;
       if (ripples.visible) for (let i = 0; i < ripples.count; i++) {
         const d = raindata[i * 5], u = frac(elapsed * .72 + d.phase), x = zx + Math.cos(d.a) * d.r * spec.radius, z = zz + Math.sin(d.a) * d.r * spec.radius;
-        temp.position.set(x, (Math.max(Math.abs(x), Math.abs(z)) > 6.2 ? outerY : waterY) + .008, z); temp.rotation.set(0, 0, 0); const r = .019 + u * .070; temp.scale.set(r, r * (1 - u), r); temp.updateMatrix(); ripples.setMatrixAt(i, temp.matrix);
+        temp.position.set(x, sampleWater(x, z, reduced ? 3 : time) + .012, z); temp.rotation.set(0, 0, 0); const r = .022 + u * .085; temp.scale.set(r, r * (1 - u), r); temp.updateMatrix(); ripples.setMatrixAt(i, temp.matrix);
       }
       if (ripples.visible) ripples.instanceMatrix.needsUpdate = true;
       const boltAge = age - spec.boltOffset, strike = Math.floor(boltAge / spec.boltInterval), flashAge = boltAge - strike * spec.boltInterval;
@@ -207,23 +232,28 @@ const Weather3D = (() => {
       bolt.visible = flash;
       if (flash) {
         const variant = Math.abs(strike + currentId) % boltGeos.length; bolt.geometry = boltGeos[variant];
-        const angle = (strike + 1) * 2.39996, r = spec.radius * .26; bolt.position.set(zx + Math.cos(angle) * r, waterY + .015, zz + Math.sin(angle) * r); bolt.rotation.y = spec.drift; bolt.scale.set(1, (spec.height - .35 - waterY) / 4.65, 1);
+        const angle = (strike + 1) * 2.39996, r = spec.radius * .26, x = zx + Math.cos(angle) * r, z = zz + Math.sin(angle) * r, surface = sampleWater(x, z, reduced ? 3 : time);
+        bolt.position.set(x, surface + .015, z); bolt.rotation.y = spec.drift; bolt.scale.set(1, (spec.height - .35 - surface) / 4.65, 1);
         const event = currentId + ':' + strike;
         if (event !== lastThunder) { lastThunder = event; if (typeof opts.onThunder === 'function') { try { opts.onThunder({ x: bolt.position.x, z: bolt.position.z, strength: .65 + envelope * .25 }); } catch (_) { } } }
       }
       let nextFlash = start + spec.boltOffset + Math.max(0, Math.floor(boltAge / spec.boltInterval) + 1) * spec.boltInterval;
       if (nextFlash >= start + spec.duration - 1) { const following = specification(currentId + 1); nextFlash = start + spec.duration + spec.quiet + following.boltOffset; }
-      state = { active: envelope > .001, raining: rain.visible, strength, zone: [zx, zz, spec.radius], lightning: flash, nextFlash, time: elapsed };
+      state = { active: envelope > .001, raining: rain.visible, strength, zone: [zx, zz, spec.radius], lightning: flash, nextFlash, time: elapsed, closeView, cloudOpacity: cloudMat.opacity, stormOpacity: stormMat.opacity, nearFocus: spec.nearFocus };
+    }
+    function sampleWater(x, z, time) {
+      const height = typeof opts.waterHeight === 'function' ? opts.waterHeight(x, z, time) : NaN;
+      return Number.isFinite(height) ? height : Math.max(Math.abs(x), Math.abs(z)) > 6.2 ? outerY : waterY;
     }
     // Initial fair-weather shapes are visible before the board's first update,
     // while the first update itself establishes a relative storm clock.
     for (let i = 0; i < cloudData.length; i++) { const a = cloudData[i]; temp.position.set(Math.cos(a.a) * a.r, a.y, Math.sin(a.a) * a.r); temp.rotation.set(0, -a.a + .4, 0); temp.scale.setScalar(a.scale); temp.updateMatrix(); clouds.setMatrixAt(i, temp.matrix); }
     stormCloud.visible = rain.visible = ripples.visible = false;
     return {
-      group, update, patchObject, flush,
-      dispose() { if (dead) return; dead = true; if (activeOwner === owner) { activeOwner = null; SHADE.value.set(0, 0, 1, 0); } parent.remove(group); group.traverse(o => { if (o.isInstancedMesh) o.dispose(); }); group.clear(); for (const item of own) item.dispose(); own.clear(); ownMats.clear(); },
+      group, update, patchObject, flush, waterUniforms,
+      dispose() { if (dead) return; dead = true; if (activeOwner === owner) { activeOwner = null; SHADE.value.set(0, 0, 1, 0); WIND.value.set(1, 0); } parent.remove(group); group.traverse(o => { if (o.isInstancedMesh) o.dispose(); }); group.clear(); for (const item of own) item.dispose(); own.clear(); ownMats.clear(); },
       stats() { return { ...state, zone: state.zone.slice(), seed, cycle: currentId, stormStart: start, duration: spec.duration, quiet: spec.quiet, firstStorm: firstStart, clouds: clouds.count + 1, drops: rain.count, ripples: ripples.count, maxFlash: .16, minimumFlashGap: 3.8, scans, patchedMaterials: patchedCount, mobile, shade: mobile ? 'vertex' : 'fragment' }; }
     };
   }
-  return { create };
+  return { create, waterUniforms };
 })();

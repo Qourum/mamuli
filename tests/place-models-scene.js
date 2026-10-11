@@ -19,6 +19,44 @@ const parent = new THREE.Group(), model = PM.create({ parent, places });
 assert.equal(model.stats().places, 16); assert.ok(model.stats().drawCalls < 60); assert.ok(model.stats().triangles < 70000);
 const root = parent.children[0], pools = root.children.filter(o => o.isInstancedMesh);
 assert.equal(pools.length, model.stats().pools);
+const clothPools = pools.filter(p => p.geometry.userData.cloth), clothSnapshots = new Map(), clothShaders = [];
+let clothNormalRebuilds = 0, clothVertexWrites = 0;
+function compileCloth(material) {
+  const shader = { uniforms: {}, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader };
+  material.onBeforeCompile(shader); return shader;
+}
+for (const p of clothPools) {
+  const geometry = p.geometry, positions = geometry.attributes.position, coefficients = geometry.attributes.aPlaceCloth;
+  assert.equal(coefficients.count, positions.count); assert.equal(coefficients.itemSize, 2);
+  assert.equal(p.castShadow, false, 'cloth retains its existing shadow behavior');
+  clothSnapshots.set(p, { position: positions.array.slice(), normal: geometry.attributes.normal.array.slice(), versions: [positions.version, geometry.attributes.normal.version] });
+  const computeNormals = geometry.computeVertexNormals, setVertex = positions.setXYZ;
+  geometry.computeVertexNormals = function (...args) { clothNormalRebuilds++; return computeNormals.apply(this, args); };
+  positions.setXYZ = function (...args) { clothVertexWrites++; return setVertex.apply(this, args); };
+  const shader = compileCloth(p.material); clothShaders.push(shader);
+  assert(shader.vertexShader.includes('objectNormal.xy -= clothWave.yz * objectNormal.z;'), 'inverse-transpose normal correction is applied');
+  assert(shader.vertexShader.includes('transformed.z += clothWave.x;'), 'the wave deforms the rendered cloth');
+  assert(shader.vertexShader.indexOf('vec3 clothWave =') < shader.vertexShader.indexOf('transformed.z += clothWave.x;'));
+  // Evaluate the actual small shader expression against the original CPU wave.
+  // This catches a scale/frequency/edge-pinning change without a WebGL mock.
+  const waveBody = shader.vertexShader.match(/vec3 placeClothWave\(vec3 p\)\s*\{([\s\S]*?)\}/)[1].replace(/\bfloat\b/g, 'let');
+  const wave = new Function('p', 'aPlaceCloth', 'uPlaceClothTime', 'const sin=Math.sin, cos=Math.cos, vec3=(...values)=>values;' + waveBody);
+  const width = geometry.userData.width, tent = geometry.userData.tent;
+  const freeAt = x => tent ? Math.abs(x / width) : Math.max(0, Math.min(1, x / width));
+  const reference = (x, y, time) => freeAt(x) * .0045 * Math.sin(time * 2.1 + x * 49 + y * 18);
+  for (const time of [0, .25, 1.7, 19.4]) for (let i = 0; i < positions.count; i++) {
+    const x = positions.getX(i), y = positions.getY(i), actual = wave({ x, y }, { x: coefficients.getX(i), y: coefficients.getY(i) }, time);
+    assert(Math.abs(actual[0] - reference(x, y, time)) < 1e-8, 'GPU wave retains the original cloth position');
+    const h = 1e-6;
+    // At a clamp/cusp the derivative is one-sided, so check smooth interiors.
+    if (Math.abs(x) > h * 2 && (tent || Math.abs(x - width) > h * 2)) {
+      assert(Math.abs(actual[1] - (reference(x + h, y, time) - reference(x - h, y, time)) / (2 * h)) < 1e-6, 'cloth X normal derivative matches the surface');
+      assert(Math.abs(actual[2] - (reference(x, y + h, time) - reference(x, y - h, time)) / (2 * h)) < 1e-6, 'cloth Y normal derivative matches the surface');
+    }
+  }
+}
+assert.equal(clothPools.length, 4, 'flags, flag glyphs, sails and tents keep their animated surfaces');
+assert(clothShaders.every(s => s.uniforms.uPlaceClothTime === clothShaders[0].uniforms.uPlaceClothTime), 'all cloth shares one clock');
 const rings = pools.find(p => p.name.includes('arrival-rings')), coins = pools.find(p => p.name.includes('reward-coins'));
 assert.ok(rings && coins);
 let reactionMatrixWrites = 0;
@@ -52,6 +90,14 @@ root.traverse(o => {
 });
 const firstMatrices = pools.map(p => [...p.instanceMatrix.array]);
 for (let k = 1; k <= 180; k++) { model.update(k / 6, 1 / 6); for (const p of pools) assert.ok(Array.from(p.instanceMatrix.array).every(Number.isFinite)); }
+assert.equal(clothShaders[0].uniforms.uPlaceClothTime.value, 30, 'the shader clock advances with the board clock');
+assert.equal(clothNormalRebuilds, 0, 'animation never rebuilds cloth normals on the CPU');
+assert.equal(clothVertexWrites, 0, 'animation never rewrites cloth vertices on the CPU');
+for (const [p, snapshot] of clothSnapshots) {
+  assert.deepEqual(p.geometry.attributes.position.array, snapshot.position, 'rest positions remain in their existing GPU buffer');
+  assert.deepEqual(p.geometry.attributes.normal.array, snapshot.normal, 'rest normals remain in their existing GPU buffer');
+  assert.deepEqual([p.geometry.attributes.position.version, p.geometry.attributes.normal.version], snapshot.versions, 'no position or normal GPU buffer upload is requested');
+}
 assert.equal(reactionMatrixWrites, 0, 'idle reaction pools never rewrite instance matrices');
 assert.deepEqual([rings.instanceMatrix.version, coins.instanceMatrix.version, rings.instanceColor.version, coins.instanceColor.version], idleReactionVersions, 'idle reactions do not upload matrix or color buffers');
 assert.ok(pools.some((p,i) => p.instanceMatrix.array.some((v,j) => v !== firstMatrices[i][j])), 'parts really animate');
@@ -92,11 +138,25 @@ model.update(38.05, .85); assert.equal(rings.count, 1); assert.equal(coins.count
 expectColor(readColor(rings, 0), new THREE.Color('#51a97d'), 'remaining effect survives another effect expiring');
 model.update(39, .95); assert.equal(rings.count, 0); assert.equal(coins.count, 0);
 assert.equal(model.trigger(999,'arrival'), false); model.update(NaN, .1);
+vm.runInContext(fs.readFileSync(path.join(__dirname, '../src/weather.js'), 'utf8'), ctx);
+const weather = vm.runInContext('Weather3D', ctx).create({ parent, mobile: true, seed: 17 });
+for (const p of clothPools) {
+  const combined = compileCloth(p.material);
+  assert.equal(combined.uniforms.uPlaceClothTime, clothShaders[0].uniforms.uPlaceClothTime, 'weather preserves the live cloth clock');
+  assert(combined.uniforms.uWeatherZone, 'cloth still receives local storm shade');
+  assert(combined.vertexShader.includes('transformed.z += clothWave.x;'));
+  assert(combined.vertexShader.indexOf('transformed.z += clothWave.x;') < combined.vertexShader.indexOf('vec4 weatherP'), 'storm shade uses the deformed cloth position');
+  assert(p.material.customProgramCacheKey().includes('place-cloth-wave-v1'));
+  assert(p.material.customProgramCacheKey().includes('weather3d-local-v1-vertex'));
+}
+weather.dispose();
 for (const resource of resources) resource.addEventListener('dispose', () => disposed.set(resource, (disposed.get(resource) || 0) + 1));
 model.dispose(); model.dispose(); model.update(40, 1); assert.equal(parent.children.length, 0); assert.equal(model.stats().disposed, true);
 for (const resource of resources) assert.equal(disposed.get(resource), 1, 'every GPU resource is disposed exactly once');
 const still = PM.create({ parent, places, reducedMotion: true }), stillPools = parent.children[0].children.filter(o => o.isInstancedMesh), stillMatrices = stillPools.map(p => [...p.instanceMatrix.array]);
+const stillClothShader = compileCloth(stillPools.find(p => p.geometry.userData.cloth).material);
 still.update(150, 150); still.trigger(14,'build','#51a97d'); still.update(155, 5);
+assert.equal(stillClothShader.uniforms.uPlaceClothTime.value, 0, 'reduced motion keeps the cloth shader stationary');
 stillPools.forEach((p,i) => assert.deepEqual([...p.instanceMatrix.array], stillMatrices[i], 'reduced motion has no animation/reaction movement'));
 for (const p of stillPools.filter(p => /arrival-rings|reward-coins/.test(p.name))) { assert.equal(p.count, 0); assert.equal(p.visible, false); }
 still.dispose(); assert.equal(PM.create({}), null);
@@ -122,3 +182,5 @@ for (const [px,pz] of [[-.122,-.125],[.122,-.125],[.14,-.107],[.14,.107],[.122,.
 model.dispose();`, terrainContext);
 assert.ok([...terrainContext.supported].every(Boolean), 'Tortuga retaining foundation reaches the actual sampled terrain at every edge');
 console.log('Place models: all16 distinctive scenes, ground/footprints, real part animation, bounded effects, isolated mortgages, reduced motion and complete resource cleanup passed.');
+const clothVertices = clothPools.reduce((n, p) => n + p.geometry.attributes.position.count, 0);
+console.log(JSON.stringify({ cloth: { pools: clothPools.length, vertices: clothVertices, normalRebuildsPerFrame: 0, eliminatedVertexWritesPerFrame: clothVertices, eliminatedBufferUploadBytesPerFrame: clothVertices * 3 * 4 * 2, sharedTimeUniform: true, weatherComposition: true } }));

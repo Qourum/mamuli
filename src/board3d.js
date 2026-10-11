@@ -296,9 +296,26 @@ const Board3D = (() => {
   // the higher it is above its ground), y what kind of surface it is (1 water lying still, 2 falling water, 3 the land
   // itself, which gets the fine grain of soil, grass and rock from a small noise picture). One clock for all of it.
   const U = { time: { value: 0 }, fade: { value: 1 }, scale: { value: 800 }, detail: { value: null }, caustic: { value: null }, vortex: { value: new T.Vector3(3.45, 3, 0.55) } };
+  U.storm = typeof Weather3D !== 'undefined' && Weather3D && Weather3D.waterUniforms ? Weather3D.waterUniforms.zone : { value: new T.Vector4(0, 0, 1, 0) };
+  U.stormWind = typeof Weather3D !== 'undefined' && Weather3D && Weather3D.waterUniforms ? Weather3D.waterUniforms.wind : { value: new T.Vector2(1, 0) };
+  // Shared weather envelope: waves, foam and floating craft respond to the same cell.
+  function seaStormAt(x, z) {
+    const v = U.storm.value;
+    return clamp(v.w / .4, 0, 1) * (1 - smooth(.18, 1, Math.hypot(x - v.x, z - v.y) / Math.max(.01, v.z)));
+  }
   // Two gentle swells move the actual mesh. Broad normals and world-space colour stay stable when the camera moves;
   // no undersampled tiny waves or delayed camera captures are mixed into the water. Length / height / speed are board units.
   const SEA_WAVES = [[0.8, 0.6, 3.7, 0.042, 0.62], [0.31, 0.95074, 2.15, 0.018, 0.44]];
+  const STORM_WAVE = { length: .95, amplitude: .09, speed: 1.15 };
+  function seaHeight(x,z,t,outer = Math.max(Math.abs(x),Math.abs(z)) > 6.2) {
+    const radius=Math.hypot(x,z), extent=Math.max(Math.abs(x),Math.abs(z));
+    const coast=smooth(3.2,3.7,radius), shore=outer ? 1-smooth(0,.45,extent-6.45) : Terrain.seaShore(x,z);
+    const storm=seaStormAt(x,z), baseSwell=(.48+.52*smooth(6.2,7.2,extent))*(1-shore)*coast*(1-smooth(18,38,radius)), swell=baseSwell*(1+2.6*storm);
+    let height=(outer?Terrain.OCEAN_Y:Terrain.SEA_Y)-.055*(1-coast);
+    for(const w of SEA_WAVES)height+=swell*w[3]*Math.sin(TAU/w[2]*(w[0]*x+w[1]*z-w[4]*t));
+    if(storm>.001){const wind=U.stormWind.value; height+=baseSwell*(1-smooth(6.1,6.2,extent))*storm*STORM_WAVE.amplitude*Math.sin(TAU/STORM_WAVE.length*(wind.x*x+wind.y*z-STORM_WAVE.speed*t));}
+    return height;
+  }
   const gf = v => (Math.round(v * 1e5) / 1e5).toFixed(5);
   const seaMove = SEA_WAVES.slice(0, 2).map(([x, z, len, a, c], k) => `float ph${k} = ${gf(Math.PI * 2 / len)} * ( dot( vec2( ${gf(x)}, ${gf(z)} ), wp4.xz ) - ${gf(c)} * uTime );
         transformed.y += swell * ${gf(a)} * sin( ph${k} );
@@ -311,6 +328,11 @@ uniform float uTime;
 varying vec3 vWP;
 varying float vWater;
 varying float vShore;
+#ifdef SEA
+uniform vec4 uSeaStorm;
+uniform vec2 uSeaWind;
+varying float vSeaStorm;
+#endif
 `,
     v: `#include <begin_vertex>
       vec4 wp4 = vec4( position, 1.0 );
@@ -328,8 +350,15 @@ varying float vShore;
         // The island already owns its textured turquoise coast at about y=-0.013. Keep this mesh below that coast,
         // including every wave trough/crest, so the baked colours and foam stay visible without coplanar surfaces.
         transformed.y -= 0.055 * ( 1.0 - nativeCoast );
-        float swell = mix( 0.48, 1.0, open ) * ( 1.0 - anim.x ) * nativeCoast * ( 1.0 - smoothstep( 18.0, 38.0, length( wp4.xz ) ) );
+        vSeaStorm = clamp( uSeaStorm.w / 0.4, 0.0, 1.0 ) * ( 1.0 - smoothstep( 0.18, 1.0, distance( wp4.xz, uSeaStorm.xy ) / max( 0.01, uSeaStorm.z ) ) );
+        float baseSwell = mix( 0.48, 1.0, open ) * ( 1.0 - anim.x ) * nativeCoast * ( 1.0 - smoothstep( 18.0, 38.0, length( wp4.xz ) ) );
+        float swell = baseSwell * ( 1.0 + 2.6 * vSeaStorm );
         ${seaMove}
+        // Short wind-driven crests use the dense lagoon grid; outer water keeps its broad swells.
+        if ( vSeaStorm > 0.001 ) {
+          float chopPhase = ${gf(TAU / STORM_WAVE.length)} * ( dot( uSeaWind, wp4.xz ) - ${gf(STORM_WAVE.speed)} * uTime );
+          transformed.y += baseSwell * ( 1.0 - smoothstep( 6.1, 6.2, max( abs( wp4.x ), abs( wp4.z ) ) ) ) * vSeaStorm * ${gf(STORM_WAVE.amplitude)} * sin( chopPhase );
+        }
         vec4 seaWorld = modelMatrix * vec4( transformed, 1.0 );
         vWP = seaWorld.xyz;
       #else
@@ -349,6 +378,8 @@ varying float vShore;
 #ifdef SEA
 uniform vec3 uVortex;
 uniform sampler2D uCaustic;
+uniform vec2 uSeaWind;
+varying float vSeaStorm;
 #endif
 // one train of the sea's waves: its height and its slope here, added to h and g
 void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, inout vec2 g ) {
@@ -366,30 +397,41 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
         float depth = max( 0.0, vWater - 4.0 );
         float open = smoothstep( 6.2, 7.2, max( abs( p.x ), abs( p.y ) ) );
         float calm = mix( 0.48, 1.0, open ) * ( 1.0 - 0.9 * vShore ) * smoothstep( 3.2, 3.7, length( p ) )
-          * ( 1.0 - smoothstep( 18.0, 38.0, length( p ) ) );
+          * ( 1.0 - smoothstep( 18.0, 38.0, length( p ) ) ) * ( 1.0 + 2.6 * vSeaStorm );
         float h = 0.0;
         vec2 g = vec2( 0.0 );
         ${seaTilt}
+        if ( vSeaStorm > 0.001 ) {
+          seaWave( p, uSeaWind, ${gf(STORM_WAVE.length)}, ${gf(STORM_WAVE.amplitude)} * calm * ( 1.0 - smoothstep( 6.1, 6.2, max( abs( p.x ), abs( p.y ) ) ) ) * vSeaStorm / ( 1.0 + 2.6 * vSeaStorm ), ${gf(STORM_WAVE.speed)}, h, g );
+        }
         normal = normalize( mat3( viewMatrix ) * vec3( -g.x, 1.0, -g.y ) );
         // Clear turquoise water like the reference: the shallow bed and actual reef models remain visible through
         // its alpha. Mip-filtered curved light networks move slowly in world space, with no screen-space sampling.
-        vec2 flow = p * 0.24 + uTime * vec2( 0.0025, -0.0017 );
-        float n1 = texture2D( uDetail, flow ).r;
-        float n2 = texture2D( uDetail, flow * 1.47 + vec2( 0.37, 0.61 ) - uTime * vec2( 0.0012, 0.0018 ) ).r;
+        // RGB packs caustic light, broad colour and broken foam. Two mip-filtered reads
+        // supply all three instead of five independent reads across the water surface.
+        vec3 waterA = texture2D( uCaustic, p * 0.17 + uTime * vec2( 0.0042, -0.0028 ) ).rgb;
+        vec3 waterB = texture2D( uCaustic, p * 0.137 + vec2( 0.39, 0.71 ) + uTime * vec2( -0.0027, 0.0031 ) ).rgb;
+        float n1 = waterA.g, n2 = waterB.g;
         float shallow = 1.0 - smoothstep( 0.02, 0.24, depth );
-        vec3 turquoise = mix( vec3( 0.08650, 0.56471, 0.57112 ), vec3( 0.43415, 0.79910, 0.70838 ), shallow );
+        // Deeper teal pools give the pale shore and submerged reef a readable depth gradient.
+        vec3 turquoise = mix( vec3( 0.029, 0.385, 0.430 ), vec3( 0.340, 0.740, 0.655 ), shallow );
         turquoise *= 0.97 + 0.06 * n1;
-        float caustic1 = texture2D( uCaustic, p * 0.17 + uTime * vec2( 0.0042, -0.0028 ) ).r;
-        float caustic2 = texture2D( uCaustic, p * 0.137 + vec2( 0.39, 0.71 ) + uTime * vec2( -0.0027, 0.0031 ) ).r;
-        float caustic = max( caustic1 * 0.85, caustic2 * 0.67 );
-        diffuseColor.rgb = mix( turquoise, vec3( 0.80, 0.94, 0.90 ), caustic * ( 0.035 + 0.13 * shallow ) * ( 1.0 - 0.62 * open ) );
-        diffuseColor.a *= mix( mix( 0.58, 0.82, 1.0 - shallow ), 0.90, open );
+        turquoise = mix( turquoise, vec3( 0.028, 0.190, 0.240 ), 0.36 * vSeaStorm );
+        float caustic = max( waterA.r * 0.85, waterB.r * 0.67 );
+        diffuseColor.rgb = mix( turquoise, vec3( 0.80, 0.94, 0.90 ), caustic * ( 0.055 + 0.14 * shallow ) * ( 1.0 - 0.62 * open ) );
+        // A broad sky sheen strengthens at grazing angles without a second scene render.
+        // Its low contrast and smooth normal avoid the old sparkling at map scale.
+        float facing = clamp( dot( normal, normalize( vViewPosition ) ), 0.0, 1.0 );
+        float grazing = pow( 1.0 - facing, 4.0 );
+        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.43, 0.67, 0.72 ), 0.11 * grazing );
+        diffuseColor.a *= mix( mix( 0.54, 0.86, 1.0 - shallow ), 0.93, open );
         // Shore foam breaks into unequal scallops and small gaps; it never lays long repeating strips across the sea.
-        float shoreNoise = texture2D( uDetail, p * 0.57 + vec2( 0.18, 0.73 ) + uTime * vec2( -0.002, 0.003 ) ).r;
+        float shoreNoise = waterA.b * 0.72 + waterB.b * 0.28;
         float edge = smoothstep( 0.72 + 0.19 * shoreNoise, 0.995, vShore ) * ( 1.0 - smoothstep( 0.035, 0.075, depth ) );
         float broken = smoothstep( 0.32, 0.64, shoreNoise * 0.72 + n2 * 0.28 );
         float lap = 0.76 + 0.24 * sin( uTime * 0.48 + shoreNoise * 13.0 + n1 * 5.0 );
-        float foam = edge * ( 0.16 + 0.55 * broken ) * lap;
+        float whitecaps = vSeaStorm * smoothstep( 0.008, 0.042, h ) * smoothstep( 0.20, 0.60, waterA.b ) * 0.72;
+        float foam = max( edge * ( 0.16 + 0.55 * broken ) * lap, whitecaps );
         diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.70110, 0.72306, 0.70838 ), foam );
         diffuseColor.a = min( 0.94, diffuseColor.a + foam * 0.20 );
         specularStrength *= 0.24 * ( 1.0 - foam );
@@ -424,16 +466,19 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   function seaSurface(mesh) {
     if (!U.caustic.value) U.caustic.value = causticTexture();
     mesh.material = living(mats.sea.clone(), true);
+    mesh.geometry.computeBoundingSphere();
+    mesh.geometry.boundingSphere.radius += .4; // include displaced storm crests in culling
+
   }
   // (the sea has a shader of its own: the land's and the scenery's carries none of its work, nor the sea's theirs)
   function living(m, sea) {
     m.onBeforeCompile = sh => {
       sh.uniforms.uTime = U.time; sh.uniforms.uDetail = U.detail;
-      if (sea) { sh.uniforms.uVortex = U.vortex; sh.uniforms.uCaustic = U.caustic; }
+      if (sea) { sh.uniforms.uVortex = U.vortex; sh.uniforms.uCaustic = U.caustic; sh.uniforms.uSeaStorm = U.storm; sh.uniforms.uSeaWind = U.stormWind; }
       sh.vertexShader = sh.vertexShader.replace('#include <common>', LIVING.vp).replace('#include <begin_vertex>', LIVING.v);
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', LIVING.fp).replace('#include <emissivemap_fragment>', LIVING.f);
     };
-    m.customProgramCacheKey = sea ? () => 'livingsea-reference-caustics' : () => 'living';
+    m.customProgramCacheKey = sea ? () => 'livingsea-packed-depth-v3' : () => 'living';
     if (sea) m.defines = Object.assign({}, m.defines, { SEA: '' });
     return m;
   }
@@ -540,7 +585,10 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       const pulse = 0.5 + 0.25 * Math.sin(a * 3 + b * 2 + 0.7 * Math.sin(b)) + 0.25 * Math.sin(b * 3 - a * 2);
       const broken = 0.36 + 0.64 * smooth(0.14, 0.72, pulse);
       const value = Math.round(clamp((core * 0.74 + halo * 0.26) * broken, 0, 1) * 255), k = (j * N + i) * 4;
-      im.data[k] = im.data[k + 1] = im.data[k + 2] = value; im.data[k + 3] = 255;
+      const colour = 0.5 + 0.19 * Math.sin(a + b) + 0.15 * Math.cos(a * 2 - b + 0.5 * Math.sin(b));
+      const foam = 0.5 + 0.23 * Math.sin(a * 3 + b * 2 + 0.8 * Math.sin(b * 2)) + 0.19 * Math.cos(a * 2 - b * 3);
+      im.data[k] = value; im.data[k + 1] = Math.round(clamp(colour, 0, 1) * 255);
+      im.data[k + 2] = Math.round(clamp(foam, 0, 1) * 255); im.data[k + 3] = 255;
     }
     x.putImageData(im, 0, 0);
     const texture = new T.CanvasTexture(cv);
@@ -656,7 +704,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     MOD.centerRelief(Terrain);
     fallFoot = MOD.centerWater(Terrain);
     yield;
-    const lg = yield* Terrain.board(mobile ? 136 : 160);
+    const lg = yield* Terrain.board(mobile ? MOD.world === 'sea' ? 112 : 136 : 160);
     const land = new T.Mesh(lg, mats.scenery);
     land.castShadow = true; land.receiveShadow = true; land.userData.ground = true;
     landG.add(land); lotGround.push(land);
@@ -700,7 +748,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     landG.add(cm);
     yield;
     // the country around the board: meadows, groves, hills, and the far mountains in the haze
-    const om = new T.Mesh(Terrain.outer(mobile ? 34 : 42, mobile ? 80 : 104), MOD.world === 'sea' ? mats.sea : mats.scenery);
+    const om = new T.Mesh(Terrain.outer(mobile ? MOD.world === 'sea' ? 26 : 34 : 42, mobile ? MOD.world === 'sea' ? 72 : 80 : 104), MOD.world === 'sea' ? mats.sea : mats.scenery);
     if (MOD.world === 'sea') seaSurface(om);
     om.receiveShadow = true;
     root.add(om);
@@ -730,10 +778,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
           const p = centerOf(at), out = OUT[sideOf(at)];
           return { x: p.x + out[0] * 1.7, z: p.z + out[1] * 1.7 };
         },
-        waterHeight: (x, z, t) => {
-          const swell = (1 - smooth(18, 38, Math.hypot(x, z))) * (0.48 + 0.52 * smooth(6.2, 7.2, Math.max(Math.abs(x), Math.abs(z))));
-          return Terrain.OCEAN_Y + swell * SEA_WAVES.slice(0, 2).reduce((h, w) => h + w[3] * Math.sin(Math.PI * 2 / w[2] * (w[0] * x + w[1] * z - w[4] * t)), 0);
-        }
+        waterHeight: (x,z,t) => seaHeight(x,z,t,true)
       });
     }
     if (MOD.world === 'sea' && typeof Lagoon3D !== 'undefined' && Lagoon3D) {
@@ -741,11 +786,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       lagoonLife = Lagoon3D.create({
         parent: root, center: { x: vortex.x, z: vortex.z }, radius: vortex.radius + 0.01,
         waterY: Terrain.SEA_Y, reducedMotion: REDUCED, mobile,
-        waterHeight: (x, z, t) => {
-          const nativeCoast = smooth(3.2, 3.7, Math.hypot(x, z));
-          return Terrain.SEA_Y - 0.055 * (1 - nativeCoast) + 0.48 * nativeCoast
-            * SEA_WAVES.reduce((h, w) => h + w[3] * Math.sin(Math.PI * 2 / w[2] * (w[0] * x + w[1] * z - w[4] * t)), 0);
-        }
+        waterHeight: (x,z,t) => seaHeight(x,z,t,false)
       });
       U.vortex.value.set(vortex.x, vortex.z, lagoonLife.mask.radius);
     }
@@ -764,6 +805,13 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (MOD.world === 'sea' && typeof Weather3D !== 'undefined' && Weather3D) {
       weatherLife = Weather3D.create({
         parent: root, waterY: Terrain.SEA_Y, outerWaterY: Terrain.OCEAN_Y, reducedMotion: REDUCED, mobile,
+        viewFocus: () => ({ x: camS.x, z: camS.z, distance: camS.d, close: mode === 'follow' }),
+        focus: () => {
+          const seat = turnSeat >= 0 ? turnSeat : st && st.turn, at = seat != null && pos[seat] != null ? pos[seat] : 0;
+          const p = centerOf(at), out = OUT[sideOf(at)];
+          return { x: p.x - out[0] * 1.6, z: p.z - out[1] * 1.6 };
+        },
+        waterHeight: seaHeight,
         onThunder: event => { if (typeof Sound !== 'undefined' && Sound.thunder) Sound.thunder(event.strength); }
       });
     }
@@ -1950,10 +1998,11 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (!pacer.step(now, !still)) return;
     const cpuStart = performance.now();
     const visualDt = Math.min(.25, pacer.delta), t = now / 1000;
+    // Set this frame's storm before water-following craft sample its wave height.
+    if (weatherLife) weatherLife.update(REDUCED ? 3 : t, visualDt);
     if (marineLife) marineLife.update(REDUCED ? 3 : t, visualDt);
     if (lagoonLife) lagoonLife.update(REDUCED ? 3 : t, visualDt);
     if (reefLife) reefLife.update(REDUCED ? 3 : t, visualDt);
-    if (weatherLife) weatherLife.update(REDUCED ? 3 : t, visualDt);
     if (placeModelsLife) placeModelsLife.update(REDUCED ? 3 : t, visualDt);
     if (mapPropsLife) mapPropsLife.update(REDUCED ? 3 : t, visualDt);
     if (placeEffects) placeEffects.update(REDUCED ? 3 : t, visualDt);

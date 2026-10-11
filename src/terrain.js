@@ -35,11 +35,11 @@ const Terrain = (() => {
 
   // ----- the shapes -----
   const feats = [], pads = [], waters = [], paths = [], tints = [];
-  let bins = null, sea = false;
+  let bins = null, sea = false, seaField = null;
   const BIN = 1, B0 = -7, NB = 14;
   const SEA_Y = 0.02, BED = -0.16, RIM_SEA = -0.06, OCEAN_Y = -0.3;     // the water, the sea floor, along the squares, the ocean
   const VORTEX = { x: 3.45, z: 3.0, radius: 0.55, depth: 0.82 };
-  function reset() { feats.length = pads.length = waters.length = paths.length = tints.length = 0; bins = null; }
+  function reset() { feats.length = pads.length = waters.length = paths.length = tints.length = 0; bins = null; seaField = null; }
   function setWorld(w) { sea = w === 'sea'; reset(); }
   function put(f) { feats.push(f); bins = null; return f; }
   function rot(f, x, z) { const dx = x - f.x, dz = z - f.z, c = Math.cos(f.rot || 0), s = Math.sin(f.rot || 0); return [dx * c - dz * s, dx * s + dz * c]; }
@@ -289,6 +289,7 @@ const Terrain = (() => {
   function* seaGeo(N = 84) {
     const n = N + 1, step = (EDGE * 2) / N, dep = new Float32Array(n * n);
     for (let j = 0; j < n; j++) { for (let i = 0; i < n; i++) dep[j * n + i] = SEA_Y - height(-EDGE + i * step, -EDGE + j * step); if (j % 6 === 5) yield; }
+    seaField = { N, n, step, shore: Float32Array.from(dep, d => 1 - smooth(0, .07, d)) };
     const P = [], Cc = [], A = [], idx = [], map = new Int32Array(n * n).fill(-1);
     const vert = k => {
       if (map[k] >= 0) return map[k];
@@ -311,6 +312,16 @@ const Terrain = (() => {
     g.setIndex(idx);
     g.computeBoundingSphere();
     return g;
+  }
+  // Reuse the rendered shore field for floating boats and rain. Sampling this
+  // grid is constant-time; it does not reevaluate terrain noise per rain drop.
+  function seaShore(x,z) {
+    if (!seaField) return 0;
+    const {N,n,step,shore}=seaField, u=Math.max(0,Math.min(N,(x+EDGE)/step)), v=Math.max(0,Math.min(N,(z+EDGE)/step));
+    const i=Math.min(N-1,Math.floor(u)),j=Math.min(N-1,Math.floor(v)),a=u-i,b=v-j,k=j*n+i;
+    // Match the two rendered triangles (a+c+b, b+c+d) exactly.
+    return a+b<=1 ? shore[k]+a*(shore[k+1]-shore[k])+b*(shore[k+n]-shore[k])
+      : shore[k+n+1]+(1-b)*(shore[k+1]-shore[k+n+1])+(1-a)*(shore[k+n]-shore[k+n+1]);
   }
 
   // ----- the country around the board: rings outward from under its plinth; meadows and fields, then wooded hills,
@@ -413,5 +424,5 @@ const Terrain = (() => {
     if (sea) { const r = Math.max(Math.abs(x), Math.abs(z)); return r > 6.2 ? OCEAN_Y : height(x, z) < SEA_Y ? SEA_Y : null; }
     return null;
   }
-  return Object.assign(api, { reset, setWorld, board, waterGeo, seaGeo, waterAt, outer, outY, groves, noise, fbm, RIM, SEA_Y, BED, OCEAN_Y, VORTEX, get sea() { return sea; } });
+  return Object.assign(api, { reset, setWorld, board, waterGeo, seaGeo, seaShore, waterAt, outer, outY, groves, noise, fbm, RIM, SEA_Y, BED, OCEAN_Y, VORTEX, get sea() { return sea; } });
 })();

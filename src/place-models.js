@@ -126,7 +126,8 @@ const PlaceModels3D = (() => {
   function create(opts) {
     if (!opts || !opts.parent) return null;
     const parent = opts.parent, root = new T.Group(); root.name = 'Animated maritime place landmarks'; parent.add(root);
-    const own = new Set(), records = new Map(), pools = new Map(), dimMaterials = new Map();
+    const own = new Set(), records = new Map(), pools = new Map(), dimMaterials = new Map(), clothMaterials = new Map();
+    const clothTime = { value: 0 };
     let dead = false, current = 0, last = null, triggers = 0;
     const matte = new T.MeshStandardMaterial({ vertexColors: true, roughness: .78, metalness: .015, side: T.DoubleSide });
     const metal = new T.MeshStandardMaterial({ vertexColors: true, roughness: .36, metalness: .66 });
@@ -138,12 +139,49 @@ const PlaceModels3D = (() => {
     const waterMat = new T.MeshStandardMaterial({ color: 0x99e0dc, roughness: .18, metalness: .04, transparent: true, opacity: .72, depthWrite: false });
     const reactionMat = new T.MeshStandardMaterial({ color: 0xffffff, emissive: 0x8b7043, emissiveIntensity: .20, transparent: true, opacity: .72, depthWrite: false, roughness: .36 });
     [matte, metal, fabric, green, warm, smokeMat, gold, waterMat, reactionMat].forEach(m => own.add(m));
+    function clothMaterial(base) {
+      if (clothMaterials.has(base)) return clothMaterials.get(base);
+      const material = base.clone(); own.add(material); clothMaterials.set(base, material);
+      // The same pinned-edge wave now runs on the GPU. Its exact derivatives
+      // transform the rest normal, so cloth lighting follows the moving surface
+      // without rebuilding normal and position buffers on every phone frame.
+      material.onBeforeCompile = shader => {
+        shader.uniforms.uPlaceClothTime = clothTime;
+        shader.vertexShader = `uniform float uPlaceClothTime;
+          attribute vec2 aPlaceCloth;
+          vec3 placeClothWave(vec3 p) {
+            float phase = uPlaceClothTime * 2.1 + p.x * 49.0 + p.y * 18.0;
+            float wave = .0045 * sin(phase), slope = .0045 * cos(phase);
+            return vec3(aPlaceCloth.x * wave,
+              aPlaceCloth.y * wave + aPlaceCloth.x * 49.0 * slope,
+              aPlaceCloth.x * 18.0 * slope);
+          }\n` + shader.vertexShader;
+        shader.vertexShader = shader.vertexShader.replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
+          vec3 clothWave = placeClothWave(position);
+          objectNormal.xy -= clothWave.yz * objectNormal.z;`);
+        shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed.z += clothWave.x;');
+      };
+      material.customProgramCacheKey = () => 'place-cloth-wave-v1';
+      return material;
+    }
     const pool = (key, factory, material) => {
-      if (!pools.has(key)) { const geometry = factory(); own.add(geometry); pools.set(key, { key, geometry, material, entries: [], mesh: null, reaction: key === 'arrival-rings' || key === 'reward-coins' }); }
+      if (!pools.has(key)) {
+        const geometry = factory(); own.add(geometry);
+        if (geometry.userData.cloth) {
+          const pos = geometry.attributes.position, width = geometry.userData.width, tent = geometry.userData.tent, coefficients = [];
+          for (let i = 0; i < pos.count; i++) {
+            const x = pos.getX(i);
+            coefficients.push(tent ? Math.abs(x / width) : clamp(x / width, 0, 1), tent ? Math.sign(x) / width : x >= 0 && x <= width ? 1 / width : 0);
+          }
+          geometry.setAttribute('aPlaceCloth', new T.Float32BufferAttribute(coefficients, 2));
+          material = clothMaterial(material);
+        }
+        pools.set(key, { key, geometry, material, entries: [], mesh: null, reaction: key === 'arrival-rings' || key === 'reward-coins' });
+      }
       return pools.get(key);
     };
     const dynamic = (rec, key, factory, material, base, local = new T.Matrix4(), motion = 'wind', color = 0xffffff, phase = 0, amount = 1) => {
-      const p = pool(key, factory, material), entry = { rec, base: base.clone(), local: local.clone(), motion, phase: phase + rec.i * .47, amount, color: new T.Color(color), index: p.entries.length, drawIndex: -1 };
+      const p = pool(key, factory, material), entry = { rec, base: base.clone(), local: local.clone(), anchored: base.clone().multiply(local), motion, phase: phase + rec.i * .47, amount, color: new T.Color(color), index: p.entries.length, drawIndex: -1 };
       p.entries.push(entry); rec.parts.push({ pool: p, entry }); return entry;
     };
     function anchor(rec, x, z, height = 0, ry = 0, s = 1, afloat = false) {
@@ -416,11 +454,11 @@ const PlaceModels3D = (() => {
       if (p.key === 'smoke' || p.key === 'arrival-rings') p.mesh.renderOrder = 2;
       for (const e of p.entries) p.mesh.setColorAt(e.index, e.color);
     }
-    const animated = new T.Matrix4(), local = new T.Matrix4(), out = new T.Matrix4(), q = new T.Quaternion(), v = new T.Vector3(), s = new T.Vector3(), euler = new T.Euler(), reactionColor = new T.Color();
+    const animated = new T.Matrix4(), out = new T.Matrix4(), q = new T.Quaternion(), v = new T.Vector3(), s = new T.Vector3(), euler = new T.Euler(), reactionColor = new T.Color();
     function update(t, dt) {
       if (dead) return;
       const time = opts.reducedMotion ? 0 : Number.isFinite(t) ? t : current;
-      current = time; if (last === time) return; last = time;
+      current = time; if (last === time) return; last = time; clothTime.value = time;
       let reactionsActive = false;
       if (!opts.reducedMotion) for (const rec of records.values()) {
         if (rec.event && time >= rec.event.started && time < rec.event.started + rec.event.duration) { reactionsActive = true; break; }
@@ -433,14 +471,6 @@ const PlaceModels3D = (() => {
           p.mesh.count = 0; p.mesh.visible = false; continue;
         }
         let visible = 0;
-        if (p.geometry.userData.cloth) {
-          const pos = p.geometry.attributes.position, base = p.geometry.userData.cloth, width = p.geometry.userData.width;
-          for (let k = 0; k < pos.count; k++) {
-            const x = base[k*3], y = base[k*3+1], z = base[k*3+2], free = p.geometry.userData.tent ? Math.abs(x / width) : clamp(x / width,0,1);
-            pos.setXYZ(k,x,y,z + free * .0045 * Math.sin(time * 2.1 + x * 49 + y * 18));
-          }
-          pos.needsUpdate = true; p.geometry.computeVertexNormals();
-        }
         for (const entry of p.entries) {
           const { rec, motion, phase, amount } = entry, event = rec.event, life = event ? (time-event.started)/event.duration : 2, boost = life >= 0 && life < 1 ? Math.sin(Math.PI*life) : 0;
           if (p.reaction) { entry.drawIndex = -1; if (life < 0 || life >= 1) continue; }
@@ -463,9 +493,10 @@ const PlaceModels3D = (() => {
             case 'reaction-ring': s.setScalar(.08+life*.20);v.y=.008+life*.018;break;
             case 'reaction-coin': v.set(Math.cos(phase)*life*.16,Math.sin(Math.PI*life)*.23,Math.sin(phase)*life*.12);euler.set(time*6+phase,phase,time*4);s.setScalar(1-life*.55);break;
           }
-          q.setFromEuler(euler);animated.compose(v,q,s);local.copy(entry.local);
-          // Boat parts share a carrier motion before their local mast/sail offsets.
-          if(motion==='boat')out.copy(entry.base).multiply(animated).multiply(local);else out.copy(entry.base).multiply(local).multiply(animated);
+          q.setFromEuler(euler);animated.compose(v,q,s);
+          // Fixed attachments are combined once at construction. Boat parts
+          // retain carrier motion before their local mast/sail offsets.
+          if(motion==='boat')out.copy(entry.base).multiply(animated).multiply(entry.local);else out.multiplyMatrices(entry.anchored,animated);
           const index = p.reaction ? visible++ : entry.index;
           p.mesh.setMatrixAt(index,out);
           if (p.reaction) {
@@ -493,7 +524,7 @@ const PlaceModels3D = (() => {
       for(const mesh of rec.group.children){const base=mesh.userData.baseMaterial||(mesh.userData.baseMaterial=mesh.material);if(rec.mort){if(!dimMaterials.has(base)){const dim=base.clone();dim.color.multiplyScalar(.43);dim.emissive.multiplyScalar(.43);dimMaterials.set(base,dim);own.add(dim);}mesh.material=dimMaterials.get(base);}else mesh.material=base;}
       for(const part of rec.parts)colorEntry(part);return true;
     }
-    function dispose(){if(dead)return;dead=true;parent.remove(root);for(const p of pools.values())p.mesh.dispose();for(const resource of own)resource.dispose();own.clear();pools.clear();dimMaterials.clear();records.clear();root.clear();}
+    function dispose(){if(dead)return;dead=true;parent.remove(root);for(const p of pools.values())p.mesh.dispose();for(const resource of own)resource.dispose();own.clear();pools.clear();dimMaterials.clear();clothMaterials.clear();records.clear();root.clear();}
     function stats(){let triangles=0,staticDraws=0,instances=0;for(const rec of records.values())for(const mesh of rec.group.children){staticDraws++;triangles+=mesh.geometry.attributes.position.count/3;}for(const p of pools.values()){instances+=p.entries.length;triangles+=(p.geometry.index?p.geometry.index.count:p.geometry.attributes.position.count)/3*p.entries.length;}return {places:records.size,indices:[...records.keys()],pools:pools.size,instances,drawCalls:staticDraws+pools.size,triangles,triggers,disposed:dead};}
     update(0,0);
     return {update,trigger,setMort,dispose,stats,getObject:i=>records.get(i)?.group||null};

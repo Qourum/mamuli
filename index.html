@@ -918,7 +918,7 @@ pre.diag { margin: 10px 0 0; padding: 10px; max-height: 52vh; overflow: auto; bo
 <script src="vendor/three.min.js"></script>
 <script src="vendor/GLTFLoader.min.js"></script>
 <script>
-const BUILD = "3fc319c0b0";
+const BUILD = "ceefcf9a84";
 const SITE = true;
 // ===== the technical log: what this phone went through, to copy and send when something goes wrong =====
 // Errors, the 3D board losing or getting back its graphics, slow frames (and what was on the screen then), shaders made
@@ -11633,17 +11633,27 @@ function offlineHelper() {
   if (!box || !status || !bar || !button || offlineHelper.started) return;
   offlineHelper.started = true;
   box.hidden = false;
+  const note = text => { try { if (typeof Diag !== 'undefined' && Diag.note) Diag.note('files', text); } catch (_) { } };
+  const version = value => /^[A-Za-z0-9_.-]{1,40}$/.test(String(value || '')) ? String(value) : 'unknown';
+  const failure = error => version(error && error.name) || 'Error';
+  note('helper page ' + version(typeof BUILD === 'undefined' ? '' : BUILD));
   const local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
   if (!SITE || !('serviceWorker' in navigator) || !(location.protocol === 'https:' || local)) {
     bar.hidden = button.hidden = true;
     status.textContent = 'ფაილები თამაშის გახსნისას ჩაიტვირთება.';
+    note('helper unavailable: ' + (!SITE ? 'standalone' : !('serviceWorker' in navigator) ? 'unsupported' : 'insecure'));
     return;
   }
   let registration = null, registering = null, readyWatching = false, replyTimer = 0, autoTimer = 0, legacy = false;
-  const senders = new Set(), activationWatches = new Map();
+  const senders = new Set(), activationWatches = new Map(), registrationWatches = new Set();
+  let progressState = '', progressVersion = '';
   const activated = worker => worker && worker.state === 'activated';
-  const worker = () => activated(registration && registration.active) ? registration.active
-    : activated(navigator.serviceWorker.controller) ? navigator.serviceWorker.controller : null;
+  const worker = () => activated(navigator.serviceWorker.controller) ? navigator.serviceWorker.controller
+    : activated(registration && registration.active) ? registration.active : null;
+  const health = () => 'active ' + (registration && registration.active ? registration.active.state : 'none')
+    + ', installing ' + (registration && registration.installing ? registration.installing.state : 'none')
+    + ', waiting ' + (registration && registration.waiting ? registration.waiting.state : 'none')
+    + ', controller ' + (navigator.serviceWorker.controller ? navigator.serviceWorker.controller.state : 'none');
   const action = (label, disabled = false) => { button.textContent = label; button.disabled = disabled; button.hidden = false; };
   const waiting = text => {
     box.dataset.state = 'checking'; bar.hidden = false; bar.removeAttribute('value');
@@ -11655,14 +11665,15 @@ function offlineHelper() {
   };
   function ask(type) {
     const w = worker();
-    if (!w) return false;
+    if (!w) { note(type + ': no activated worker; ' + health()); return false; }
     senders.add(w);
-    try { w.postMessage({ type }); return true; } catch (_) { return false; }
+    try { w.postMessage({ type }); return true; } catch (error) { note(type + ' message failed: ' + failure(error)); return false; }
   }
   function waitForReply() {
     clearTimeout(replyTimer);
     replyTimer = setTimeout(() => {
       legacy = true;
+      note('progress timeout after 9s; ' + health());
       available('ჩამოტვირთვა ხელმისაწვდომია. თამაში ახლავე შეგიძლია დაიწყო.');
     }, 9000);
   }
@@ -11671,8 +11682,15 @@ function offlineHelper() {
     waitForReply();
     if (!ask('cache-status')) available('ჩამოტვირთვის მომზადება მიმდინარეობს. თამაში შეგიძლია დაიწყო.');
   }
-  function download() {
+  function download(manual = false) {
     clearTimeout(autoTimer);
+    if (manual && legacy && registration && typeof registration.update === 'function') {
+      note('manual worker update; ' + health());
+      Promise.resolve().then(() => registration.update()).then(r => {
+        if (r) watchRegistration(r);
+        note('manual update checked; ' + health());
+      }).catch(error => note('manual update failed: ' + failure(error)));
+    }
     waiting('ჩამოტვირთვა იწყება…');
     waitForReply();
     if (!ask('keep-all')) {
@@ -11680,20 +11698,24 @@ function offlineHelper() {
       register();
     } else if (legacy) {
       // Older helpers understand this message but cannot report progress. The reply timeout keeps the action usable.
-      try { worker().postMessage('keep-all'); } catch (_) { }
+      try { worker().postMessage('keep-all'); } catch (error) { note('legacy message failed: ' + failure(error)); }
     }
   }
   function warmLater() {
     clearTimeout(autoTimer);
     autoTimer = setTimeout(download, 12000); // warm files after the page has loaded; gameplay never waits for this
   }
-  function observeActivation(w, warm = false) {
-    if (!w || activated(w) || typeof w.addEventListener !== 'function') return;
+  function observeActivation(w, warm = false, label = 'worker') {
+    if (!w) return;
+    senders.add(w); // installers can send health notes, but receive requests only after activation
+    if (activated(w) || typeof w.addEventListener !== 'function') return;
     const existing = activationWatches.get(w);
     if (existing) { existing.warm = existing.warm || warm; return; }
     const watch = { warm };
     activationWatches.set(w, watch);
+    note(label + ' state ' + w.state);
     const changed = () => {
+      note(label + ' state ' + w.state + '; ' + health());
       if (!activated(w) && w.state !== 'redundant') return;
       w.removeEventListener('statechange', changed); activationWatches.delete(w);
       if (activated(w) && worker() === w) {
@@ -11704,14 +11726,31 @@ function offlineHelper() {
     };
     w.addEventListener('statechange', changed);
   }
+  function watchRegistration(r) {
+    observeActivation(r.active, false, 'active'); observeActivation(r.installing, false, 'installing'); observeActivation(r.waiting, false, 'waiting');
+    if (registrationWatches.has(r) || typeof r.addEventListener !== 'function') return;
+    registrationWatches.add(r);
+    r.addEventListener('updatefound', () => {
+      note('update found; ' + health());
+      observeActivation(r.installing, false, 'installing');
+    });
+  }
   navigator.serviceWorker.addEventListener('message', event => {
     const data = event.data;
-    if (!data || data.type !== 'asset-cache-progress' || (event.source && !senders.has(event.source))) return;
+    if (!data || (event.source && !senders.has(event.source))) return;
+    if (data.type === 'asset-cache-install-status') {
+      const details = ['start', 'verified-current-page', 'offline-shell-cached', 'offline-libraries-ready', 'page-version-mismatch', 'download-timeout', 'shell-response-error', 'offline-libraries-unavailable', 'storage-error', 'install-error'];
+      if (['installing', 'page-ready', 'shell-ready', 'ready', 'failed'].includes(data.state)) note('install ' + data.state + ', version ' + version(data.version) + (details.includes(data.detail) ? ', ' + data.detail : ''));
+      return;
+    }
+    if (data.type !== 'asset-cache-progress') return;
+    if (progressVersion !== data.version) { progressVersion = data.version; note('worker progress version ' + version(data.version)); }
     if (typeof BUILD !== 'undefined' && data.version && data.version !== BUILD) {
       clearTimeout(replyTimer); clearTimeout(autoTimer);
       box.dataset.state = 'update-ready'; bar.hidden = true;
       status.textContent = 'თამაშის ახალი ვერსია მზადაა. განაახლე გვერდი თამაშის დასრულების შემდეგ.';
       action('შემოწმება');
+      note('version mismatch: page ' + version(BUILD) + ', worker ' + version(data.version));
       return;
     }
     clearTimeout(replyTimer); legacy = false;
@@ -11719,6 +11758,8 @@ function offlineHelper() {
     const total = count(data.total), done = Math.min(total, count(data.done));
     const failed = Array.isArray(data.failed) ? data.failed.length : count(data.failed);
     const complete = !!data.complete && total > 0 && done === total && failed === 0;
+    const nextState = complete ? 'complete' : data.running ? 'running' : failed ? 'failed' : 'available';
+    if (nextState !== progressState) { progressState = nextState; note('cache ' + nextState + ': ' + done + '/' + total + ', failed ' + failed); }
     const bytes = count(data.bytes), size = bytes > 0 ? ' · ' + (bytes / 1048576).toFixed(1) + ' მბ' : '';
     bar.hidden = false; bar.max = Math.max(1, total); bar.value = done;
     if (complete) {
@@ -11735,29 +11776,32 @@ function offlineHelper() {
   });
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     clearTimeout(autoTimer);
-    observeActivation(navigator.serviceWorker.controller, true);
-    observeActivation(registration && registration.active, true);
+    note('controller changed; ' + health());
+    observeActivation(navigator.serviceWorker.controller, true, 'controller');
+    observeActivation(registration && registration.active, true, 'active');
     if (worker()) { check(); ask('keep-all'); }
   });
   function register() {
     if (registering) return registering;
     waiting('ჩამოტვირთვის მომზადება…'); waitForReply();
+    note('register requested; ' + health());
     registering = navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => {
       registration = r;
-      observeActivation(r.active); observeActivation(r.installing); observeActivation(r.waiting);
+      note('registered; ' + health()); watchRegistration(r);
       if (worker()) check();
       if (!readyWatching) {
         readyWatching = true;
         navigator.serviceWorker.ready.then(ready => {
           registration = ready;
-          observeActivation(ready.active);
+          note('ready; ' + health()); watchRegistration(ready);
           check();
           if (worker()) warmLater();
-        }).catch(() => { readyWatching = false; available('ჩამოტვირთვა ჯერ მიუწვდომელია. სცადე ხელახლა.'); });
+        }).catch(error => { readyWatching = false; note('ready failed: ' + failure(error)); available('ჩამოტვირთვა ჯერ მიუწვდომელია. სცადე ხელახლა.'); });
       }
       return r;
-    }).catch(() => {
+    }).catch(error => {
       clearTimeout(replyTimer);
+      note('register failed: ' + failure(error));
       available('ფაილების ჩამოტვირთვა ვერ მომზადდა. სცადე ხელახლა.');
       return null;
     }).finally(() => { registering = null; });
@@ -11765,8 +11809,8 @@ function offlineHelper() {
   }
   button.addEventListener('click', () => {
     if (box.dataset.state === 'complete' || box.dataset.state === 'update-ready') check();
-    else if (worker()) download();
-    else register().then(r => { if (r && worker()) download(); });
+    else if (worker()) download(true);
+    else register().then(r => { if (r && worker()) download(true); });
   });
   if (document.readyState === 'complete') register(); else addEventListener('load', register, { once: true });
 }

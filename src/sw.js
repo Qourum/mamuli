@@ -176,13 +176,50 @@ async function font(request) {
   } catch (_) { return unavailable(); }
 }
 
-self.addEventListener('install', event => event.waitUntil((async () => {
-  const cache = await caches.open(PAGE);
-  await Promise.all(SHELL.map(path => deadline(async signal => { const url = new URL(path, SCOPE).href, response = await fetch(url, { cache: 'no-cache', signal }); if (!response.ok) throw new Error('Offline shell unavailable'); await cache.put(url, response); }, 15000)));
-  const libraries = await Promise.all(LIB.map(path => asset(new Request(new URL(path, SCOPE).href))));
-  if (libraries.some(response => !response.ok)) throw new Error('Offline 3D libraries unavailable');
-  await self.skipWaiting();
-})()));
+function installError(code) { const error = new Error(code); error.code = code; return error; }
+async function installMessage(state, detail) {
+  try { for (const client of await self.clients.matchAll({ type: 'window', includeUncontrolled: true })) client.postMessage({ type: 'asset-cache-install-status', version: VERSION, state, detail }); } catch (_) { }
+}
+async function installShell() {
+  await installMessage('installing', 'start');
+  try {
+    const cache = await caches.open(PAGE); let verified = false;
+    // The two page URLs are the same generated document. One versioned download
+    // saves a second large HTML transfer while the previous worker still runs.
+    // Never label a stale CDN page as this worker's current offline shell.
+    for (let attempt = 0; attempt < 2 && !verified; attempt++) {
+      try {
+        await deadline(async signal => {
+          const url = new URL('index.html', SCOPE); url.searchParams.set('sw', VERSION); if (attempt) url.searchParams.set('retry', String(attempt));
+          const response = await fetch(url.href, { cache: 'reload', signal, priority: 'high' });
+          if (!response.ok) throw installError('shell-response-error');
+          const html = await response.text(), match = /\bconst\s+BUILD\s*=\s*["']([^"']+)["']\s*;/.exec(html);
+          if (!match || match[1] !== VERSION) throw installError('page-version-mismatch');
+          const headers = new Headers(response.headers); headers.delete('content-encoding'); headers.delete('content-length');
+          const pageResponse = () => new Response(html, { status: response.status, statusText: response.statusText, headers });
+          await cache.put(new URL('index.html', SCOPE).href, pageResponse()); await cache.put(SCOPE.href, pageResponse()); verified = true;
+        }, 90000);
+      } catch (error) { if (attempt === 1) throw error; }
+    }
+    await installMessage('page-ready', 'verified-current-page');
+    // Two small shell transfers at once leave bandwidth for the running game.
+    const remaining = SHELL.filter(path => path !== './' && path !== 'index.html');
+    const next = async () => {
+      for (let path = remaining.shift(); path; path = remaining.shift()) await deadline(async signal => {
+        const url = new URL(path, SCOPE).href, response = await fetch(url, { cache: 'no-cache', signal });
+        if (!response.ok) throw installError('shell-response-error'); await cache.put(url, response);
+      }, 90000);
+    };
+    await Promise.all([next(), next()]); await installMessage('shell-ready', 'offline-shell-cached');
+    const libraries = await Promise.all(LIB.map(path => asset(new Request(new URL(path, SCOPE).href))));
+    if (libraries.some(response => !response.ok)) throw installError('offline-libraries-unavailable');
+    await installMessage('ready', 'offline-libraries-ready'); await self.skipWaiting();
+  } catch (error) {
+    const detail = error.code || (error.message === 'Download timed out' ? 'download-timeout' : ['QuotaExceededError', 'NotAllowedError', 'SecurityError'].includes(error.name) ? 'storage-error' : 'install-error');
+    await installMessage('failed', detail); throw error;
+  }
+}
+self.addEventListener('install', event => event.waitUntil(installShell()));
 self.addEventListener('activate', event => event.waitUntil((async () => {
   // Manifest housekeeping must not prevent an installed worker from activating
   // when storage becomes full. Gameplay can still use network-only responses.

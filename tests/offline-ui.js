@@ -7,7 +7,8 @@ const app = fs.readFileSync(path.join(__dirname, '../src/app.js'), 'utf8');
 const helper = app.slice(app.indexOf('function offlineHelper()'), app.indexOf('// ----- the lobby:'));
 
 function harness(options = {}) {
-  let now = 0, nextTimer = 0, resolveReady;
+  let now = 0, nextTimer = 0, resolveReady, updates = 0;
+  const notes = [], registrationListeners = new Map();
   const timers = new Map(), listeners = new Map(), loadListeners = [], posts = [], calls = [];
   const elements = {};
   for (const id of ['assetDownload', 'assetDownloadStatus', 'assetDownloadProgress', 'bAssetDownload']) {
@@ -19,7 +20,9 @@ function harness(options = {}) {
   const worker = { state: options.state || 'activated', postMessage(message) { posts.push(message); },
     addEventListener(type, fn) { if (type === 'statechange') workerListeners.add(fn); },
     removeEventListener(type, fn) { if (type === 'statechange') workerListeners.delete(fn); } };
-  const registration = { active: worker };
+  const registration = { active: worker,
+    addEventListener(type, fn) { registrationListeners.set(type, fn); },
+    update() { updates++; return options.updateReject ? Promise.reject(Object.assign(Error('private URL must not be logged'), { name: 'NetworkError' })) : Promise.resolve(registration); } };
   const serviceWorker = {
     controller: options.controller === false ? null : worker,
     ready: new Promise(resolve => { resolveReady = resolve; }),
@@ -27,6 +30,7 @@ function harness(options = {}) {
     register(url, config) { calls.push({ url, config }); return options.reject ? Promise.reject(Error('offline')) : Promise.resolve(registration); }
   };
   const context = vm.createContext({
+    ...(options.noDiag ? {} : { Diag: { note(kind, text) { notes.push({ kind, text }); } } }),
     $: selector => elements[selector.slice(1)], SITE: options.site !== false, BUILD: 'test-version',
     navigator: options.noSW ? {} : { serviceWorker },
     location: { protocol: options.protocol || 'http:', hostname: options.hostname || '127.0.0.1' },
@@ -36,12 +40,13 @@ function harness(options = {}) {
     clearTimeout(id) { timers.delete(id); }
   });
   vm.runInContext(helper + '\nofflineHelper();', context);
-  return { elements, worker, registration, serviceWorker, calls, posts,
+  return { elements, worker, registration, serviceWorker, calls, posts, notes,
     load() { loadListeners.splice(0).forEach(fn => fn()); },
     ready(activate = true) { if (activate) worker.state = 'activated'; resolveReady(registration); },
     transition(state) { worker.state = state; [...workerListeners].forEach(fn => fn()); },
     emit(data, source = worker) { listeners.get('message')?.({ data: { type: 'asset-cache-progress', version: 'test-version', ...data }, source }); },
     change() { listeners.get('controllerchange')?.(); },
+    updateFound() { registrationListeners.get('updatefound')?.(); },
     click() { elements.bAssetDownload.handlers.click?.(); },
     advance(ms) {
       const end = now + ms;
@@ -52,7 +57,8 @@ function harness(options = {}) {
       }
       now = end;
     },
-    get autoDownloads() { return posts.filter(message => message && message.type === 'keep-all').length; }
+    get autoDownloads() { return posts.filter(message => message && message.type === 'keep-all').length; },
+    get updates() { return updates; }
   };
 }
 const flush = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
@@ -93,6 +99,12 @@ const progress = h => h.elements.assetDownloadProgress;
   }
   {
     const h = harness({ state: 'activating', controller: false }); await flush();
+    h.emit({ type: 'asset-cache-install-status', state: 'shell-ready', detail: 'https://private.example/' });
+    assert(h.notes.some(note => note.text === 'install shell-ready, version test-version'), 'observed installer can report health before activation');
+    assert.equal(h.posts.length, 0, 'installer health authorization does not send it requests');
+    assert(!h.notes.some(note => note.text.includes('private.example')));
+    h.emit({ type: 'asset-cache-install-status', state: 'failed', detail: 'download-timeout' });
+    assert(h.notes.some(note => note.text.endsWith(', download-timeout')), 'known installer failure reason is recorded');
     h.ready(false); await flush();
     assert.equal(h.posts.length, 0, 'ready may resolve before the worker is activated');
     h.advance(9000); assert.equal(button(h).disabled, false);
@@ -147,9 +159,46 @@ const progress = h => h.elements.assetDownloadProgress;
   {
     const h = harness(); await flush();
     h.advance(9000); assert.equal(state(h), 'available'); assert.equal(button(h).disabled, false);
-    h.click();
+    h.click(); await flush();
     assert.equal(h.posts.at(-2).type, 'keep-all'); assert.equal(h.posts.at(-1), 'keep-all', 'legacy download compatibility');
+    assert.equal(h.updates, 1, 'manual legacy retry also retries a failed new worker installation');
     h.advance(9000); assert.equal(button(h).disabled, false, 'legacy helper never leaves a permanent spinner');
+    assert.equal(h.updates, 1, 'worker updates are not polled');
+    assert(h.notes.some(note => note.text.includes('progress timeout after 9s')));
+    assert(h.notes.some(note => note.text.includes('manual update checked')));
+  }
+  {
+    const h = harness(); await flush();
+    const newMessages = [], fresh = { state: 'activated', postMessage(message) { newMessages.push(message); } };
+    // A controller change can briefly precede the registration.active object's update.
+    h.serviceWorker.controller = fresh;
+    const oldPosts = h.posts.length; h.change();
+    assert.equal(h.posts.length, oldPosts, 'stale registration.active must not win over the new controller');
+    assert.deepEqual(newMessages.map(message => message.type), ['cache-status', 'keep-all']);
+    h.emit({ done: 116, total: 116, failed: 0, complete: true }, fresh);
+    assert.equal(state(h), 'complete');
+  }
+  {
+    const h = harness(); await flush();
+    const transitions = new Set(), installing = { state: 'installing',
+      addEventListener(type, fn) { transitions.add(fn); }, removeEventListener(type, fn) { transitions.delete(fn); } };
+    h.registration.installing = installing; h.updateFound();
+    installing.state = 'redundant'; [...transitions].forEach(fn => fn());
+    assert(h.notes.some(note => note.text.includes('update found')));
+    assert(h.notes.some(note => note.text.includes('installing state redundant')), 'late update installation failure is diagnosed');
+    assert.equal(transitions.size, 0, 'terminal worker observer is removed');
+  }
+  {
+    const h = harness({ updateReject: true }); await flush(); h.advance(9000); h.click(); await flush();
+    assert(h.notes.some(note => note.text.includes('manual update failed: NetworkError')));
+    assert(!h.notes.some(note => note.text.includes('private URL')), 'diagnostics never include arbitrary exception text');
+    h.emit({ done: 20, total: 20, failed: 0, complete: true, version: 'https://private.example/secret' });
+    assert(!h.notes.some(note => note.text.includes('private.example')), 'worker version diagnostics are bounded identifiers');
+  }
+  {
+    const h = harness({ noDiag: true }); await flush(); h.ready(); await flush();
+    h.emit({ done: 116, total: 116, failed: 0, complete: true });
+    assert.equal(state(h), 'complete', 'diagnostics are optional');
   }
   {
     const h = harness(); await flush(); h.ready(); await flush();

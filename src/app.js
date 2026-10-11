@@ -96,13 +96,148 @@ const Install = (() => {
 })();
 // the offline helper: the game opens without a connection too (and the browser offers to install it)
 function offlineHelper() {
-  if (!SITE || !('serviceWorker' in navigator) || !(location.protocol === 'https:' || location.hostname === 'localhost')) return;
-  const go = () => navigator.serviceWorker.register('sw.js').then(r => setTimeout(() => {
-    const w = r.active || r.waiting || r.installing;
-    if (w) w.postMessage('keep-all');                     // all the pictures, once the page has what it needs
-  }, 12000)).catch(() => { });
-  if (document.readyState === 'complete') go(); else addEventListener('load', go);
+  const box = $('#assetDownload'), status = $('#assetDownloadStatus'), bar = $('#assetDownloadProgress'), button = $('#bAssetDownload');
+  if (!box || !status || !bar || !button || offlineHelper.started) return;
+  offlineHelper.started = true;
+  box.hidden = false;
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+  if (!SITE || !('serviceWorker' in navigator) || !(location.protocol === 'https:' || local)) {
+    bar.hidden = button.hidden = true;
+    status.textContent = 'ფაილები თამაშის გახსნისას ჩაიტვირთება.';
+    return;
+  }
+  let registration = null, registering = null, readyWatching = false, replyTimer = 0, autoTimer = 0, legacy = false;
+  const senders = new Set(), activationWatches = new Map();
+  const activated = worker => worker && worker.state === 'activated';
+  const worker = () => activated(registration && registration.active) ? registration.active
+    : activated(navigator.serviceWorker.controller) ? navigator.serviceWorker.controller : null;
+  const action = (label, disabled = false) => { button.textContent = label; button.disabled = disabled; button.hidden = false; };
+  const waiting = text => {
+    box.dataset.state = 'checking'; bar.hidden = false; bar.removeAttribute('value');
+    status.textContent = text; action('მზადდება…', true);
+  };
+  const available = text => {
+    box.dataset.state = 'available'; bar.hidden = true;
+    status.textContent = text; action('ჩამოტვირთვა');
+  };
+  function ask(type) {
+    const w = worker();
+    if (!w) return false;
+    senders.add(w);
+    try { w.postMessage({ type }); return true; } catch (_) { return false; }
+  }
+  function waitForReply() {
+    clearTimeout(replyTimer);
+    replyTimer = setTimeout(() => {
+      legacy = true;
+      available('ჩამოტვირთვა ხელმისაწვდომია. თამაში ახლავე შეგიძლია დაიწყო.');
+    }, 9000);
+  }
+  function check() {
+    waiting('ვამოწმებთ შენახულ ფაილებს…');
+    waitForReply();
+    if (!ask('cache-status')) available('ჩამოტვირთვის მომზადება მიმდინარეობს. თამაში შეგიძლია დაიწყო.');
+  }
+  function download() {
+    clearTimeout(autoTimer);
+    waiting('ჩამოტვირთვა იწყება…');
+    waitForReply();
+    if (!ask('keep-all')) {
+      available('ფაილების ჩამოტვირთვა ჯერ ვერ დაიწყო. სცადე ხელახლა.');
+      register();
+    } else if (legacy) {
+      // Older helpers understand this message but cannot report progress. The reply timeout keeps the action usable.
+      try { worker().postMessage('keep-all'); } catch (_) { }
+    }
+  }
+  function warmLater() {
+    clearTimeout(autoTimer);
+    autoTimer = setTimeout(download, 12000); // warm files after the page has loaded; gameplay never waits for this
+  }
+  function observeActivation(w, warm = false) {
+    if (!w || activated(w) || typeof w.addEventListener !== 'function') return;
+    const existing = activationWatches.get(w);
+    if (existing) { existing.warm = existing.warm || warm; return; }
+    const watch = { warm };
+    activationWatches.set(w, watch);
+    const changed = () => {
+      if (!activated(w) && w.state !== 'redundant') return;
+      w.removeEventListener('statechange', changed); activationWatches.delete(w);
+      if (activated(w) && worker() === w) {
+        // ready/controllerchange can happen during 'activating'. Wait for the actual usable worker.
+        check();
+        if (watch.warm) { clearTimeout(autoTimer); ask('keep-all'); } else warmLater();
+      }
+    };
+    w.addEventListener('statechange', changed);
+  }
+  navigator.serviceWorker.addEventListener('message', event => {
+    const data = event.data;
+    if (!data || data.type !== 'asset-cache-progress' || (event.source && !senders.has(event.source))) return;
+    if (typeof BUILD !== 'undefined' && data.version && data.version !== BUILD) {
+      clearTimeout(replyTimer); clearTimeout(autoTimer);
+      box.dataset.state = 'update-ready'; bar.hidden = true;
+      status.textContent = 'თამაშის ახალი ვერსია მზადაა. განაახლე გვერდი თამაშის დასრულების შემდეგ.';
+      action('შემოწმება');
+      return;
+    }
+    clearTimeout(replyTimer); legacy = false;
+    const count = value => Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : 0;
+    const total = count(data.total), done = Math.min(total, count(data.done));
+    const failed = Array.isArray(data.failed) ? data.failed.length : count(data.failed);
+    const complete = !!data.complete && total > 0 && done === total && failed === 0;
+    const bytes = count(data.bytes), size = bytes > 0 ? ' · ' + (bytes / 1048576).toFixed(1) + ' მბ' : '';
+    bar.hidden = false; bar.max = Math.max(1, total); bar.value = done;
+    if (complete) {
+      box.dataset.state = 'complete'; status.textContent = 'მზადაა: ' + done + ' / ' + total + ' ფაილი' + size;
+      action('შემოწმება');
+    } else if (data.running) {
+      box.dataset.state = 'running'; status.textContent = 'იტვირთება: ' + done + ' / ' + total + ' ფაილი' + size;
+      action('იტვირთება…', true);
+    } else {
+      box.dataset.state = failed ? 'failed' : 'available';
+      status.textContent = done + ' / ' + total + ' ფაილი' + size + (failed ? ' · ' + failed + ' ვერ ჩაიტვირთა' : ' · შეგიძლია ითამაშო');
+      action(failed ? 'ხელახლა ცდა' : 'ჩამოტვირთვა');
+    }
+  });
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    clearTimeout(autoTimer);
+    observeActivation(navigator.serviceWorker.controller, true);
+    observeActivation(registration && registration.active, true);
+    if (worker()) { check(); ask('keep-all'); }
+  });
+  function register() {
+    if (registering) return registering;
+    waiting('ჩამოტვირთვის მომზადება…'); waitForReply();
+    registering = navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => {
+      registration = r;
+      observeActivation(r.active); observeActivation(r.installing); observeActivation(r.waiting);
+      if (worker()) check();
+      if (!readyWatching) {
+        readyWatching = true;
+        navigator.serviceWorker.ready.then(ready => {
+          registration = ready;
+          observeActivation(ready.active);
+          check();
+          if (worker()) warmLater();
+        }).catch(() => { readyWatching = false; available('ჩამოტვირთვა ჯერ მიუწვდომელია. სცადე ხელახლა.'); });
+      }
+      return r;
+    }).catch(() => {
+      clearTimeout(replyTimer);
+      available('ფაილების ჩამოტვირთვა ვერ მომზადდა. სცადე ხელახლა.');
+      return null;
+    }).finally(() => { registering = null; });
+    return registering;
+  }
+  button.addEventListener('click', () => {
+    if (box.dataset.state === 'complete' || box.dataset.state === 'update-ready') check();
+    else if (worker()) download();
+    else register().then(r => { if (r && worker()) download(); });
+  });
+  if (document.readyState === 'complete') register(); else addEventListener('load', register, { once: true });
 }
+
 
 // ----- the lobby: who is in, which hero, how long, start -----
 const Lobby = (() => {

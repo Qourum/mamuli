@@ -792,3 +792,19 @@ pre.diag { margin: 10px 0 0; padding: 10px; max-height: 52vh; overflow: auto; bo
   .pl.cash-in, .pl.cash-out, .pl .cash-delta { animation: none; }
   .currency-world-label.reduced { box-shadow: 0 2px 8px #0005; }
 }
+
+/* ----- optional offline download status: compact, without holding up play ----- */
+.asset-download { margin: 8px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 11px; background: rgba(8, 22, 30, .28); }
+.asset-download-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.asset-download-top b { font-size: 12px; color: var(--cream); }
+.asset-download-top .link { margin: 0; padding: 2px 0; font-size: 12px; white-space: nowrap; }
+.asset-download-top .link:disabled { color: var(--dim); cursor: default; }
+.asset-download progress { display: block; width: 100%; height: 7px; margin: 7px 0 6px; border: 0; border-radius: 99px; overflow: hidden; accent-color: var(--gold); background: rgba(0, 0, 0, .24); }
+.asset-download progress::-webkit-progress-bar { background: rgba(0, 0, 0, .24); border-radius: 99px; }
+.asset-download progress::-webkit-progress-value { background: var(--gold); border-radius: 99px; }
+.asset-download progress::-moz-progress-bar { background: var(--gold); border-radius: 99px; }
+.asset-download[data-state="complete"] progress { accent-color: #82cfa6; }
+.asset-download[data-state="complete"] progress::-webkit-progress-value { background: #82cfa6; }
+.asset-download[data-state="complete"] progress::-moz-progress-bar { background: #82cfa6; }
+.asset-download p { margin: 0; font-size: 11px; line-height: 1.45; color: var(--muted); }
+.asset-download[data-state="failed"] p { color: #efb994; }

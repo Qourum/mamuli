@@ -17,7 +17,7 @@ import base64, hashlib, json, os, shutil, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'src')
 METEKHI = os.environ.get('METEKHI', os.path.join(os.path.dirname(ROOT), 'qourum', 'metekhi'))
-JS = ['diag.js', 'data.js', 'themes.js', 'engine.js', 'net.js', 'voice.js', 'terrain.js', 'models.js', 'sea.js', 'glb.js', 'marine.js', 'lagoon.js', 'reef.js', 'weather.js', 'place-models.js', 'map-props.js', 'place-fx.js', 'board3d.js', 'dice3d.js', 'pictures.js', 'card3d.js', 'ui.js', 'app.js']
+JS = ['diag.js', 'data.js', 'themes.js', 'engine.js', 'net.js', 'voice.js', 'terrain.js', 'models.js', 'sea.js', 'glb.js', 'marine.js', 'lagoon.js', 'reef.js', 'weather.js', 'place-models.js', 'map-props.js', 'place-fx.js', 'render-pacer.js', 'board3d.js', 'dice3d.js', 'pictures.js', 'card3d.js', 'ui.js', 'app.js']
 THREE_CDN = 'https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js'
 HEROES = ['david', 'tamar', 'gorgasali', 'erekle', 'kakutsa', 'tariel', 'avtandil', 'gurdjieff', 'abrag', 'amirani', 'mikha', 'prometheus']
 PIRATES = ['blackbeard', 'bonny', 'read', 'chingshih', 'omalley', 'morgan', 'kidd', 'roberts', 'barbarossa', 'bellamy', 'labuse', 'stortebeker']
@@ -85,10 +85,19 @@ def sync_art(dest):
             shutil.copyfile(s, d)
 
 
+def asset_revisions():
+    revisions = {}
+    for name in ['art/' + f for f in FILES] + ['vendor/three.min.js', 'vendor/GLTFLoader.min.js']:
+        with open(os.path.join(ROOT, name), 'rb') as source:
+            revisions[name] = hashlib.sha256(source.read()).hexdigest()
+    return revisions
+
+
 def page(site):
     css, body = read('style.css'), read('index.html').replace('<!--HEAD-->', '')
     code = '\n'.join(read(n) for n in JS)
-    build = hashlib.sha1((css + body + code).encode()).hexdigest()[:10]
+    # Worker-only fixes and changed asset bytes both identify a new release.
+    build = hashlib.sha1((css + body + code + read('sw.js') + json.dumps(asset_revisions(), sort_keys=True)).encode()).hexdigest()[:10]
     js = f'const BUILD = "{build}";\nconst SITE = {"true" if site else "false"};\n' + code
     if site:
         return build, f'{SITE_HEAD}<style>\n{css}</style>\n</head>\n<body>\n{body}<script src="vendor/three.min.js"></script>\n<script src="vendor/GLTFLoader.min.js"></script>\n<script>\n{js}</script>\n</body>\n</html>\n'
@@ -120,7 +129,8 @@ def main():
     with open(os.path.join(ROOT, 'index.html'), 'w', encoding='utf-8') as f:
         f.write(html)
     # the offline helper: a new version with every new page, so the old page's copy is replaced
-    sw = read('sw.js').replace("'__VERSION__'", json.dumps(build)).replace('__ARTS__', json.dumps(FILES))
+    revisions = asset_revisions()
+    sw = read('sw.js').replace("'__VERSION__'", json.dumps(build)).replace('__ARTS__', json.dumps(FILES)).replace('__ASSET_REVISIONS__', json.dumps(revisions, sort_keys=True))
     with open(os.path.join(ROOT, 'sw.js'), 'w', encoding='utf-8') as f:
         f.write(sw)
     print(f'site {build}: index.html {len(html) // 1024} KB, sw.js, {len(ART) + len(CARD_PICTURES)} pictures, {len(MODELS)} models')

@@ -80,4 +80,9 @@ life.group.traverse(o => { if (o.geometry) resources.add(o.geometry); if (o.isIn
 let releases = 0; for (const resource of resources) resource.addEventListener('dispose', () => releases++);
 const count = life.stats().resources; life.dispose(); life.dispose(); life.update(121, .1); assert.equal(life.trigger(2, 'arrival'), false); assert.equal(parent.children.length, 0); assert.equal(releases, resources.size, 'shared GPU resources released exactly once'); assert.equal(instanceDisposals, 1); assert.equal(life.stats().resources, 0);
 const empty = context.props.create({ parent, places: [], reducedMotion: true }); empty.update(0, 0); empty.dispose(); assert.equal(parent.children.length, 0); assert.equal(context.props.create({}), null);
+const phone = context.props.create({ parent, places, mobile: true });
+const phoneGlass = phone.group.getObjectByName('Thick hollow glass with neck').material;
+assert.equal(phoneGlass.transmission, 0, 'mobile bottles do not trigger a full-scene transmission render pass');
+assert(phoneGlass.transparent && phoneGlass.opacity > .7 && phoneGlass.opacity < 1, 'tinted glass remains translucent');
+assert.equal(phone.stats().places, 6); phone.dispose();
 console.log(JSON.stringify({ passed: true, places: 6, duration: 5.8, neckChecks, maxLetterWidth, maxHeight, maxSpan, resources: count, draws: 40, realHollowChests: true, fixedHinge: true, idleDeformationCached: true, pickablePropParts: true, retriggerContinuous: true, reducedMotion: true, allResourcesReleased: true }, null, 2));

@@ -61,7 +61,7 @@ const MapProps3D = (() => {
     const paperMaterial = material(0xffffff, { map: parchment, side: T.DoubleSide, roughness: .94 });
     const corkMaterial = material(0x987044, { map: grain, roughness: .93 });
     const wax = material(0x8e241d, { roughness: .42, clearcoat: .3 }, true);
-    const glass = material(0x5c957d, { roughness: .16, transmission: .40, thickness: .018, attenuationColor: 0x307757, attenuationDistance: .32, ior: 1.50, metalness: 0, clearcoat: .70, envMapIntensity: .80, transparent: true, opacity: 1, depthWrite: true, side: T.DoubleSide }, true);
+    const glass = material(0x5c957d, { roughness: .16, transmission: opts.mobile ? 0 : .40, thickness: .018, attenuationColor: 0x307757, attenuationDistance: .32, ior: 1.50, metalness: 0, clearcoat: .70, envMapIntensity: .80, transparent: true, opacity: opts.mobile ? .84 : 1, depthWrite: true, side: T.DoubleSide }, true);
 
     const L = .38, D = .272, H = .172, timber = [], metal = [], dark = [];
     for (let j = 0; j < 4; j++) { const y = .025 + j * .043; for (const s of [-1, 1]) { timber.push(piece(bevel(L, .041, .014), 0, y, s * D / 2)); timber.push(piece(bevel(.014, .041, D - .024), s * (L / 2 - .006), y)); } }

@@ -19,6 +19,11 @@
         <p class="note" id="onlineNote" hidden>ონლაინ ოთახები თამაშის საიტზე მუშაობს: <b>qourum.github.io/mamuli</b>. აქ ბოტებთან ან ერთ ეკრანზე ითამაშებ.</p>
         <button class="btn wide" id="bLocal">ბოტებთან ან ერთ ეკრანზე</button>
         <button class="btn ghost wide" id="bResume" hidden>შენახული თამაშის გაგრძელება</button>
+        <div class="asset-download" id="assetDownload" hidden>
+          <div class="asset-download-top"><b>თამაშის ფაილები</b><button class="link" type="button" id="bAssetDownload">ჩამოტვირთვა</button></div>
+          <progress id="assetDownloadProgress" max="1" aria-label="თამაშის ფაილების ჩამოტვირთვა"></progress>
+          <p id="assetDownloadStatus" role="status" aria-live="polite">ჩამოტვირთვის მომზადება…</p>
+        </div>
         <div class="install" id="installBox" hidden>
           <button class="btn wide" id="bInstall"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 6.5v7M9 10.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.5 18h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>დააინსტალირე</button>
           <p class="note" id="installNote">მთავარ ეკრანზე დაჯდება და აპივით გაიხსნება, ბრაუზერის ზოლების გარეშე.</p>

@@ -757,7 +757,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
         placeModelsLife = PlaceModels3D.create({ parent: landG, places: PlaceModels3D.indices.map(i => ({ i, name: BOARD[i].n, frame: lotF[i] })), reducedMotion: REDUCED });
         if (placeModelsLife.getObject) for (const i of PlaceModels3D.indices) lotMesh[i] = placeModelsLife.getObject(i);
       }
-      if (typeof MapProps3D !== 'undefined') mapPropsLife = MapProps3D.create({ parent: landG, places: [2,7,17,22,33,36].map(i => ({ i, frame: lotF[i] })), waterY: Terrain.SEA_Y, reducedMotion: REDUCED });
+      if (typeof MapProps3D !== 'undefined') mapPropsLife = MapProps3D.create({ parent: landG, places: [2,7,17,22,33,36].map(i => ({ i, frame: lotF[i] })), waterY: Terrain.SEA_Y, reducedMotion: REDUCED, mobile });
       if (typeof PlaceFX3D !== 'undefined') placeEffects = PlaceFX3D.create({ parent: root, reducedMotion: REDUCED,
         places: BOARD.map((tile, i) => ({ i, corner: !(i % 10), at: i % 10 ? lotF[i].at(0, -.10, .035) : toWorld(i, 0, 0, TH + .025) })) });
     }
@@ -865,7 +865,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   function placeCenter(d) {
     const land = landG;
     if (d.animated) {
-      GLB.loadScene(d.url).then(pack => {
+      GLB.loadScene(d.url, 10).then(pack => {
         if (landG !== land) return;
         // The board already owns the sea. Its surface continues around the native island and its ship.
         const ocean = pack.scene.getObjectByName('Ocean_Surface');
@@ -1876,18 +1876,19 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   }
 
   // ===== the frame loop =====
-  // Quality follows the device. Frames drawn one after another (while something moves) that come too slowly make the
+  // Quality follows measured drawn frames, including idle animations. Frames that come too slowly make the
   // picture a step coarser, with fewer pixels. The step is taken in a quiet moment, when nothing moves, so that the
   // change itself is not seen as a jolt; and the shaders never change mid-game (rebuilding them stalls a phone).
   let last = 0, running = false, frame = 0, quality = 2, basePR = 1, shadowDirty = true, shadowLate = false, shadowAt = 0;
-  let drewLast = false, busyAvg = 1 / 60, busyN = 0, prStep = 0, prNext = 0;
+  let pacer = RenderPacer.create(false), busyAvg = 1 / 60, busyN = 0, prStep = 0, prNext = 0, shadowTime = 0;
   let drewAt = 0, lostAt = 0, progN = 0;          // when a frame was last drawn; when the graphics were lost; shaders made
   const PR_STEPS = [1, 0.85, 0.72, 0.6];
-  function adapt(real) {
-    if (real > 0.25 || real <= 0) return;                // a hiccup (a tab switch), not the device
+  function adapt(real, target = 1 / 60) {
+    if (real > 1 || real <= 0) return;
+    real = Math.min(real, .25);                // bound isolated stalls without ignoring a consistently slow phone
     busyAvg = busyAvg * 0.95 + real * 0.05;
-    if (++busyN < 50 || busyAvg < 1 / 36 || prNext || prStep >= PR_STEPS.length - 1) return;
-    const pr = Math.max(1, basePR * PR_STEPS[prStep + 1]);
+    if (++busyN < 45 || busyAvg < Math.max(target * 1.25, 1 / 36) || prNext || prStep >= PR_STEPS.length - 1) return;
+    const pr = Math.max(mobile ? .85 : 1, basePR * PR_STEPS[prStep + 1]);
     prStep++; busyN = 0;
     if (pr < R.getPixelRatio() - 0.01) prNext = pr;
   }
@@ -1903,14 +1904,20 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (riseAt && frame >= riseAt) riseGo();
     stepTweens(dt * speedK);
     moveCamera(dt * speedK);
-    const t = now / 1000;
-    if (marineLife) marineLife.update(REDUCED ? 3 : t, dt);
-    if (lagoonLife) lagoonLife.update(REDUCED ? 3 : t, dt);
-    if (reefLife) reefLife.update(REDUCED ? 3 : t, dt);
-    if (weatherLife) weatherLife.update(REDUCED ? 3 : t, dt);
-    if (placeModelsLife) placeModelsLife.update(REDUCED ? 3 : t, dt);
-    if (mapPropsLife) mapPropsLife.update(REDUCED ? 3 : t, dt);
-    if (placeEffects) placeEffects.update(REDUCED ? 3 : t, dt);
+    const moving = tweens.length > 0 || BLD.busy > 0;
+    const camStill = Math.abs(camT.yaw - camS.yaw) < 0.002 && Math.abs(camT.d - camS.d) < 0.01 && Math.abs(camT.x - camS.x) < 0.005 && Math.abs(camT.z - camS.z) < 0.005;
+    const still = !moving && camStill && !Dice3D.busy;
+    if (still && prNext) coarser();
+    // Do not deform meshes, update animals or upload instances for an unpainted frame.
+    if (!pacer.step(now, !still)) return;
+    const visualDt = Math.min(.25, pacer.delta), t = now / 1000;
+    if (marineLife) marineLife.update(REDUCED ? 3 : t, visualDt);
+    if (lagoonLife) lagoonLife.update(REDUCED ? 3 : t, visualDt);
+    if (reefLife) reefLife.update(REDUCED ? 3 : t, visualDt);
+    if (weatherLife) weatherLife.update(REDUCED ? 3 : t, visualDt);
+    if (placeModelsLife) placeModelsLife.update(REDUCED ? 3 : t, visualDt);
+    if (mapPropsLife) mapPropsLife.update(REDUCED ? 3 : t, visualDt);
+    if (placeEffects) placeEffects.update(REDUCED ? 3 : t, visualDt);
     pinFrame(t);
     // the figures face the camera; the one whose turn it is glows
     for (const tk of toks) {
@@ -1920,7 +1927,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       if (tk.glow.visible) { const s = 1 + Math.sin(t * 4) * 0.08; tk.glow.scale.set(s, s, s); tk.glow.material.opacity = 0.6 + Math.sin(t * 4) * 0.25; }
       if (tk.hull) {        // the ship turns to sail along its side of the board, and rolls
         const want = yawOf(sideOf(pos[tk.seat] || 0)) + Math.PI + 0.45, d = Math.atan2(Math.sin(want - tk.hull.rotation.y), Math.cos(want - tk.hull.rotation.y));
-        tk.hull.rotation.y += d * Math.min(1, dt * 5);
+        tk.hull.rotation.y += d * Math.min(1, visualDt * 5);
         tk.hull.rotation.x = REDUCED ? 0 : 0.06 * Math.sin(t * 1.6 + tk.seat * 1.7); tk.hull.rotation.z = REDUCED ? 0 : 0.03 * Math.sin(t * 1.1 + tk.seat);
       }
     }
@@ -1935,27 +1942,20 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     }
     if (wheel) wheel.children[0].rotation.z = (REDUCED ? 0 : t) * 1.4;
     if (BLD.busy || tweens.length) layoutBuildings(now);
-    const moving = tweens.length > 0 || BLD.busy > 0;
-    const camStill = Math.abs(camT.yaw - camS.yaw) < 0.002 && Math.abs(camT.d - camS.d) < 0.01 && Math.abs(camT.x - camS.x) < 0.005 && Math.abs(camT.z - camS.z) < 0.005;
-    const still = !moving && camStill && !Dice3D.busy;
-    if (still && prNext) coarser();
-    if (still && frame % (mobile ? 3 : 2)) { drewLast = false; return; }   // only the board's own life moving: fewer frames are enough (a phone stays cool)
-    if (drewLast) adapt(real);
-    drewLast = !still;
-    // the shadows are drawn again only when what casts them has moved, or the sun has (it turns with the camera):
-    // not while the dice roll over a board that stands still, nor while only the life of the board goes on. While
-    // things move they are drawn on every other frame on a phone (every fourth while the dice fly), and once more at
-    // the end, when all has come to rest
+    // A phone retains its contact-shadow map through ambient animation. Repainting
+    // all native morph meshes periodically causes stalls even with a small map.
+    // Refresh after camera/game-piece motion settles or a model/building changes.
     const need = moving || !camStill;
     if (need) shadowLate = true;
-    const every = Dice3D.busy ? 4 : mobile ? 2 : 1;
-    const nativeShadow = !REDUCED && animatedModels.length && frame - shadowAt >= (mobile ? 12 : 8);
-    if (shadowDirty || nativeShadow || (shadowLate && (!need || frame - shadowAt >= every))) { R.shadowMap.needsUpdate = true; shadowDirty = false; shadowLate = false; shadowAt = frame; PERF.shadows++; }
+    const every = Dice3D.busy ? 4 : 1;
+    const nativeShadow = !mobile && !REDUCED && animatedModels.length && now - shadowTime >= 130;
+    if (shadowDirty || nativeShadow || (shadowLate && (!need || (!mobile && frame - shadowAt >= every)))) { R.shadowMap.needsUpdate = true; shadowDirty = false; shadowLate = false; shadowAt = frame; shadowTime = now; PERF.shadows++; }
     PERF.frames++;
     const lt = REDUCED ? 3 : t;              // with less motion asked for, the board's life stands still
     U.time.value = lt;
     lifeStep(lt);
-    draw(dt * speedK);
+    draw(visualDt * speedK);
+    adapt(pacer.delta, pacer.interval);
   }
   function draw(diceDt) {
     // Render throttling saves power, but native clips still advance by all elapsed time between drawn frames.
@@ -1970,7 +1970,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   }
   function start() {
     if (running || !ok) return;
-    running = true; last = 0; drewAt = performance.now();
+    running = true; last = 0; pacer.reset(); drewAt = performance.now();
     requestAnimationFrame(loop);
   }
   function stop() { running = false; }
@@ -2008,11 +2008,14 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     host = el;
     if (!T || !Models || !Terrain || /[?&]nogl\b/.test(location.search)) { failed = true; return; }
     for (const n of LABEL_PICS) pic(n);            // the squares' pictures start loading now
+    mobile = Math.min(screen.width, screen.height) < 700 || (navigator.maxTouchPoints > 1 && /iPhone|iPad|iPod|Android|Macintosh/.test(navigator.userAgent));
+    pacer = RenderPacer.create(mobile);
+    if (typeof GLB !== 'undefined' && GLB && GLB.configure) GLB.configure({ mobile, concurrency: mobile ? 2 : 4 });
     try {
-      R = new T.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+      R = new T.WebGLRenderer({ antialias: !mobile, alpha: true, powerPreference: mobile ? 'default' : 'high-performance' });
     } catch (e) { console.warn('no WebGL', e); failed = true; return; }
-    mobile = Math.min(screen.width, screen.height) < 700;
-    basePR = Math.min(window.devicePixelRatio || 1, mobile ? 2 : 1.75);
+    basePR = Math.min(window.devicePixelRatio || 1, mobile ? 1.25 : 1.75);
+    quality = mobile ? 1 : 2;
     if (/[?&]lq\b/.test(location.search)) { basePR = 1; quality = 0; }
     R.setPixelRatio(basePR);
     R.outputEncoding = T.sRGBEncoding;
@@ -2021,7 +2024,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     R.shadowMap.autoUpdate = false;                // drawn again only when something moved (see the frame loop)
     R.setClearColor(0x000000, 0);
     R.autoClear = false;
-    maxAniso = Math.min(8, R.capabilities.getMaxAnisotropy());
+    maxAniso = Math.min(mobile ? 2 : 8, R.capabilities.getMaxAnisotropy());
     const cv = R.domElement;
     cv.className = 'board3d';
     el.appendChild(cv);
@@ -2032,7 +2035,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     scene.add(hemi);
     sun = new T.DirectionalLight(0xfff0d6, 1.0);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(mobile ? 1024 : 2048, mobile ? 1024 : 2048);
+    sun.shadow.mapSize.set(mobile ? 512 : 2048, mobile ? 512 : 2048);
     const sc = sun.shadow.camera; sc.left = -9; sc.right = 9; sc.top = 9; sc.bottom = -9; sc.near = 2; sc.far = 40;
     sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.02;
     scene.add(sun); scene.add(sun.target);
@@ -2230,8 +2233,9 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       if (!R) return 'gpu: no 3D' + (failed ? ' (failed)' : '');
       let name = '';
       try { const gl = R.getContext(), x = gl.getExtension('WEBGL_debug_renderer_info'); name = x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); } catch (e) { }
-      const m = R.info.memory;
-      return `gpu ${name} · webgl${R.capabilities.isWebGL2 ? 2 : 1} · pixel ratio ${R.getPixelRatio().toFixed(2)} (${prStep} steps down) · quality ${quality} · ${mobile ? 'phone' : 'computer'} · shaders ${R.info.programs.length} · textures ${m.textures} · geometries ${m.geometries}${lostAt ? ' · GRAPHICS LOST' : ''}`;
+      const m = R.info.memory, assets = typeof GLB !== 'undefined' && GLB && GLB.stats ? GLB.stats() : null;
+      const models = assets ? ` · models ${assets.completed} ready/${assets.queued + assets.active} loading/${assets.failed} failed · model textures ~${Math.round(assets.textureBytes / 1048576)} MiB` : '';
+      return `gpu ${name} · webgl${R.capabilities.isWebGL2 ? 2 : 1} · pixel ratio ${R.getPixelRatio().toFixed(2)} (${prStep} steps down) · quality ${quality} · render ${Math.round(busyAvg * 1000)} ms / ${mobile ? 30 : 60} fps target · ${mobile ? 'phone' : 'computer'} · shaders ${R.info.programs.length} · textures ${m.textures} · geometries ${m.geometries}${models}${lostAt ? ' · GRAPHICS LOST' : ''}`;
     },
     onPick(cb) { pickCb = cb; },
     setPos(seat, at) { pos[seat] = at; },

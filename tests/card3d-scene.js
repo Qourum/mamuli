@@ -47,6 +47,7 @@ worstFraming=Math.max(worstFraming,screenBounds(first,important));assert(worstFr
 host.clientWidth=280;host.clientHeight=200;observers[0].fn();assert.equal(frames.size,0,'resizing finished scene does not restart animation');assert.deepEqual(first.size,[280,200]);
 host.clientWidth=560;host.clientHeight=340;observers[0].fn();assert.deepEqual(first.size,[420,255],'one render scale preserves the host aspect');assert.equal(first.camera.aspect,560/340);assert.equal(frames.size,0);
 
+cards.stop();
 const chestHost=element(),chest=cards.mount(chestHost,'chest'),second=renderers[1];assert(chest);released(first);assert.equal(host.children.length,0);assert(observers[0].disconnected);
 const c=second.scene.userData.reveal;assert.equal(c.pile.count,42);assert(c.hollow);const body=second.scene.getObjectByName('Separate weathered wall planks and floor');assert(body.material.map&&body.material.bumpMap,'wood has grain and shallow relief');
 second.scene.updateMatrixWorld(true);const origin=c.chest.localToWorld(new THREE.Vector3(0,.43,0));
@@ -57,12 +58,12 @@ const anchorBefore=c.lid.position.clone();tick(900);assert(c.lock.rotation.z<-.1
 second.scene.updateMatrixWorld(true);assert(c.lid.position.equals(anchorBefore));assert(c.lid.localToWorld(new THREE.Vector3()).distanceTo(c.chest.localToWorld(new THREE.Vector3(...c.hinge)))<1e-6,'true hinge anchor never drifts');
 const front=c.lid.localToWorld(new THREE.Vector3(0,0,1.04)),back=c.lid.localToWorld(new THREE.Vector3());assert(front.y>back.y+.9,'front of lid lifts upward rather than through chest');
 let octa=0,gemCount=0;second.scene.traverse(o=>{if(o.geometry?.type==='OctahedronGeometry')octa++;if(o.name==='Cut gemstones resting in the treasure')gemCount+=o.count;});assert.equal(octa,0,'no glowing triangle particles');assert.equal(gemCount,9);finite(second.scene);
-tick(3000);assert.equal(frames.size,0);worstChestFraming=Math.max(worstChestFraming,screenBounds(second,chestNodes));assert(worstChestFraming<.96,`entire chest and raised lid stay framed: ${worstChestFraming}`);chestHost.clientHeight=200;observers[1].fn();assert(screenBounds(second,chestNodes)<.96,'200px in-game stage includes lid and chest floor');chest.dispose();chest.dispose();released(second);assert.equal(chestHost.children.length,0);assert.equal(events.size,0);
+tick(3000);assert.equal(frames.size,0);worstChestFraming=Math.max(worstChestFraming,screenBounds(second,chestNodes));assert(worstChestFraming<.96,`entire chest and raised lid stay framed: ${worstChestFraming}`);chestHost.clientHeight=200;observers[1].fn();assert(screenBounds(second,chestNodes)<.96,'200px in-game stage includes lid and chest floor');chest.dispose();chest.dispose();cards.stop();released(second);assert.equal(chestHost.children.length,0);assert.equal(events.size,0);
 
 const scroll=cards.mount(element(),'scroll'),third=renderers[2];tick(100);document.visibilityState='hidden';for(const [fn,type]of events)if(type==='visibilitychange')fn();assert.equal(frames.size,0);const hiddenDraws=third.draws;tick(500);assert.equal(third.draws,hiddenDraws);
-document.visibilityState='visible';for(const [fn,type]of events)if(type==='visibilitychange')fn();assert.equal(frames.size,1,'visibility resume keeps one loop');scroll.dispose();released(third);assert.equal(frames.size,0);
-reduce=true;const still=cards.mount(element(),'bottle'),fourth=renderers[3];assert(still);assert.equal(frames.size,0);assert.equal(still.stats().elapsed,4800);assert(fourth.scene.userData.reveal.seal.visible);still.dispose();released(fourth);
-const stillChest=cards.mount(element(),'chest'),fifth=renderers[4];assert(fifth.scene.userData.reveal.lid.rotation.x<-1.25);assert.equal(frames.size,0);stillChest.dispose();released(fifth);assert.equal(events.size,0);
+document.visibilityState='visible';for(const [fn,type]of events)if(type==='visibilitychange')fn();assert.equal(frames.size,1,'visibility resume keeps one loop');scroll.dispose();cards.stop();released(third);assert.equal(frames.size,0);
+reduce=true;const still=cards.mount(element(),'bottle'),fourth=renderers[3];assert(still);assert.equal(frames.size,0);assert.equal(still.stats().elapsed,4800);assert(fourth.scene.userData.reveal.seal.visible);still.dispose();cards.stop();released(fourth);
+const stillChest=cards.mount(element(),'chest'),fifth=renderers[4];assert(fifth.scene.userData.reveal.lid.rotation.x<-1.25);assert.equal(frames.size,0);stillChest.dispose();cards.stop();released(fifth);assert.equal(events.size,0);
 // Sample the full trajectories in the narrower phone stage, not just endpoints.
 reduce=false;let denseWorst=0,neckSamples=0;
 for(const kind of ['bottle','chest']){
@@ -76,7 +77,7 @@ for(const kind of ['bottle','chest']){
    for(let i=0;i<attr.count;i+=19){point.fromBufferAttribute(attr,i).applyMatrix4(state.paper.matrixWorld);state.bottle.worldToLocal(point);if(point.y>1.085&&point.y<1.324){assert(Math.hypot(point.x,point.z)<.063,'physical roll clears the neck wall while passing through');neckSamples++;}}
   }
  }
- assert.equal(frames.size,0);sceneController.dispose();released(renderer);
+ assert.equal(frames.size,0);sceneController.dispose();cards.stop();released(renderer);
 }
 assert(neckSamples>100,'neck clearance checks sample the moving letter');assert(denseWorst<.96,`both complete reveals fit a narrow phone stage: ${denseWorst}`);
 // A preview with the legacy Three default and a game with explicit sRGB setup
@@ -84,7 +85,45 @@ assert(neckSamples>100,'neck clearance checks sample the moving letter');assert(
 const previousLegacy=THREE.ColorManagement.legacyMode;THREE.ColorManagement.legacyMode=false;reduce=true;
 const colorScene=cards.mount(element(),'bottle'),colorRenderer=renderers.at(-1);assert.equal(THREE.ColorManagement.legacyMode,false);
 const secondGlass=colorRenderer.scene.getObjectByName('Thick-walled curved bottle with open neck').material;
-assert(secondGlass.color.distanceTo?secondGlass.color.distanceTo(glass.material.color)<1e-9:Math.abs(secondGlass.color.r-glass.material.color.r)<1e-9,'sRGB material swatches agree in standalone and game');colorScene.dispose();released(colorRenderer);THREE.ColorManagement.legacyMode=previousLegacy;
+assert(secondGlass.color.distanceTo?secondGlass.color.distanceTo(glass.material.color)<1e-9:Math.abs(secondGlass.color.r-glass.material.color.r)<1e-9,'sRGB material swatches agree in standalone and game');colorScene.dispose();cards.stop();released(colorRenderer);THREE.ColorManagement.legacyMode=previousLegacy;
+// A bounded cache keeps uploaded resources and the WebGL context alive between
+// cards. Repeated sessions replay the same native timeline; stale handles cannot
+// dispose a later mount. stop/context loss explicitly releases every resource.
+reduce=false;
+const beforePool=renderers.length;
+assert(cards.prepare('bottle'));
+const pooled=renderers.at(-1),cachedBottle=pooled.scene,bottleResources=new Set(pooled.resources),warmDraws=pooled.draws;
+assert.equal(warmDraws,2,'opening and final visibility variants are warmed');
+assert.equal(frames.size,0,'prewarming never starts animation');
+assert(cards.prepare('bottle'));assert.equal(pooled.draws,warmDraws,'prewarming a ready scene is a no-op');
+const poolHost=element(),one=cards.mount(poolHost,'bottle');
+assert.equal(renderers.length,beforePool+1,'mount reuses prepared renderer');
+assert.equal(pooled.scene,cachedBottle,'mount reuses prepared scene/geometry/materials');
+assert.equal(one.stats().elapsed,0,'prewarming does not consume the reveal timeline');
+assert.equal(pooled.draws,warmDraws+1,'mount draws the first frame once');
+observers.at(-1).fn();assert.equal(pooled.draws,warmDraws+1,'initial ResizeObserver report does not redraw same size');
+assert.equal(cards.prepare('chest'),false,'prewarming cannot interrupt an active reveal');
+tick(1300);one.dispose();assert.equal(frames.size,0);assert.equal(poolHost.children.length,0);assert.equal(events.size,0);
+assert(!pooled.disposed&&!pooled.lost,'closing a card keeps one context ready');
+for(const resource of bottleResources)assert(!resource.userData.released,'card resources survive normal close');
+const two=cards.mount(poolHost,'bottle');assert.equal(pooled.scene,cachedBottle);assert.equal(two.stats().elapsed,0);assert.equal(pooled.scene.userData.reveal.seal.visible,false,'replayed reveal resets final-pose visibility');
+one.dispose();assert.equal(frames.size,1,'old session cannot stop new reveal');assert.equal(poolHost.children.length,1);
+two.dispose();assert(cards.prepare('chest'));const cachedChest=pooled.scene;assert.notEqual(cachedChest,cachedBottle);
+assert(cards.prepare('scroll'));const cachedScroll=pooled.scene;
+assert.equal(renderers.length,beforePool+1,'all three scene kinds share exactly one renderer');
+for(const [kind,scene] of [['bottle',cachedBottle],['chest',cachedChest],['scroll',cachedScroll],['chest',cachedChest]]){
+ const session=cards.mount(element(),kind);assert.equal(pooled.scene,scene);assert.equal(renderers.length,beforePool+1);session.dispose();
+}
+cards.stop();released(pooled);assert.equal(frames.size,0);assert.equal(events.size,0);
+// Phone reveals update/draw at 30 Hz on a 120 Hz display, preserving 4.8 seconds.
+context.screen={width:412,height:912};
+const paced=cards.mount(element(),'bottle'),pacedRenderer=renderers.at(-1),startDraws=pacedRenderer.draws;
+for(let i=0;i<120;i++)tick(1000/120);
+assert(pacedRenderer.draws-startDraws>=29&&pacedRenderer.draws-startDraws<=30,'phone caps native reveal work at 30 updates per second');
+assert(Math.abs(paced.stats().elapsed-1000)<34,'elapsed time follows real time rather than rendered frame count');
+tick(3801);assert.equal(paced.stats().elapsed,4800);assert.equal(frames.size,0);
+let prevented=false;pacedRenderer.domElement.handlers.get('webglcontextlost')({preventDefault(){prevented=true;}});
+assert(prevented);released(pacedRenderer);assert.equal(paced.stats().disposed,true);assert.equal(events.size,0);delete context.screen;
 context.window.THREE=null;assert.equal(cards.mount(element(),'bottle'),null,'existing artwork remains fallback without Three');
 context.window.THREE={...THREE,WebGLRenderer:class{constructor(){throw Error('WebGL unavailable');}}};const fallback=element();assert.equal(cards.mount(fallback,'chest'),null);assert.equal(fallback.children.length,0);assert(!fallback.classList.contains('has-3d'));
-console.log(JSON.stringify({passed:true,letterStartsInside:true,neckClearBeforeUnfurl:true,neckSamples,hollowChest:true,backHinge:true,coins:42,gems:9,boundedMs:4800,worstBottleFraming:worstFraming,worstChestFraming,denseWorst,reducedMotion:true,contextAndResourcesReleased:true,instanceBuffersReleased:true,aspectPreserved:true,sRGBConsistent:true},null,2));
+console.log(JSON.stringify({passed:true,letterStartsInside:true,neckClearBeforeUnfurl:true,neckSamples,hollowChest:true,backHinge:true,coins:42,gems:9,boundedMs:4800,worstBottleFraming:worstFraming,worstChestFraming,denseWorst,reducedMotion:true,contextAndResourcesReleased:true,oneCachedContext:true,threeCachedScenes:true,phoneReveal30Hz:true,instanceBuffersReleased:true,aspectPreserved:true,sRGBConsistent:true},null,2));

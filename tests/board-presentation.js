@@ -19,7 +19,7 @@ const sideOf=i=>Math.floor(i/10)%4,yawOf=s=>-s*Math.PI/2,wantWorld=()=>THEME.wor
 const FONT={sans:'sans-serif',serif:'serif',num:'sans-serif'};
 const fontPx=x=>+(/(\\d+(?:\\.\\d+)?)px/.exec(x.font)||[0,30])[1];
 const pic=()=>null,seaScene=()=>null,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-let ok=true,shadowDirty=false,landG=new T.Group(),root=new T.Group(),REDUCED=false;
+let weatherLife=null,built=true;let ok=true,shadowDirty=false,landG=new T.Group(),root=new T.Group(),REDUCED=false;
 const lotMesh=[],mark=[],flags=[],labelTex=[],labelCv=[],labelMat=[],sideMat=[],cornerTitles=[],animatedModels=[];
 let modelDelta=0,placeModelsLife=null,mapPropsLife=null,placeEffects=null,st={players:[{name:'ანა',out:false,jail:false},{name:'ნიკა',out:false,jail:false}]},pos=[0,0];
 const CREAM=new T.Color(0xe9d6a8),mats={scenery:new T.MeshLambertMaterial(),stone:new T.MeshLambertMaterial()},ownerMats=[];
@@ -28,7 +28,7 @@ const layoutBuildings=()=>{},placeBuildings=()=>{},pop=()=>{},modelWater=m=>m,li
 const topOf=k=>wantWorld()==='sea'?(k.m?.4:.78):(k.m?.3:.52);
 const tween=(d,f)=>{f(1);return Promise.resolve();},ease={out:x=>x,lin:x=>x};
 `,context);
-for(const name of ['rr','fit','lines','coinIcon','priceLine','iconAt','drawLabel','drawSeaLabel','updateTileLabel','cornerTitle','nativeModel','clearAnimatedModels','placeCorner','centerOf','toWorld','flagFor','colorFlag','setOwner','setLevel','setMort','jailedNow','spot','disposeAll']){
+for(const name of ['rr','fit','lines','coinIcon','priceLine','iconAt','drawLabel','drawSeaLabel','updateTileLabel','cornerTitle','prepareMaterials','nativeModel','clearAnimatedModels','placeCorner','centerOf','toWorld','flagFor','colorFlag','setOwner','setLevel','setMort','jailedNow','spot','disposeAll']){
   if(name==='jailedNow'){vm.runInContext("const jailedNow=s=>!!(st.players[s]&&st.players[s].jail&&pos[s]===JAIL);",context);continue;}
   vm.runInContext(production(name),context);
 }

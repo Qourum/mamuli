@@ -1,8 +1,10 @@
-// Native, detailed event reveals. Every scene owns its textures, geometry and
-// renderer; replacing/closing a card frees its context. The 4.8-second sequence
-// ends in a composed still, while reduced motion shows that still immediately.
+// Native event reveals share one WebGL context and three bounded scene kinds.
+// Closing a card detaches its session; the next reveal reuses uploaded geometry,
+// textures and shader programs. stop() releases the entire cache. The 4.8-second
+// sequence ends in a composed still; reduced motion shows that still immediately.
 const Card3D = (() => {
-  let active = null;
+  let active = null, sharedRenderer = null;
+  const scenes = new Map();
   const reduced = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) { return false; } };
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const smooth = n => { const p = clamp(n, 0, 1); return p * p * (3 - 2 * p); };
@@ -10,34 +12,81 @@ const Card3D = (() => {
   const mix = (a, b, t) => a * (1 - t) + b * t;
   const DURATION = 4800;
 
+  const canonicalKind = kind => kind === 'chest' || kind === 'scroll' ? kind : 'bottle';
+  const phone = () => {
+    try { return Math.min(screen.width, screen.height) < 700 || navigator.maxTouchPoints > 1 && /Android|iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent); }
+    catch (_) { return false; }
+  };
+  function renderer() {
+    if (sharedRenderer) return sharedRenderer;
+    const T = window.THREE, r = new T.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'low-power' });
+    sharedRenderer = r;
+    r.setPixelRatio(Math.min(1.5, window.devicePixelRatio || 1)); r.outputEncoding = T.sRGBEncoding;
+    r.toneMapping = T.ACESFilmicToneMapping; r.toneMappingExposure = .86; r.setClearColor(0x000000, 0);
+    if (r.shadowMap) { r.shadowMap.enabled = true; r.shadowMap.type = T.PCFSoftShadowMap; }
+    r.domElement.setAttribute('aria-hidden', 'true');
+    r.domElement.addEventListener('webglcontextlost', contextLost);
+    return r;
+  }
+  function contextLost(event) { event.preventDefault(); stop(); }
+  function stop() {
+    if (active) active.dispose();
+    for (const scene of scenes.values()) scene.destroy();
+    scenes.clear();
+    const r = sharedRenderer; sharedRenderer = null;
+    if (r) {
+      r.domElement.removeEventListener('webglcontextlost', contextLost);
+      r.renderLists.dispose(); r.dispose(); r.forceContextLoss(); r.domElement.remove();
+    }
+  }
+  function getScene(kind) {
+    if (!scenes.has(kind)) scenes.set(kind, build(kind));
+    return scenes.get(kind);
+  }
   function mount(host, kind = 'bottle') {
     if (active) active.dispose();
     if (!host || !window.THREE) return null;
+    try { return getScene(canonicalKind(kind)).attach(host); }
+    catch (_) { stop(); return null; }
+  }
+  // Called one kind at a time from the idle menu preparation queue. Render both
+  // endpoints so initially hidden seal/treasure shaders are uploaded as well.
+  function prepare(kind = 'bottle') {
+    if (active || !window.THREE || document.visibilityState === 'hidden') return false;
+    try { getScene(canonicalKind(kind)).prepare(); return true; }
+    catch (_) { stop(); return false; }
+  }
+  function build(kind) {
     const T = window.THREE;
-    let renderer, scene, camera, frame = 0, disposed = false, resize = null, lost = null, draw = null, elapsed = 0;
-    const objects = new Set(), materials = new Set(), textures = new Set();
-    const controller = { dispose, stats: () => ({ kind, elapsed, duration: DURATION, disposed }) };
-    function visibility() { if (disposed) return; cancelAnimationFrame(frame); if (document.visibilityState !== 'hidden' && draw) draw(performance.now()); }
-    function dispose() {
-      if (disposed) return; disposed = true; cancelAnimationFrame(frame);
-      if (resize) resize.disconnect(); document.removeEventListener('visibilitychange', visibility);
+    let scene, camera, frame = 0, destroyed = false, resize = null, host = null, controller = null;
+    let elapsed = 0, started = 0, lastDraw = -Infinity, previousSize = '', prepared = false, draw = null;
+    const mobile = phone(), objects = new Set(), materials = new Set(), textures = new Set();
+    let r;
+    function visibility() {
+      if (!controller) return;
+      cancelAnimationFrame(frame);
+      if (document.visibilityState !== 'hidden') { lastDraw = -Infinity; if (draw) draw(performance.now()); }
+    }
+    function detach() {
+      cancelAnimationFrame(frame); frame = 0;
+      if (resize) resize.disconnect(); resize = null;
+      document.removeEventListener('visibilitychange', visibility);
+      if (host) { host.classList.remove('has-3d'); r.domElement.remove(); }
+      host = null;
+      if (active === controller) active = null;
+      controller = null;
+    }
+    function destroy() {
+      if (destroyed) return;
+      destroyed = true; detach();
       if (scene) scene.traverse(o => {
         if (o.shadow && o.shadow.dispose) o.shadow.dispose();
         if (o.isInstancedMesh && o.dispose) o.dispose();
       });
-      if (renderer) {
-        if (lost) renderer.domElement.removeEventListener('webglcontextlost', lost);
-        renderer.renderLists.dispose(); renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
-      }
       objects.forEach(g => g.dispose()); materials.forEach(m => m.dispose()); textures.forEach(t => t.dispose());
-      host.classList.remove('has-3d'); if (active === controller) active = null;
     }
     try {
-      renderer = new T.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'low-power' });
-      renderer.setPixelRatio(Math.min(1.5, window.devicePixelRatio || 1)); renderer.outputEncoding = T.sRGBEncoding;
-      renderer.toneMapping = T.ACESFilmicToneMapping; renderer.toneMappingExposure = .86; renderer.setClearColor(0x000000, 0);
-      if (renderer.shadowMap) { renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap; }
-      renderer.domElement.setAttribute('aria-hidden', 'true'); scene = new T.Scene();
+      r = renderer(); scene = new T.Scene();
       const studio = Array.from({ length: 6 }, (_, side) => {
         const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d');
         const gradient = x.createLinearGradient(0, 0, 0, 128); gradient.addColorStop(0, '#3f6570'); gradient.addColorStop(.5, '#7b9186'); gradient.addColorStop(1, '#392b22'); x.fillStyle = gradient; x.fillRect(0, 0, 128, 128);
@@ -234,21 +283,51 @@ const Card3D = (() => {
           camera.position.set(distance * .19, targetY + distance * .17, distance * .97); camera.lookAt(.04, targetY, 0);
         };
       }
-      const started = performance.now(); animate(reduced() ? DURATION / 1000 : 0);
-      function size() {
-        if (disposed) return;
+      function size(draw = true) {
+        if (destroyed || !host) return;
         const hostWidth = host.clientWidth || 340, hostHeight = host.clientHeight || 210;
+        const key = hostWidth + ':' + hostHeight;
+        if (key === previousSize) return;
+        previousSize = key;
         const renderScale = Math.min(1, 420 / hostWidth, 280 / hostHeight);
         const w = Math.max(1, Math.round(hostWidth * renderScale)), h = Math.max(1, Math.round(hostHeight * renderScale));
-        renderer.setSize(w, h, false); camera.aspect = hostWidth / hostHeight;
-        animate(reduced() ? DURATION / 1000 : elapsed / 1000); camera.updateProjectionMatrix(); renderer.render(scene, camera);
+        r.setSize(w, h, false); camera.aspect = hostWidth / hostHeight;
+        if (draw) { animate(reduced() ? DURATION / 1000 : elapsed / 1000); camera.updateProjectionMatrix(); r.render(scene, camera); }
       }
-      function render(now) { if (disposed || document.visibilityState === 'hidden') return; elapsed = reduced() ? DURATION : clamp(now - started, 0, DURATION); animate(elapsed / 1000); camera.updateProjectionMatrix(); renderer.render(scene, camera); if (elapsed < DURATION) frame = requestAnimationFrame(render); }
-      draw = render; lost = event => { event.preventDefault(); dispose(); }; renderer.domElement.addEventListener('webglcontextlost', lost);
-      host.appendChild(renderer.domElement); host.classList.add('has-3d'); active = controller; size();
-      if (window.ResizeObserver) { resize = new window.ResizeObserver(size); resize.observe(host); }
-      document.addEventListener('visibilitychange', visibility); render(started); return controller;
-    } catch (_) { dispose(); return null; }
+      function render(now) {
+        if (destroyed || !controller || document.visibilityState === 'hidden') return;
+        // Keep reveals at 30 Hz on phones, without stretching their wall-clock
+        // duration or running geometry deformation on skipped display frames.
+        if (!mobile || now - lastDraw >= 1000 / 30 - .4 || now - started >= DURATION) {
+          elapsed = reduced() ? DURATION : clamp(now - started, 0, DURATION); lastDraw = now;
+          animate(elapsed / 1000); camera.updateProjectionMatrix(); r.render(scene, camera);
+        }
+        if (elapsed < DURATION) frame = requestAnimationFrame(render);
+      }
+      draw = render;
+      function attach(nextHost) {
+        if (destroyed) return null;
+        host = nextHost; elapsed = 0; started = performance.now(); lastDraw = -Infinity; previousSize = '';
+        let disposed = false, finalElapsed = 0;
+        const session = {
+          dispose() { if (disposed) return; disposed = true; finalElapsed = elapsed; if (controller === session) detach(); },
+          stats: () => ({ kind, elapsed: disposed ? finalElapsed : elapsed, duration: DURATION, disposed })
+        };
+        controller = active = session;
+        host.appendChild(r.domElement); host.classList.add('has-3d'); size(false);
+        if (window.ResizeObserver) { resize = new window.ResizeObserver(() => size()); resize.observe(host); }
+        document.addEventListener('visibilitychange', visibility); render(started); return session;
+      }
+      return {
+        attach, destroy,
+        prepare() {
+          if (prepared || destroyed) return;
+          r.setSize(340, 210, false); camera.aspect = 340 / 210;
+          for (const t of [0, DURATION / 1000]) { animate(t); camera.updateProjectionMatrix(); r.render(scene, camera); }
+          prepared = true;
+        }
+      };
+    } catch (error) { destroy(); throw error; }
   }
-  return { mount, stop() { if (active) active.dispose(); } };
+  return { mount, prepare, stop };
 })();

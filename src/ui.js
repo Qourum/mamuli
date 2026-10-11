@@ -1211,7 +1211,7 @@ const UI = (() => {
     screen = s;
     $$('.screen').forEach(el => { el.hidden = el.id !== 'scr-' + s; });
     if (s !== 'game') Sheet.close();
-    if (s === 'menu') Menu.render();
+    if (s === 'menu') { Menu.render(); if (typeof prepareCardVisuals === 'function') prepareCardVisuals(); }
     if (s === 'game') { requestAnimationFrame(() => View.fit()); }
     Voice.render();
   }

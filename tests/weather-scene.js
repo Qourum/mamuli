@@ -81,6 +81,22 @@ weather.update(184, 1 / 60); const replaced = compile(native); assert(replaced.v
 const previousKey = native.customProgramCacheKey(); native.onBeforeCompile = s => { s.vertexShader = '#define NEWER_WIND_ONLY 1\n' + s.vertexShader; };
 weather.update(185, 1 / 60); assert.notEqual(native.customProgramCacheKey(), previousKey, 'hook-only replacement gets a different program key'); assert(compile(native).vertexShader.includes('NEWER_WIND_ONLY'));
 
+// Detached async models are ready for their first render, including material
+// arrays and hidden children; no periodic scan or visible frame is required.
+const arriving = new THREE.Group(), arrivalMat = new THREE.MeshStandardMaterial(), arrivalGrey = arrivalMat.clone();
+const arrivalMesh = new THREE.Mesh(geometry, [arrivalMat, arrivalGrey]); arrivalMesh.visible = false; arriving.add(arrivalMesh);
+weather.patchObject(arriving);
+for (const mat of [arrivalMat, arrivalGrey]) assert.equal(compile(mat).uniforms.uWeatherZone, uniform);
+const arrivalVersions = [arrivalMat.version, arrivalGrey.version];
+parent.add(arriving); weather.patchObject(arriving); weather.flush(); weather.update(186, .016);
+assert.deepEqual([arrivalMat.version, arrivalGrey.version], arrivalVersions, 'first-render hooks are not replaced by flush or the fallback scan');
+// The explicit warm-up flush catches objects made after Weather3D.create().
+const lateTokenMat = new THREE.MeshLambertMaterial(); parent.add(new THREE.Mesh(geometry, lateTokenMat));
+weather.flush(); assert.equal(compile(lateTokenMat, 'lambert').uniforms.uWeatherZone, uniform);
+const tokenVersion = lateTokenMat.version, cloudVersion = clouds.material.version;
+weather.flush(); weather.patchObject(weather.group); weather.update(186.5, .016);
+assert.equal(lateTokenMat.version, tokenVersion); assert.equal(clouds.material.version, cloudVersion, 'weather-owned materials are excluded from explicit patching');
+
 // Disposal frees every cached bolt variant and the whole effect pool exactly once.
 let geometriesDisposed = 0, materialsDisposed = 0, worldDisposed = 0;
 let instanceDisposals = 0;
@@ -99,6 +115,8 @@ const nextParent = new THREE.Group(); nextParent.add(new THREE.Mesh(geometry, na
 const next = context.weatherAPI.create({ parent: nextParent, seed: 2751, waterY: .02, reducedMotion: false });
 next.update(0, 0); next.update(next.stats().firstStorm + 5, .016); assert(uniform.value.w > .2); assert.equal(compile(native).uniforms.uWeatherZone, uniform);
 weather.update(500, .1); weather.dispose(); assert(uniform.value.w > .2, 'an old world cannot reset its replacement'); next.dispose(); assert.equal(uniform.value.w, 0);
+const orphanMat = new THREE.MeshStandardMaterial(), orphan = new THREE.Mesh(geometry, orphanMat);
+weather.patchObject(orphan); weather.flush(); assert.equal(orphanMat.version, 0, 'disposed weather cannot mutate later models');
 // nextFlash always names an eligible future bolt, including the quiet interval.
 const fixture=context.weatherAPI.create({parent:nextParent,seed:256,reducedMotion:false});fixture.update(0,0);fixture.update(40,.016);
 const future=fixture.stats().nextFlash;fixture.update(future+.04,.016);assert(fixture.stats().lightning,'nextFlash in quiet time resolves to a real next-storm bolt');
@@ -107,4 +125,9 @@ const quiet = context.weatherAPI.create({ parent: nextParent, seed: 99, reducedM
 quiet.update(0, 0); quiet.update(60, .1);
 const quietClouds = quiet.group.getObjectByName('Four drifting 3D fair-weather clouds'), quietSnapshot = quietClouds.instanceMatrix.array.slice(); quiet.update(600, .1);
 assert.deepEqual(quietClouds.instanceMatrix.array, quietSnapshot); assert.equal(quiet.stats().strength, 0); assert.equal(quiet.stats().raining, false); assert.equal(quiet.stats().lightning, false); assert.equal(uniform.value.w, 0); quiet.dispose();
+const phoneParent = new THREE.Group(), phoneWeather = context.weatherAPI.create({ parent: phoneParent, mobile: true });
+const phoneMat = new THREE.MeshStandardMaterial(); phoneWeather.patchObject(new THREE.Mesh(geometry, phoneMat));
+const phoneShader = compile(phoneMat);
+assert(phoneShader.vertexShader.includes('varying float vWeatherShade;')); assert(!phoneShader.vertexShader.includes('varying vec3 vWeatherWorld;'));
+assert(phoneMat.customProgramCacheKey().endsWith('weather3d-local-v1-vertex')); phoneWeather.dispose();
 console.log(JSON.stringify({ passed: true, seconds: 180, frames: 10800, storms: cycles.size, zones, maxShade, raindrops: maxRain, thunderEvents: thunder.length, longestFlash: Math.max(...flashLengths), shaderHooksPreserved: true, clonedMaterialsPatched: true, sourceUniformSurvivesRemake: true, geometryDisposals: geometriesDisposed, materialDisposals: materialsDisposed, reducedMotion: true }, null, 2));

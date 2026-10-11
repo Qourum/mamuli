@@ -217,7 +217,7 @@ function offlineHelper() {
     if (typeof BUILD !== 'undefined' && data.version && data.version !== BUILD) {
       clearTimeout(replyTimer); clearTimeout(autoTimer);
       box.dataset.state = 'update-ready'; bar.hidden = true;
-      status.textContent = 'თამაშის ახალი ვერსია მზადაა. განაახლე გვერდი თამაშის დასრულების შემდეგ.';
+      status.textContent = 'თამაშის ფაილების ვერსია განახლებას ელოდება. თუ შეტყობინება დარჩა, განაახლე გვერდი თამაშის დასრულების შემდეგ.';
       action('შემოწმება');
       note('version mismatch: page ' + version(BUILD) + ', worker ' + version(data.version));
       return;
@@ -394,7 +394,30 @@ function codeFrom(text) {
 }
 
 // ----- wiring -----
+function prepareCardVisuals() {
+  if (prepareCardVisuals.pending || typeof Card3D === 'undefined') return;
+  const kinds = prepareCardVisuals.kinds || (prepareCardVisuals.kinds = ['bottle', 'chest', 'scroll']);
+  if (!kinds.length) return;
+  prepareCardVisuals.pending = true;
+  const schedule = fn => window.requestIdleCallback ? window.requestIdleCallback(fn, { timeout: 1200 }) : setTimeout(fn, 100);
+  let waits = 0;
+  const step = () => {
+    prepareCardVisuals.pending = false;
+    const menu = $('#scr-menu');
+    if (!menu || menu.hidden || document.visibilityState === 'hidden') return;
+    const assets = typeof GLB !== 'undefined' && GLB && GLB.stats ? GLB.stats() : null;
+    if (!Board3D.ok || (assets && (assets.active || assets.queued))) {
+      if (++waits > 75) return; // WebGL can be unavailable; do not poll indefinitely.
+      prepareCardVisuals.pending = true; setTimeout(() => schedule(step), 400); return;
+    }
+    if (Card3D.prepare(kinds[0])) kinds.shift(); else return;
+    if (kinds.length) { prepareCardVisuals.pending = true; schedule(step); }
+  };
+  schedule(step);
+}
+
 function boot() {
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') prepareCardVisuals(); });
   $('#scr-menu').addEventListener('click', Menu.onClick);
   $('#nameIn').addEventListener('change', e => { PROFILE.name = Engine.cleanName(e.target.value); saveProfile(); });
   // the code, or a whole invitation link pasted in

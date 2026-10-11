@@ -146,10 +146,21 @@ const Weather3D = (() => {
     const raindata = Array.from({ length: rain.count }, () => ({ phase: random(), a: random() * TAU, r: Math.sqrt(random()) * .87, speed: .88 + random() * .28 }));
     const cloudData = Array.from({ length: clouds.count }, (_, i) => ({ a: random() * TAU, r: 8.3 + random() * 4.3, y: 4.1 + random() * 1.5, scale: .7 + random() * .5, speed: .008 + i * .0025 }));
     let state = { active: false, raining: false, strength: 0, zone: [0, 0, spec.radius], lightning: false, nextFlash: start + spec.boltOffset, time: 0 };
-    function scan() {
-      parent.traverse(o => {
+    // Model loads and gameplay objects arrive after the initial board warm-up.
+    // Patch before their first compile/render so they never need a second,
+    // weather-enabled program in the middle of the next animation.
+    function patchObject(object) {
+      if (dead || activeOwner !== owner || !object || typeof object.traverse !== 'function') return;
+      object.traverse(o => {
         for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : []) if (!ownMats.has(m)) patchMaterial(m, mobile);
-      }); scans++;
+      });
+    }
+    function scan() {
+      patchObject(parent); scans++;
+    }
+    function flush() {
+      if (dead || activeOwner !== owner) return;
+      scan(); lastScan = elapsed;
     }
     scan(); lastScan = 0;
     function update(time, dt) {
@@ -209,7 +220,7 @@ const Weather3D = (() => {
     for (let i = 0; i < cloudData.length; i++) { const a = cloudData[i]; temp.position.set(Math.cos(a.a) * a.r, a.y, Math.sin(a.a) * a.r); temp.rotation.set(0, -a.a + .4, 0); temp.scale.setScalar(a.scale); temp.updateMatrix(); clouds.setMatrixAt(i, temp.matrix); }
     stormCloud.visible = rain.visible = ripples.visible = false;
     return {
-      group, update,
+      group, update, patchObject, flush,
       dispose() { if (dead) return; dead = true; if (activeOwner === owner) { activeOwner = null; SHADE.value.set(0, 0, 1, 0); } parent.remove(group); group.traverse(o => { if (o.isInstancedMesh) o.dispose(); }); group.clear(); for (const item of own) item.dispose(); own.clear(); ownMats.clear(); },
       stats() { return { ...state, zone: state.zone.slice(), seed, cycle: currentId, stormStart: start, duration: spec.duration, quiet: spec.quiet, firstStorm: firstStart, clouds: clouds.count + 1, drops: rain.count, ripples: ripples.count, maxFlash: .16, minimumFlashGap: 3.8, scans, patchedMaterials: patchedCount, mobile, shade: mobile ? 'vertex' : 'fragment' }; }
     };

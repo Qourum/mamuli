@@ -279,7 +279,7 @@ const Board3D = (() => {
     const map=new T.CanvasTexture(cv);map.encoding=T.sRGBEncoding;map.anisotropy=maxAniso;
     const sprite=new T.Sprite(new T.SpriteMaterial({map,transparent:true,depthWrite:false,opacity:.96}));
     sprite.name='Corner_Hologram_'+i;sprite.renderOrder=4;sprite.scale.set(1.82,.68,1);sprite.position.set(0,top+.37,0);sprite.userData.i=i;
-    tile.add(sprite);cornerTitles.push({sprite,y:sprite.position.y,i});
+    prepareMaterials(sprite);tile.add(sprite);cornerTitles.push({sprite,y:sprite.position.y,i});
   }
   const PERF = { relabel: 0, relabelMs: 0, build: 0, frames: 0, shadows: 0 };    // counted for tests
   function relabelAll() {
@@ -770,6 +770,38 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   }
   // a place's model from its file, set in the lot's frame with its water line on the sea's (if the board is made again
   // before the file is read, the new board asks for its own)
+  let materialWarm = null;
+  function prepareMaterials(object) {
+    if (weatherLife && weatherLife.patchObject) weatherLife.patchObject(object);
+    // Async arrivals need the completed scene's lights and weather shader.
+    // Never start compilation or texture uploads during a running game.
+    if (built || !R || !done || prep || remake || lostAt) return;
+    if (!materialWarm || materialWarm.root !== root) materialWarm = { root, queued: false, uploading: false, pending: new Set(), uploaded: new WeakMap() };
+    const job = materialWarm;
+    const valid = () => job === materialWarm && job.root === root && !built && ok && !lostAt && !prep && !remake && document.visibilityState !== 'hidden';
+    if (job.queued) return;
+    job.queued = true;
+    idle(() => {
+      job.queued = false;
+      if (!valid()) return;
+      if (weatherLife) weatherLife.flush();
+      R.compile(scene, cam);
+      scene.traverse(o => { for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : [])
+        for (const value of Object.values(m)) if (value && value.isTexture && value.image && value.version > 0 && value.image.complete !== false && job.uploaded.get(value) !== value.version) job.pending.add(value); });
+      if (job.uploading || !job.pending.size) return;
+      job.uploading = true;
+      const upload = () => {
+        if (!valid()) { job.uploading = false; job.pending.clear(); return; }
+        const texture = job.pending.values().next().value;
+        job.pending.delete(texture);
+        if (texture && job.uploaded.get(texture) !== texture.version) {
+          R.initTexture(texture); job.uploaded.set(texture, texture.version);
+        }
+        if (job.pending.size) idle(upload); else job.uploading = false;
+      };
+      idle(upload);
+    });
+  }
   function nativeModel({ scene: model, animations }, i) {
     model.userData.nativeScene = true;
     model.traverse(o => {
@@ -780,6 +812,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
         if (mat && mat.map) mat.map.anisotropy = maxAniso;
       }
     });
+    prepareMaterials(model);
     const mixer = new T.AnimationMixer(model);
     for (const clip of animations) mixer.clipAction(clip).setLoop(T.LoopRepeat, Infinity).play();
     mixer.update(0);
@@ -822,7 +855,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       if (d.own) g.position.y = Math.max(g.position.y, p.y);                  // (on the island made here)
       const m = new T.Mesh(geometry, material);
       m.castShadow = true; m.receiveShadow = true; m.userData.i = i; m.userData.model = true;
-      g.add(m); landG.add(g);
+      g.add(m); prepareMaterials(g); landG.add(g);
       if (!lotMesh[i]) lotMesh[i] = m;
       if (mark[i] && mark[i].m) setMort(i, true, false);
       shadowDirty = true;
@@ -856,7 +889,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       m.position.set(-middle.x,-box.min.y,-middle.z);const scale=Math.min(C-.16,d.fitWidth||C-.16)/Math.max(size.x,size.z,.001);
       g.position.set(0,TH+.012,0);g.scale.setScalar(scale);
       m.castShadow = true; m.receiveShadow = true; m.userData.i = i; m.userData.model = true;
-      g.add(m); tile.add(g);cornerTitle(i,tile,TH+.012+size.y*scale);
+      g.add(m); prepareMaterials(g); tile.add(g);cornerTitle(i,tile,TH+.012+size.y*scale);
       lotMesh[i] = m;
       shadowDirty = true;
     }).catch(e => Diag.note('3d', `model ${d.url} not read: ${e && e.message}`));
@@ -896,7 +929,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       const m = new T.Mesh(geometry, material);
       m.position.set(0, Terrain.SEA_Y, 0); m.rotation.y = d.ry || 0; m.scale.set(d.s, d.s * (d.sy || 1), d.s);
       m.castShadow = true; m.receiveShadow = true;
-      landG.add(m);
+      prepareMaterials(m); landG.add(m);
       shadowDirty = true;
       Diag.note('3d', `model ${d.url}: ${geometry.index ? geometry.index.count / 3 : 0} triangles`);
     }).catch(e => Diag.note('3d', `model ${d.url} not read: ${e && e.message}`));
@@ -1187,7 +1220,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       modelWater(material);
       const m = new T.Mesh(geometry, material);
       m.castShadow = true; m.receiveShadow = true; m.rotation.order = 'YXZ';
-      root.add(m); rec.mesh = m;
+      prepareMaterials(m); root.add(m); rec.mesh = m;
       lifeStep(U.time.value);
     }).catch(e => Diag.note('3d', `model ${d.url} not read: ${e && e.message}`));
   }
@@ -1253,7 +1286,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       glow.rotation.x=-Math.PI/2;glow.position.y=.006;g.add(glow);
     }
     g.visible = false;
-    root.add(g);
+    prepareMaterials(g); root.add(g);
     flags[i] = { g, cloth, glow, canvas, width, nautical, h: 1 };
     return flags[i];
   }
@@ -1479,6 +1512,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       if (!u.base) { u.base = lm.material; u.grey = modelWater(u.base.clone()); u.grey.color.multiplyScalar(0.55); u.grey.userData.keep = true; }
       lm.material = m ? u.grey : u.base;
     } else if (lm) lm.material = m ? (mats.mortScenery || (mats.mortScenery = living(new T.MeshLambertMaterial({ vertexColors: true, color: 0x8a8a8a })))) : mats.scenery;
+    if (lm) prepareMaterials(lm);
     const f = flags[i];
     if (f && f.g.visible) {
       const to = topOf(k), from = f.cloth.position.y;
@@ -1605,7 +1639,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     const halo = new T.Mesh(cache.ring, cache.glow); halo.rotation.x = Math.PI / 2; halo.position.copy(b); halo.visible = false; fx.add(halo);
     const sparks = [];
     for (let k = 0; k < 8; k++) { const m = new T.Mesh(cache.bead, cache.gold); fx.add(m); sparks.push(m); }
-    board.add(fx);
+    prepareMaterials(fx); board.add(fx);
     const point = (p, u, phase) => {
       const arc = Math.sin(Math.PI * u), spread = Math.sin(phase) * 0.22;
       p.set(a.x + (b.x - a.x) * u + Math.cos(phase) * 0.22 * arc,
@@ -1683,7 +1717,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     const glow = new T.Mesh(new T.TorusGeometry(0.27, 0.035, 8, 40), new T.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.85 }));
     glow.rotation.x = -Math.PI / 2; glow.position.y = 0.02; glow.visible = false;
     g.add(face, glow);
-    root.add(g);
+    prepareMaterials(g); root.add(g);
     return { g, face, coin, pm, glow, hero, seat, hop: 0, hull };
   }
   function ensureTokens() {
@@ -2060,6 +2094,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     });
     cv.addEventListener('webglcontextrestored', () => {
       Diag.note('3d', `graphics back after ${Math.round(performance.now() - lostAt)} ms`); lostAt = 0;
+      materialWarm = null; if (!built) prepareMaterials(root);
       shadowDirty = true; relabelSoon(); if (built) start();
     });
     if (document.fonts) {
@@ -2142,7 +2177,14 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     try {
       moveCamera(0);
       for (let i = 0; i < 40; i++) if (OWNABLE(BOARD[i])) { flagFor(i); break; }     // (its cloth's shader: else made at the first purchase)
-      R.compile(scene, cam);
+      // Currency shaders used to be first compiled when money moved mid-game.
+      const money = currencyCache(), sample = new T.Group(); sample.visible = false;
+      sample.add(new T.Mesh(money.body, money.gold), new T.Mesh(money.stamp, money.edge), new T.Mesh(money.bead, money.glow));
+      root.add(sample);
+      try {
+        if (weatherLife) weatherLife.flush();
+        R.compile(scene, cam);
+      } finally { root.remove(sample); }
       for (const t of labelTex) if (t) R.initTexture(t);
       R.shadowMap.needsUpdate = true;
       R.setViewport(0, 0, W, H); R.setScissorTest(false); R.clear();

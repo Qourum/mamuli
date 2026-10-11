@@ -18,7 +18,7 @@ useTheme('archipelago');
 const S=12,C=1.5,D=1.5,TW=1,TH=.2,LOT=1.25,maxAniso=4;
 const OUT=[[0,1],[-1,0],[0,-1],[1,0]],ALONG=[[-1,0],[0,-1],[1,0],[0,1]];
 const sideOf=i=>Math.floor(i/10)%4,yawOf=s=>-s*Math.PI/2,wantWorld=()=>THEME.world;
-let ok=true,root=new T.Group(),landG=new T.Group(),cam={},shadowDirty=false,modelDelta=0,turnSeat=0;
+let weatherLife=null,built=true;let ok=true,root=new T.Group(),landG=new T.Group(),cam={},shadowDirty=false,modelDelta=0,turnSeat=0;
 const lotMesh=[],lotGround=[],tiles=[],flags=[],mark=[],labelMat=[],animatedModels=[],events=[],picked=[],mortLabels=[];
 const life={models:[],groups:[],ready:true,pts:null},U={time:{value:2},fade:{value:1}};
 const POSE={p:new T.Vector3()},O=new T.Object3D(),_lm=new T.Matrix4();
@@ -30,7 +30,7 @@ const performance={now:()=>now},host={getBoundingClientRect:()=>({left:0,top:0,w
 const ray={objects:[],setFromCamera(){},intersectObjects(objects,recursive){this.objects=objects;this.recursive=recursive;return hit?[hit]:[];}};
 let pickCb=i=>picked.push(i);
 `, context);
-for (const name of ['centerOf', 'toWorld', 'nativeModel', 'clearAnimatedModels', 'modelActor', 'lifeStep', 'setMort', 'placeEvent', 'onDown', 'onUp']) vm.runInContext(production(name), context);
+for (const name of ['centerOf', 'toWorld', 'prepareMaterials','nativeModel', 'clearAnimatedModels', 'modelActor', 'lifeStep', 'setMort', 'placeEvent', 'onDown', 'onUp']) vm.runInContext(production(name), context);
 vm.runInContext(`globalThis.api={modelActor,setMort,clearAnimatedModels,placeEvent,onDown,onUp,toWorld,life,lotMesh,mark,labelMat,animatedModels,events,picked,mortLabels,ray,propsGroup:mapPropsLife.group,get root(){return root;},get land(){return landG;},set hit(v){hit=v;},set now(v){now=v;},remake(){landG=new T.Group();},set procedural(v){placeModelsLife=v;}};`, context);
 const api = context.api;
 function fixture(i) {

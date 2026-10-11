@@ -5,17 +5,18 @@
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const ART = n => 'art/' + n + '.webp';
+const ART = n => 'art/' + n + (/\.(?:jpe?g|png|webp)$/i.test(n) ? '' : '.webp');
 const fmt = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 const coin = n => `<b class="amt"><i class="ci"></i>${fmt(n)}</b>`;
 // a hero's portrait (a king or hero of მამული, or a pirate)
 const por = h => ART((HEROES[h] && HEROES[h].t === 'archipelago' ? 'por_p_' : 'por_h_') + h);
 const pName = (st, s) => st && st.players[s] ? st.players[s].name : '?';
 const tName = i => BOARD[i].n.replace(/\u00ad/g, '');
-// a level as pictures: one to four little towers (huts in the archipelago), or the fortress
+// The sea's four pirate cottages upgrade to a timber inn; the land keeps its towers/fortress.
+const PIRATE_INN_SVG = '<svg viewBox="0 0 34 32" aria-hidden="true"><path d="M5 30V12h24v18z" fill="#c79656" stroke="#493421" stroke-width="1.4"/><path d="M2 13 17 3l15 10z" fill="currentColor" stroke="#493421" stroke-width="1.4" stroke-linejoin="round"/><path d="M7 21h20M7 23h20M7 24v6M27 24v6" stroke="#493421" stroke-width="1.4"/><path d="M10 14h4v5h-4zM20 14h4v5h-4z" fill="#ffdf8d" stroke="#493421"/><path d="M14 30v-7h6v7" fill="#473326"/><path d="M26 9V1m0 0h6l-1.5 2L32 5h-6" stroke="#493421" fill="currentColor" stroke-width="1.2"/></svg>';
 const sea = () => THEME.world === 'sea';
 const towerIcon = () => sea() ? HUT_SVG : TOWER_SVG;
-const lvIcons = lv => lv >= 5 ? (sea() ? `<span class="tws fort-i">${SEAFORT_SVG}</span>` : `<img class="fort" src="${ART('s_fort')}" alt="">`) : `<span class="tws">${towerIcon().repeat(lv)}</span>`;
+const lvIcons = lv => lv >= 5 ? (sea() ? `<span class="tws fort-i">${PIRATE_INN_SVG}</span>` : `<img class="fort" src="${ART('s_fort')}" alt="">`) : `<span class="tws">${towerIcon().repeat(lv)}</span>`;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const REDUCED = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } })();
 
@@ -27,9 +28,41 @@ function sceneBg(t, fade) {
   const scene = t.k === 'p' ? SCENES[t.g] : t.k === 'road' ? 'g_pass' : 'g_elbrus', at = t.k === 'p' ? SCENE_POS[t.g] : '50% 50%';
   return `background-image:${fade},url(${ART(scene)});background-position:${at}`;
 }
+const CHART_COMPASS = '<svg viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="30"/><circle cx="40" cy="40" r="24"/><path d="M40 3v74M3 40h74M14 14l52 52M14 66l52-52"/><path d="m40 10 6 24 24 6-24 6-6 24-6-24-24-6 24-6z"/><path d="m40 10 6 24-6 6-6-6z" fill="currentColor"/><circle cx="40" cy="40" r="4"/></svg>';
+const PIRATE_FLAG = '<svg viewBox="0 0 44 42" aria-hidden="true"><path d="M7 39V3" fill="none" stroke="#654528" stroke-width="3" stroke-linecap="round"/><path d="M9 5c8-6 16 6 30 0v23c-13 7-21-6-30 0z" fill="currentColor" stroke="#fff2bd" stroke-width="1.2"/><g fill="#fff4d6"><path d="M22 10a5 5 0 0 1 5 5c0 2-1 3-2 4v3h-6v-3c-1-1-2-2-2-4a5 5 0 0 1 5-5z"/><path d="m16 25 12-5m-12-1 12 7" stroke="#fff4d6" stroke-width="1.8" stroke-linecap="round"/></g><g fill="#394653"><circle cx="20" cy="15" r="1.2"/><circle cx="24" cy="15" r="1.2"/></g></svg>';
+const seaLotType = t => t.k === 'p' ? 'კუნძული' : t.k === 'road' ? 'მეკობრის ხომალდი' : t.k === 'util' ? 'საზღვაო სადგური' : ({ start: 'ნავსადგური', jail: 'უკაცრიელი კუნძული', feast: 'ტავერნა', gojail: 'ზღვის საფრთხე', tax: 'საზღვაო ხარჯი', scroll: 'ბოთლში წერილი', chest: 'განძის სკივრი' }[t.k] || 'არქიპელაგი');
+function seaCharterHead(t, label, tag = '') {
+  const color = t.k === 'p' ? GROUPS[t.g].c : '#579ca9';
+  const region = t.k === 'p' ? GROUPS[t.g].n : t.k === 'road' ? 'მეკობრეთა ფლოტი' : t.k === 'util' ? W.util : 'არქიპელაგი';
+  const picture = typeof seaCardPicture === 'function' ? seaCardPicture(t) : seaScene(t) ? { name: seaScene(t), crop: [600, 0, 400, 400] } : null;
+  const art = picture && picture.crop
+    ? `<svg class="charter-photo" viewBox="${picture.crop.join(' ')}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${esc(t.n.replace(/\u00ad/g, ''))}"><image href="${esc(ART(picture.name))}" width="1000" height="400"/></svg>`
+    : `<img class="charter-photo" src="${picture ? esc(ART(picture.name)) : seaArt(t)}" alt="${esc(t.n.replace(/\u00ad/g, ''))}" decoding="async">`;
+  return `<header class="charter-scene" style="--g:${color}">
+    <div class="charter-register"><span>${esc(label)}</span><small>№ ${String(t.i + 1).padStart(2, '0')}</small></div>
+    <div class="charter-illustration">${art}</div>
+    <div class="charter-place"><span class="charter-region" style="--g:${color}">${esc(region)}</span>${tag}<h3>${esc(t.n.replace(/\u00ad/g, ''))}</h3><small>${esc(seaLotType(t))}</small></div>
+    <span class="charter-compass">${CHART_COMPASS}</span></header>`;
+}
+function seaOwnership(st, i) {
+  const o = st.own[i], p = o && st.players[o.o];
+  if (!p) return `<div class="charter-owner free"><span class="charter-flag">${PIRATE_FLAG}</span><div><small>მფლობელი</small><b>თავისუფალი ${esc(seaLotType(BOARD[i]))}</b></div><span class="charter-status">იყიდება</span></div>`;
+  const color = SEAT_COLORS[o.o];
+  return `<div class="charter-owner" style="--owner:${color}"><span class="charter-flag">${PIRATE_FLAG}</span><img src="${por(p.hero)}" alt=""><div><small>მფლობელი · კაპიტანი</small><b>${esc(p.name)}</b></div><span class="charter-status${o.m ? ' mortgaged' : ''}">${o.m ? 'დაგირავებულია' : 'მისი დროშა'}</span></div>`;
+}
+function seaDevelopment(st, i) {
+  if (BOARD[i].k !== 'p') return '';
+  const lv = st.own[i] ? st.own[i].lv : 0;
+  const cottages = [1, 2, 3, 4].map(k => `<span class="charter-building${lv > 0 && lv < 5 && k <= lv ? ' built' : ''}" aria-hidden="true">${HUT_SVG}</span>`).join('');
+  return `<div class="charter-development"><div><small>კუნძულის განვითარება</small><b>${esc(lv ? LEVEL_NAMES[lv] : 'გაუშენებელი კუნძული')}</b></div><div class="charter-buildings" aria-label="${lv === 5 ? '1 მეკობრის სასტუმრო, 0 ქოხი' : `${lv} მეკობრის ქოხი, 0 სასტუმრო`}">${cottages}<span class="charter-building inn${lv === 5 ? ' built' : ''}" aria-hidden="true">${PIRATE_INN_SVG}</span></div></div>`;
+}
+function seaCaptain(st, seat) {
+  const p = st.players[seat];
+  return `<div class="charter-captain" style="--owner:${SEAT_COLORS[seat]}"><img src="${por(p.hero)}" alt=""><span><small>შენი კაპიტანი</small><b>${esc(p.name)}</b></span><span class="charter-wallet"><small>ხელთ გაქვს</small>${coin(p.cash)}</span></div>`;
+}
 const ERR = {
   turn: 'ახლა ამის გაკეთება არ შეიძლება', cash: 'ფული არ გყოფნის', get group() { return W.errGroup; },
-  get even() { return W.errEven; }, get mort() { return W.errMort; }, max: 'აქ უკვე ციხეა', answered: 'უკვე უპასუხე',
+  get even() { return W.errEven; }, get mort() { return W.errMort; }, get max() { return sea() ? 'აქ უკვე მეკობრის სასტუმროა' : 'აქ უკვე ციხეა'; }, answered: 'უკვე უპასუხე',
   own: 'ეს შენი არ არის', bad: 'ასე არ შეიძლება', empty: 'შეთავაზება ცარიელია', stale: 'შეთავაზება აღარ მოქმედებს',
   host: 'ამას მხოლოდ მასპინძელი აკეთებს', few: 'საჭიროა მინიმუმ ორი მოთამაშე', taken: 'ეს გმირი უკვე დაკავებულია',
   full: 'ოთახი სავსეა', watch: 'ამ თამაშს მხოლოდ უყურებ', started: 'თამაში უკვე დაიწყო', out: 'შენ გაკოტრდი', over: 'თამაში დასრულდა',
@@ -79,6 +112,11 @@ const Sound = (() => {
     gavel() { noise(0.09, 420, 0.7); noise(0.09, 380, 0.6, 0.2); tone(140, 0.12, 'sine', 0.08, 0.2); },
     // the land growing out of the board: a low rumble
     rumble() { for (let k = 0; k < 7; k++) noise(0.5, 55 + k * 10, 0.55, k * 0.17); tone(46, 1.3, 'sine', 0.06); },
+    thunder(strength = 1) {
+      const k = Math.max(0.25, Math.min(1, strength));
+      noise(1.8, 90, 0.38 * k); noise(2.4, 55, 0.28 * k, 0.32);
+      tone(37, 2.5, 'sine', 0.035 * k);
+    },
     card() { tone(740, 0.08, 'sine', 0.06); tone(990, 0.12, 'sine', 0.06, 0.06); }
   };
 })();
@@ -454,24 +492,29 @@ const View = (() => {
     const category = c.k === 'cash' ? c.n > 0 ? 'reward' : 'payment' : ['move', 'back', 'near'].includes(c.k) ? 'travel' : c.k === 'repair' ? 'payment' : c.k === 'jail' ? 'danger' : c.k === 'feather' ? 'reward' : 'fortune';
     const labels = { reward: nautical ? 'ნაპოვნი განძი' : 'ჯილდო', payment: 'ხარჯი', travel: nautical ? 'ახალი კურსი' : 'მოგზაურობა', danger: 'განსაცდელი', fortune: 'ბედის ნიშანი' };
     const art = nautical && e.d === 's' ? 'sc_bottle' : e.d === 's' ? 'ui_page' : 'ui_chest_wood_o';
-    box.innerHTML = `<article class="card ${e.d} ${nautical ? 'nautical' : 'royal'} effect-${category}" role="dialog" aria-labelledby="drawnCardTitle" aria-describedby="drawnCardText">
+    const result = nautical && c.k === 'cash' ? `<div class="card-result">${c.n > 0 ? '+' : '−'} ${coin(Math.abs(c.n))}<small>${c.n > 0 ? 'შენი ნადავლი' : 'გადასახდელი'}</small></div>` : nautical && c.k === 'move' && BOARD[c.to] ? `<div class="card-destination">${cardGlyph('travel')}<span>კურსი: <b>${esc(tName(c.to))}</b></span></div>` : '';
+    box.innerHTML = `<article class="card ${e.d} ${nautical ? `nautical ${e.d === 's' ? 'bottle-message' : 'treasure-discovery'}` : 'royal'} effect-${category}" role="dialog" aria-labelledby="drawnCardTitle" aria-describedby="drawnCardText" style="--owner:${SEAT_COLORS[e.s]}">
       <button class="card-close" type="button" aria-label="ბარათის დახურვა">×</button>
+      ${nautical ? `<div class="card-voyage"><span>${e.d === 's' ? 'ზღვიდან ამოსული წერილი' : 'განძის აღმოჩენა'}</span><small>№ ${String(e.id + 1).padStart(2, '0')}</small></div>` : ''}
       <div class="card3d card-model" aria-hidden="true"><img class="card3d-fallback" src="${ART(art)}" alt=""></div>
       <div class="card-insignia">${cardGlyph(category)}<span>${esc(labels[category])}</span></div>
-      <div class="card-letter"><h3 id="drawnCardTitle">${esc(title)}</h3><p id="drawnCardText">${esc(c.t)}</p></div>
-      <div class="card-reader"><img src="${por(target.players[e.s].hero)}" alt=""><small>${esc(pName(target, e.s))}</small><span class="card-seal" aria-hidden="true">✦</span></div>
-      <span class="card-dismiss">შეეხე გასაგრძელებლად</span></article>`;
+      <div class="card-letter">${nautical ? `<span class="letter-compass">${CHART_COMPASS}</span>` : ''}<h3 id="drawnCardTitle">${esc(title)}</h3><p id="drawnCardText">${esc(c.t)}</p>${result}</div>
+      <div class="card-reader">${nautical ? `<span class="reader-flag">${PIRATE_FLAG}</span>` : ''}<img src="${por(target.players[e.s].hero)}" alt=""><small>${esc(pName(target, e.s))}</small><span class="card-seal" aria-hidden="true">✦</span></div>
+      <span class="card-dismiss">${nautical && !REDUCED ? e.d === 's' ? 'წერილი იხსნება…' : 'სკივრი იხსნება…' : 'შეეხე გასაგრძელებლად'}</span></article>`;
     box.hidden = false;
     box.classList.remove('go'); void box.offsetWidth; box.classList.add('go');
-    const session = cardSession = { closed: false, focus: document.activeElement, visual: null };
+    const session = cardSession = { closed: false, focus: document.activeElement, visual: null, readyAt: Date.now() + (nautical && !REDUCED ? 3200 : 0) };
     if (typeof Card3D !== 'undefined') session.visual = Card3D.mount($('.card-model', box), nautical && e.d === 's' ? 'bottle' : e.d === 'c' ? 'chest' : 'scroll');
     Sound.card();
-    box.onclick = () => { session.closed = true; };
+    box.onclick = ev => { if (Date.now() >= session.readyAt || ev.target.closest('.card-close')) session.closed = true; };
     box.onkeydown = ev => { if (ev.key === 'Escape') { ev.preventDefault(); session.closed = true; } };
     $('.card-close', box).focus({ preventScroll: true });
-    const until = Date.now() + Math.max(3200, 4500 / rate);       // (long enough to read, even when the screen hurries)
+    const until = Date.now() + (nautical ? Math.max(6500, 7000 / rate) : Math.max(3200, 4500 / rate));
     try {
-      while (!session.closed && gen === g0 && cardSession === session && document.visibilityState !== 'hidden' && Date.now() < until) await sleep(80);
+      while (!session.closed && gen === g0 && cardSession === session && document.visibilityState !== 'hidden' && Date.now() < until) {
+        if (nautical && !session.ready && Date.now() >= session.readyAt) { session.ready = true; const prompt = $('.card-dismiss', box); if (prompt) prompt.textContent = 'შეეხე გასაგრძელებლად'; }
+        await sleep(80);
+      }
     } finally { if (cardSession === session) hideEventCard(); }
   }
   function fit() { board(); if (gl) Board3D.resize(); }
@@ -517,7 +560,7 @@ const View = (() => {
       pinsKey = key;
       box.innerHTML = list.map(i => {
         const lv = st.own[i].lv + 1, price = GROUPS[BOARD[i].g].b;
-        const icon = lv >= 5 ? (sea() ? SEAFORT_SVG : `<img src="${ART('s_fort')}" alt="">`) : towerIcon();
+        const icon = lv >= 5 ? (sea() ? PIRATE_INN_SVG : `<img src="${ART('s_fort')}" alt="">`) : towerIcon();
         return `<div class="pin" data-pin="${i}" data-lv="${lv}" hidden><button class="pin-b${lv >= 5 ? ' fort' : ''}" data-build="${i}" aria-label="${esc(`${LEVEL_NAMES[lv]}: ${tName(i)} · ${price}`)}"><span class="pin-f"><span class="pin-m">${icon}<b aria-hidden="true">+</b></span><span class="pin-p">${coin(price)}</span></span></button></div>`;
       }).join('');
     }
@@ -633,7 +676,9 @@ const View = (() => {
     const lead = A.by >= 0 ? st.players[A.by] : null;
     const top = lead ? `<div class="au-bid"><img src="${por(lead.hero)}" alt="" style="--c:${SEAT_COLORS[A.by]}"><span><small>${esc(lead.name)}</small>${coin(A.hi)}</span></div>`
       : `<div class="au-bid none"><span><small>ჯერ არავის დაუსახელებია ფასი</small><b>დაიწყე ${coin(Engine.BID_STEP)}-დან</b></span></div>`;
-    const who = Engine.activeSeats(st).map(s => `<img src="${por(st.players[s].hero)}" alt="${esc(st.players[s].name)}" title="${esc(st.players[s].name)}" class="${s === A.by ? 'lead' : A.out.includes(s) ? 'out' : ''}" style="--c:${SEAT_COLORS[s]}">`).join('');
+    const who = Engine.activeSeats(st).map(s => sea()
+      ? `<span class="auction-captain${s === A.by ? ' lead' : A.out.includes(s) ? ' out' : ''}" style="--owner:${SEAT_COLORS[s]}"><img src="${por(st.players[s].hero)}" alt=""><span>${esc(st.players[s].name)}<small>${s === A.by ? 'მაღალი ფასი' : A.out.includes(s) ? 'გავიდა' : 'მონაწილე'}</small></span></span>`
+      : `<img src="${por(st.players[s].hero)}" alt="${esc(st.players[s].name)}" title="${esc(st.players[s].name)}" class="${s === A.by ? 'lead' : A.out.includes(s) ? 'out' : ''}" style="--c:${SEAT_COLORS[s]}">`).join('');
     // this device's bidders: one person online, everyone at this screen in a game of several on one phone
     const mine = Engine.activeSeats(st).filter(s => controls(s));
     const many = mine.length > 1;
@@ -644,7 +689,10 @@ const View = (() => {
       const btn = inc => `<button class="btn gold" data-a="bid" data-inc="${inc}" data-seat="${s}" ${A.hi + inc <= p.cash ? '' : 'disabled'}>+${inc}</button>`;
       return `<div class="row au-acts">${many ? `<img class="au-me" src="${por(p.hero)}" alt="${esc(p.name)}" style="--c:${SEAT_COLORS[s]}">` : ''}${btn(10)}${btn(50)}${btn(100)}<button class="btn" data-a="pass" data-seat="${s}">გავდივარ</button></div>`;
     }).join('');
-    box.innerHTML = `<div class="bc auc">${cardHead(t, '<span class="chip au-tag">აუქციონი</span>')}
+    box.innerHTML = sea() ? `<article class="bc auc sea-charter" style="--owner:${A.by >= 0 ? SEAT_COLORS[A.by] : '#a9874c'}">${seaCharterHead(t, 'მეკობრეთა აუქციონი')}
+      <div class="charter-content"><div class="auction-hammer"><span>${CHART_COMPASS}</span><div><small>უმაღლესი შეთავაზება</small>${coin(A.hi)}<b>${lead ? esc(lead.name) : 'პირველი ფასი ჯერ არ არის'}</b></div><small class="auction-market">საწყისი ფასი${coin(t.p)}</small></div>
+      <div class="au-clock" aria-label="აუქციონის დარჩენილი დრო"><i style="animation-duration:${dur}s;animation-delay:-${gone.toFixed(2)}s"></i></div>
+      <div class="auction-crews">${who}</div><div class="charter-actions">${rows || '<p class="hint">უყურებ, რომელი კაპიტანი აღმართავს თავის დროშას</p>'}</div></div></article>` : `<div class="bc auc">${cardHead(t, '<span class="chip au-tag">აუქციონი</span>')}
       <div class="bc-b"><div class="au-top">${top}<small class="au-price">ფასი ${coin(t.p)}</small></div>
       <div class="au-clock"><i style="animation-duration:${dur}s;animation-delay:-${gone.toFixed(2)}s"></i></div>
       <div class="au-who">${who}</div>${rows || '<p class="hint">უყურებ, ვინ იყიდის</p>'}</div></div>`;
@@ -676,7 +724,13 @@ const View = (() => {
       hint = 'ქირა კამათლის ჯამზეა დამოკიდებული.';
     }
     const story = THEME.stories[t.i];       // the archipelago's true story of the place
-    box.innerHTML = `<div class="bc">${cardHead(t)}
+    box.innerHTML = sea() ? `<article class="bc sea-charter" style="--owner:${SEAT_COLORS[me]}">${seaCharterHead(t, t.k === 'p' ? 'კუნძულის სიგელი' : t.k === 'road' ? 'ხომალდის სიგელი' : 'სანაპიროს სიგელი')}
+      <div class="charter-content"><div class="charter-price"><span><small>შესაძენი ფასი</small>${coin(t.p)}</span><b>ქირა ${t.k === 'p' ? coin(t.rent[0]) : t.k === 'road' ? coin(ROAD_RENT[1]) : 'კამათელი ×4'}<small>${t.k === 'p' ? 'ქოხების აშენებამდე' : t.k === 'road' ? 'ერთი ხომალდით' : 'ერთი სადგურით'}</small></b></div>
+      ${seaOwnership(st, t.i)}${seaDevelopment(st, t.i)}<div class="charter-rent"><h4>რას მოგიტანს</h4><ul class="bc-rent">${rows}</ul></div>
+      <p class="hint charter-collection">${hint}</p>${seaCaptain(st, me)}
+      <div class="row charter-actions"><button class="btn gold big" data-a="buy" ${L.buy ? '' : 'disabled'}>შეიძინე ${coin(t.p)}</button><button class="btn" data-a="skip">აუქციონზე</button></div>
+      ${L.buy ? '' : `<p class="hint bad">ფული არ გყოფნის. აუქციონზე სხვა ფასის დასახელება შეგიძლია.</p>`}
+      ${story ? `<details class="charter-story"><summary>ამ ადგილის ნამდვილი ამბავი</summary><p>${esc(story)}</p></details>` : ''}</div></article>` : `<div class="bc">${cardHead(t)}
       <div class="bc-b">${story ? `<p class="story">${esc(story)}</p>` : ''}<ul class="bc-rent">${rows}</ul><p class="hint">${hint}</p>
       <div class="row"><button class="btn gold big" data-a="buy" ${L.buy ? '' : 'disabled'}>იყიდე ${coin(t.p)}</button><button class="btn" data-a="skip">აუქციონზე</button></div>
       ${L.buy ? '' : `<p class="hint bad">ფული არ გყოფნის: გაქვს ${coin(p.cash)}. აუქციონზე იაფადაც შეიძლება წავიდეს.</p>`}</div></div>`;
@@ -881,11 +935,23 @@ const Sheet = (() => {
       rows = `<ul class="rents"><li class="${n === 1 ? 'on' : ''}"><span class="ph"></span><span>ერთი გაქვს: კამათლის ჯამი ×4</span></li><li class="${n === 2 ? 'on' : ''}"><span class="ph"></span><span>ორივე გაქვს: კამათლის ჯამი ×10</span></li></ul><p class="facts"><span>ფასი ${coin(t.p)}</span><span>დაგირავება ${coin(t.p / 2)}</span></p>`;
     } else {
       const a = W.about[t.k], about = typeof a === 'function' ? a(t) : a;
-      if (sea() && seaScene(t)) return `<button class="x float-x" data-close aria-label="დახურვა">×</button><div class="deed-h" style="${sceneBg(t, 'linear-gradient(180deg,rgba(13,16,22,0),rgba(13,16,22,.85))')}"><h2>${esc(t.n)}</h2></div><p class="prose">${about}</p>${story(i)}`;
+      if (sea() && seaScene(t)) return `<article class="sea-titledeed"><button class="x float-x charter-close" data-close aria-label="დახურვა">×</button>${seaCharterHead(t, 'მეკობრეთა გზამკვლევი')}<div class="charter-content"><p class="prose charter-about">${about}</p>${THEME.stories[i] ? `<details class="charter-story"><summary>ამ ადგილის ნამდვილი ამბავი</summary><p>${esc(THEME.stories[i])}</p></details>` : ''}</div></article>`;
       return `<div class="sheet-h"><h2>${esc(t.n)}</h2><button class="x" data-close aria-label="დახურვა">×</button></div><p class="prose">${about}</p>${story(i)}`;
     }
     const owner = o ? `<p class="owner"><img src="${por(st.players[o.o].hero)}" alt="" style="--c:${SEAT_COLORS[o.o]}">${esc(st.players[o.o].name)}${o.m ? ' · <b class="bad">დაგირავებული</b>' : ''}</p>` : '<p class="owner free">ჯერ არავისია</p>';
     if (mine) foot = manageButtons(st, seat, i);
+    if (sea()) {
+      const sum = st.dice[0] + st.dice[1], rent = o ? Engine.rentAt(st, i, sum) : 0;
+      const collected = o && t.k === 'p' ? GROUP_TILES[t.g].filter(j => st.own[j] && st.own[j].o === o.o).length : 0;
+      const portfolio = o && t.k === 'p' ? `<p class="charter-collection">${esc(st.players[o.o].name)}: ${collected} / ${GROUP_TILES[t.g].length} კუნძული ამ ზღვაში</p>` : o && t.k === 'road' ? `<p class="charter-collection">კაპიტნის ფლოტში: ${Engine.countOf(st, o.o, ROADS)} ხომალდი</p>` : '';
+      if (o && o.m) rows = rows.replace(/ class="on"/g, '');
+      return `<article class="sea-titledeed" style="--owner:${o ? SEAT_COLORS[o.o] : '#a9874c'}"><button class="x float-x charter-close" data-close aria-label="დახურვა">×</button>
+        ${seaCharterHead(t, t.k === 'p' ? 'კუნძულის სიგელი' : t.k === 'road' ? 'ხომალდის სიგელი' : 'სანაპიროს სიგელი')}
+        <div class="charter-content">${seaOwnership(st, i)}${seaDevelopment(st, i)}${portfolio}
+        <div class="charter-current-rent"><span>${o && o.m ? 'ქირა შეჩერებულია' : t.k === 'util' ? `ქირა ამ კამათელზე (${sum})` : 'ქირა ახლა'}<small>${o ? 'ამ ადგილის მიმდინარე შემოსავალი' : 'შეძენის შემდეგ ქირას მიიღებ'}</small></span>${coin(rent)}</div>
+        <div class="charter-rent"><h4>ქირის სიგელი</h4>${rows}</div>${foot}
+        ${THEME.stories[i] ? `<details class="charter-story"><summary>ამ ადგილის ნამდვილი ამბავი</summary><p>${esc(THEME.stories[i])}</p></details>` : ''}</div></article>`;
+    }
     return `<button class="x float-x" data-close aria-label="დახურვა">×</button>${head}<div class="deed-b">${owner}${story(i)}${rows}${foot}</div>`;
   }
   // the archipelago's true story of a place
@@ -898,7 +964,7 @@ const Sheet = (() => {
       const why = Engine.buildBlock(st, seat, i);
       if (o.lv < 5) b.push(`<button class="btn small gold" data-a="build" data-i="${i}" ${why ? 'disabled' : ''} title="${esc(ERR[why] || '')}">+ ${esc(LEVEL_NAMES[o.lv + 1])} ${coin(GROUPS[t.g].b)}</button>`);
     }
-    if (t.k === 'p' && o.lv > 0) b.push(`<button class="btn small" data-a="sell" data-i="${i}" ${Engine.canSell(st, seat, i) ? '' : 'disabled'}>− ${esc(W.tower)} ${coin(GROUPS[t.g].b / 2)}</button>`);
+    if (t.k === 'p' && o.lv > 0) b.push(`<button class="btn small" data-a="sell" data-i="${i}" ${Engine.canSell(st, seat, i) ? '' : 'disabled'}>${sea() && o.lv === 5 ? 'სასტუმრო → 4 ქოხი' : '− ' + esc(W.tower)} ${coin(GROUPS[t.g].b / 2)}</button>`);
     if (!o.m) b.push(`<button class="btn small" data-a="mort" data-i="${i}" ${Engine.canMort(st, seat, i) ? '' : 'disabled'}>დაგირავება ${coin(t.p / 2)}</button>`);
     else if (L.build) b.push(`<button class="btn small" data-a="unmort" data-i="${i}" ${st.players[seat].cash >= Engine.unmortCost(i) ? '' : 'disabled'}>გამოსყიდვა ${coin(Engine.unmortCost(i))}</button>`);
     const why = t.k === 'p' && o.lv < 5 ? Engine.buildBlock(st, seat, i) : '';

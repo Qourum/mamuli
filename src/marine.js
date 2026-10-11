@@ -208,7 +208,7 @@ const Marine3D = (() => {
     update(0, 0);
     return {
       update,
-      dispose() { if (dead) return; dead = true; for (const a of actors) if (a.mixer) { a.mixer.stopAllAction(); a.mixer.uncacheRoot(a.model); } parent.remove(group); group.clear(); for (const item of own) item.dispose(); own.clear(); },
+      dispose() { if (dead) return; dead = true; for (const a of actors) if (a.mixer) { a.mixer.stopAllAction(); a.mixer.uncacheRoot(a.model); } parent.remove(group); group.traverse(o => { if (o.isInstancedMesh) o.dispose(); }); group.clear(); for (const item of own) item.dispose(); own.clear(); },
       stats() { return { animals: actors.length, native: loads, fallbacks: actors.length - loads, failed, rings: rings.length, droplets: drops.length }; },
       group
     };

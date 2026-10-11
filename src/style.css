@@ -510,6 +510,160 @@ pre.diag { margin: 10px 0 0; padding: 10px; max-height: 52vh; overflow: auto; bo
 .cardpop.go .card { animation: cardIn .38s cubic-bezier(.2, 1.4, .4, 1); }
 @media (max-height: 580px) { .cardpop .card-model { height: 115px; } .cardpop .card { font-size: 13px; } .card-letter { padding: 8px 10px; } .card-reader { margin-top: 8px; } }
 @keyframes cardIn { from { transform: translateY(30px) rotate(-6deg) scale(.7); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* Sea charters: an illustrated chart bound to a cut parchment deed. Names, flags,
+   development and live amounts form the card itself, rather than decorative trim. */
+#app[data-world="archipelago"] .bc.sea-charter {
+  width: min(100%, 392px); border: 0; border-radius: 5px 5px 11px 3px; color: #243d42;
+  background: #efe1bd; box-shadow: 0 0 0 1px #d8bc80, 0 5px 0 #785732, 0 19px 44px #062029a6;
+}
+.charter-scene { position: relative; display: flex; flex-direction: column; padding: 0; color: #213d45; overflow: hidden; background: #f4ebd4; border-bottom: 4px solid var(--g); }
+.charter-register { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 14px; color: #dce7dd; background: #173e48; font-size: 9px; font-weight: 800; }
+.charter-register > span { border-left: 2px solid #e8c57c; padding-left: 7px; }
+.charter-register > small { font-family: var(--f-num); font-size: 12px; padding-right: 28px; }
+.charter-illustration { height: 180px; flex: none; background: #edf0e5; border-bottom: 1px solid #baa56f44; }
+.charter-photo { display: block; width: 100%; height: 100%; object-fit: contain; }
+.charter-place { position: relative; z-index: 1; padding: 8px 61px 10px 14px; background: linear-gradient(110deg, #faf2d8, #e8dab5); }
+.charter-place h3 { margin: 5px 0 3px; font: 900 clamp(21px, 5.5vw, 28px)/1.17 var(--f-display); color: #183d49; text-shadow: none; overflow-wrap: anywhere; }
+.charter-place > small { font-size: 10px; font-weight: 700; color: #736448; }
+.charter-region { display: inline-block; padding: 2px 7px 2px 8px; font-size: 9px; font-weight: 800; background: #ecdec0; border-left: 5px solid var(--g); color: #355059; }
+.charter-compass { position: absolute; right: 12px; bottom: 15px; width: 39px; height: 39px; color: #8e783e; opacity: .55; z-index: 1; }
+.charter-compass svg, .auction-hammer > span svg, .letter-compass svg { width: 100%; height: 100%; stroke: currentColor; stroke-width: 1; fill: none; }
+.charter-content { position: relative; padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px;
+  background: radial-gradient(ellipse at 90% 20%, #fff9dc8a, transparent 65%), repeating-linear-gradient(0deg, #9d7e4910 0 1px, transparent 1px 5px), linear-gradient(110deg, #f7eccd, #e8d7b0); }
+.charter-content::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 6px; background: #78573236; clip-path: polygon(0 70%, 6% 25%, 12% 75%, 20% 15%, 28% 65%, 38% 35%, 45% 85%, 55% 15%, 63% 55%, 75% 20%, 84% 80%, 93% 40%, 100% 75%, 100% 100%, 0 100%); pointer-events: none; }
+.charter-price { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding-bottom: 8px; border-bottom: 1px solid #93734255; }
+.charter-price > span { display: flex; flex-direction: column; gap: 2px; }
+.charter-price small, .charter-current-rent small, .charter-development small, .charter-captain small, .charter-owner small { display: block; color: #786b4d; font-size: 10px; font-weight: 600; }
+.charter-price > span .amt { font-size: 29px; color: #72501c; }
+.charter-price > b { max-width: 50%; text-align: right; font-size: 12px; font-weight: 800; }
+.charter-price > b small { margin-top: 3px; font-size: 10px; line-height: 1.35; }
+.charter-owner { --owner: #a9874c; display: flex; gap: 8px; align-items: center; padding: 7px 9px 7px 5px; min-width: 0; background: #fff7dd88; border-left: 4px solid var(--owner); border-bottom: 1px solid #b4a07144; }
+.charter-owner > div { flex: 1; min-width: 0; }
+.charter-owner b { display: block; font-size: 13px; color: #213f46; overflow-wrap: anywhere; }
+.charter-owner img { width: 32px; height: 32px; border-radius: 50%; box-shadow: 0 0 0 2px var(--owner); flex: none; }
+.charter-flag { width: 36px; height: 34px; flex: none; color: var(--owner); }
+.charter-flag svg, .reader-flag svg { width: 100%; height: 100%; }
+.charter-owner.free .charter-flag { opacity: .65; }
+.charter-status { font-size: 9px; font-weight: 800; text-align: right; color: #697248; max-width: 84px; }
+.charter-status.mortgaged { color: #9c453b; }
+.charter-development { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 2px 0 7px; border-bottom: 1px dashed #9a825e66; }
+.charter-development > div:first-child { min-width: 0; }
+.charter-development b { font-size: 11px; display: block; margin-top: 2px; color: #243d42; }
+.charter-buildings { display: flex; align-items: flex-end; gap: 3px; color: var(--owner, #407967); flex: none; }
+.charter-building { display: block; width: 15px; height: 24px; opacity: .18; filter: grayscale(1); }
+.charter-building.inn { width: 24px; height: 26px; margin-left: 5px; padding-left: 3px; border-left: 1px solid #9d845b55; }
+.charter-building svg { width: 100%; height: 100%; }
+.charter-building.built { opacity: 1; filter: none; }
+.charter-rent h4 { margin: 0 0 5px; font-size: 10px; color: #756241; letter-spacing: .025em; }
+.charter-rent .bc-rent li { padding: 4px 1px; color: #34474a; font-size: 11px; border-color: #9d845b44; font-weight: 600; }
+.charter-rent .bc-rent .amt { color: #67491f; font-size: 16px; }
+.charter-collection { margin: 0; padding: 6px 8px; background: #467d7920; color: #365b59 !important; border-left: 2px solid #608e83; font-size: 11px; line-height: 1.45; text-align: left !important; }
+.charter-captain { display: flex; align-items: center; gap: 8px; min-width: 0; padding-top: 2px; }
+.charter-captain > img { width: 29px; height: 29px; border-radius: 50%; box-shadow: 0 0 0 2px var(--owner); }
+.charter-captain > span:first-of-type { flex: 1; min-width: 0; }
+.charter-captain b:not(.amt) { display: block; font-size: 11px; color: #29434b; overflow-wrap: anywhere; }
+.charter-wallet { text-align: right; font-size: 16px; color: #76501f; }
+.charter-actions { position: sticky; bottom: 0; padding: 8px 0; background: #eee0bbf5; z-index: 2; }
+.charter-actions .btn { min-height: 44px; font-size: 12px; border-radius: 4px 10px 5px 8px; }
+.charter-actions .btn.gold { background: linear-gradient(180deg, #255a63, #16424d); border-color: #b59a56; color: #fff0bc; box-shadow: inset 0 1px 0 #8eafac55, 0 2px 0 #17383e; }
+.charter-actions .btn.gold .amt { color: #fff0bc; }
+.charter-actions .btn:not(.gold) { background: #ead6aa; color: #5d4c31; border-color: #9e8354; }
+.charter-story { color: #5f5038; border-top: 1px dashed #a28b6155; padding-top: 7px; font-size: 11px; }
+.charter-story summary { cursor: pointer; font-weight: 700; color: #355e62; }
+.charter-story p { margin: 8px 0 0; line-height: 1.65; }
+.auction-hammer { display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #987d5155; padding-bottom: 9px; }
+.auction-hammer > span { width: 44px; height: 44px; flex: none; color: #9b793b; }
+.auction-hammer > div { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.auction-hammer small { font-size: 10px; color: #786747; }
+.auction-hammer > div > .amt { font-size: 32px; line-height: 1.2; color: #68491e; }
+.auction-hammer > div > b:not(.amt) { color: #224b56; font-size: 12px; overflow-wrap: anywhere; border-left: 3px solid var(--owner); padding-left: 6px; }
+.auction-market { display: flex; flex-direction: column; text-align: right; gap: 5px; }
+.auction-market .amt { font-size: 18px; color: #756044; }
+.auction-crews { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.auction-captain { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 5px 6px; background: #fff7dd66; border-left: 3px solid var(--owner); }
+.auction-captain img { width: 27px; height: 27px; border-radius: 50%; box-shadow: 0 0 0 1px var(--owner); flex: none; }
+.auction-captain > span { font-size: 10px; font-weight: 800; min-width: 0; overflow-wrap: anywhere; color: #2e484f; }
+.auction-captain small { display: block; font-size: 9px; font-weight: 500; color: #7a6b4c; }
+.auction-captain.lead { background: #6c92712a; box-shadow: inset 0 0 0 1px #79a27a66; }
+.auction-captain.out { opacity: .48; filter: grayscale(.65); }
+.sea-titledeed { margin: -16px -16px -18px; color: #273f45; background: #ebdcb8; }
+.sea-titledeed .charter-scene { padding: 0; }
+.sea-titledeed .charter-illustration { height: 225px; }
+.sea-titledeed .charter-register { padding-right: 20px; }
+.charter-close { background: #0c3543db; color: #ffedbb; border-color: #cdbb8066; }
+.charter-current-rent { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: #1e535e; color: #fff0bc; border-radius: 3px 9px 3px 8px; }
+.charter-current-rent > span { font-size: 12px; font-weight: 800; }
+.charter-current-rent small { color: #d1ddce; font-size: 9px; margin-top: 2px; }
+.charter-current-rent > .amt { font-size: 27px; color: #ffe4a0; }
+.sea-titledeed .rents { background: #fff6d766; border-radius: 3px; border-color: #a58b5b55; }
+.sea-titledeed .rents li { padding: 6px 8px; font-size: 12px; border-color: #a58b5b33; grid-template-columns: 55px 1fr auto; }
+.sea-titledeed .rents .tws { justify-content: flex-start; gap: 1px; }
+.sea-titledeed .rents .tws svg { width: 12px; height: 22px; }
+.sea-titledeed .rents .fort-i svg { width: 26px; height: 25px; }
+.sea-titledeed .rents .amt { color: #67491f; font-size: 17px; }
+.sea-titledeed .rents li.on { background: #9fc6b84a; box-shadow: inset 3px 0 0 var(--owner); }
+.sea-titledeed .facts { font-size: 11px; color: #70603f; gap: 6px 12px; margin-bottom: 0; }
+.sea-titledeed .facts .amt { color: #67491f; }
+.sea-titledeed .manage { margin-top: 0; }
+.sea-titledeed .manage .btn { font-size: 11px; border-radius: 5px; color: #5b452a; background: #ead1a1; border-color: #ad8b51; }
+.sea-titledeed .manage .btn.gold { color: #fff0bc; background: #1e535e; border-color: #b69a61; }
+.sea-titledeed .hint { color: #756044; }
+.sea-titledeed .charter-about { color: #294b54; font-size: 13px; line-height: 1.65; margin: 0; }
+
+/* Recovered letters and treasure discoveries have a broad 3D stage, followed by
+   the actual message on an uneven sheet of shipboard parchment. */
+.cardpop .card.nautical { width: min(100%, 404px); border-radius: 4px 10px 4px 11px; border: 1px solid #d4b67b; padding: 0 14px 12px; color: #243e44;
+  background: repeating-linear-gradient(0deg, #9d7e4910 0 1px, transparent 1px 5px), linear-gradient(110deg, #f7eccd, #e5d1a7); box-shadow: 0 5px 0 #79572f, 0 20px 50px #001e2b99; }
+.card-voyage { position: relative; display: flex; justify-content: space-between; gap: 8px; padding: 10px 34px 9px 1px; font-size: 10px; font-weight: 800; border-bottom: 1px solid #a5885355; color: #4d675f; }
+.card-voyage small { font-family: var(--f-num); color: #8a6e3a; }
+.cardpop .nautical .card-model { height: clamp(200px, 27vh, 230px); min-height: 200px; margin: 0 -14px; border-radius: 0; background: radial-gradient(ellipse at 58% 40%, #b8ddd1, #6da9a74d 62%, #c4c7a84d); }
+.cardpop .treasure-discovery .card-model { background: radial-gradient(ellipse at 50% 60%, #ddc783, #6c918755 65%, #c4c7a84d); }
+.nautical .card-close { background: #134450ed; color: #fff0bc; border-color: #c7b47766; width: 30px; height: 30px; }
+.nautical .card-insignia { margin: -11px 0 10px; border-radius: 3px 9px 3px 9px; padding: 5px 13px; font-size: 10px; }
+.nautical .card-letter { position: relative; padding: 17px 16px 18px; border-radius: 0; border: 0; text-align: left; background: #fff7de;
+  clip-path: polygon(0 2%, 7% 0, 20% 2%, 35% 0, 55% 2%, 73% 0, 89% 2%, 100% 0, 99% 95%, 93% 98%, 82% 96%, 70% 100%, 58% 96%, 46% 99%, 31% 97%, 18% 100%, 5% 96%, 0 99%); box-shadow: inset 0 0 25px #bc9b5c35; }
+.nautical .card-letter h3 { position: relative; margin-bottom: 10px; font-size: 20px; color: #174955; }
+.nautical .card-letter p { position: relative; font-size: 13px; line-height: 1.75; color: #35464a; font-weight: 600; }
+.letter-compass { position: absolute; right: -3px; top: 6px; width: 106px; height: 106px; color: #ab9566; opacity: .12; pointer-events: none; }
+.card-result { display: flex; align-items: center; gap: 4px; margin-top: 12px; padding-top: 8px; border-top: 1px dashed #b9a37266; font-family: var(--f-num); color: var(--event-color); font-size: 28px; }
+.card-result .amt { color: inherit; }
+.card-result small { margin-left: auto; font: 700 10px var(--f-ui); color: #746242; }
+.card-destination { display: flex; align-items: center; gap: 6px; margin-top: 10px; color: #416c6b; font-size: 11px; }
+.card-destination svg { width: 22px; height: 22px; flex: none; }
+.nautical .card-reader { justify-content: flex-start; margin: 8px 3px 5px; padding-top: 5px; border-top: 1px solid #ac8e5b44; }
+.nautical .card-reader img { box-shadow: 0 0 0 2px var(--owner); border: 0; }
+.nautical .card-reader small { flex: 1; text-align: left; color: #355259; overflow-wrap: anywhere; }
+.reader-flag { color: var(--owner); width: 28px; height: 29px; }
+.nautical .card-dismiss { display: block; margin-top: 3px; font-size: 10px; color: #83734e; }
+.treasure-head { padding: 0; display: flex; flex-direction: column; gap: 0; background-color: #173e47; }
+.treasure-head .quiz-model { position: relative; width: 100%; height: 200px; min-height: 200px; left: auto; top: auto; background: radial-gradient(ellipse at 50% 65%, #8bab9b55, #153c47aa 80%); }
+.treasure-head .quiz-heading { width: 100%; padding: 9px 14px 11px; background: #153c47b8; }
+.treasure-head .quiz-heading > b { color: #ffe7a7; font-size: 21px; }
+.treasure-head .quiz-heading small { color: #dde5ce; line-height: 1.5; }
+.bc.treasure-quiz { border-radius: 4px 11px 4px 9px; border-width: 1px; }
+/* Keep timed answers visible beside a compact chest on shorter displays. */
+@media (max-height: 820px) {
+  .treasure-head { display: grid; grid-template-columns: 46% 54%; min-height: 150px; }
+  .treasure-head .quiz-model { height: 150px; min-height: 150px; }
+  .treasure-head .quiz-heading { padding: 10px; height: 100%; display: flex; flex-direction: column; justify-content: center; background: #102f39c4; }
+  .treasure-head .quiz-heading > b { font-size: 19px; }
+  .treasure-head .quiz-heading small { font-size: 11px; line-height: 1.4; }
+}
+@media (max-height: 650px) {
+  .charter-illustration { height: 136px; }
+  .charter-place { padding-top: 6px; padding-bottom: 7px; }
+  .charter-place h3 { font-size: 21px; }
+  .charter-content { gap: 7px; padding-top: 9px; }
+  .sea-titledeed .charter-illustration { height: 178px; }
+}
+@media (max-width: 350px) {
+  .charter-content { padding-inline: 10px; }
+  .charter-buildings { gap: 1px; }
+  .charter-building { width: 13px; }
+  .charter-status { max-width: 64px; font-size: 8px; }
+  .charter-rent .bc-rent li { font-size: 10px; }
+}
 .banner { position: absolute; left: 50%; top: 42%; z-index: 6; display: flex; align-items: center; gap: 10px; padding: 8px 18px 8px 8px; border-radius: 99px;
   background: linear-gradient(180deg, var(--wood-3), var(--wood-2)); border: 2px solid var(--gold); box-shadow: 0 10px 30px rgba(0, 0, 0, .6);
   font: 900 21px var(--f-display); color: var(--gold-hi); white-space: nowrap; opacity: 0; transform: translate(-50%, -50%) scale(.6); pointer-events: none; }

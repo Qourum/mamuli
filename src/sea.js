@@ -423,12 +423,9 @@ const SeaModels = (() => {
       pier(B, 0.0, -0.02, 0.2);
     }
   };
-  L[38] = {  // the whirlpool: the sea turns round and round (see FX), rocks about it
-    r: R => { tint(R, 0x6a8a5a, 0x5d5a52); for (const [x, z, s] of [[-0.28, -0.24, 0.06], [0.3, -0.12, 0.05], [0.24, -0.34, 0.04]]) R.peak(x, z, s, UP + 0.05, x * 10); },
-    b: B => { for (const [x, z, s] of [[-0.28, -0.24, 0.05], [0.3, -0.12, 0.04], [0.24, -0.34, 0.035]]) rock(B, x, z, s, 0x5d5a52, Math.round(z * 100)); }
-  };
+  L[38] = { r: R => { tint(R, 0x6a8a5a, 0x5d5a52); } }; // open water for the round Lagoon3D funnel
   // the treasure chest's islets and the bottle's sandbars
-  const chestLot = { r: R => { tint(R, 0x5aa34a); isle(R, 0, -0.12, 0.22, 0.18, 0.025, 0.4, 0.7); }, b: B => { chestOnSand(B, 0.02, -0.1, 0.9); palm(B, -0.12, -0.18, 0.9); palm(B, 0.14, -0.2, 0.7); rock(B, -0.16, 0.0, 0.03, 0x9a8a6a, 3); } };
+  const chestLot = { r: R => { tint(R, 0x5aa34a); isle(R, 0, -0.12, 0.22, 0.18, 0.025, 0.4, 0.7); }, b: B => { if (typeof MapProps3D === 'undefined') chestOnSand(B, 0.02, -0.1, 0.9); palm(B, -0.12, -0.18, 0.9); palm(B, 0.14, -0.2, 0.7); rock(B, -0.16, 0.0, 0.03, 0x9a8a6a, 3); } };
   const bottleLot = { r: R => { tint(R, 0x5aa34a); isle(R, -0.12, -0.16, 0.16, 0.12, 0.012, 0, 0.7); }, b: B => { rock(B, -0.18, -0.14, 0.03, 0x9a8a6a, 6); B.add(cone(0.012, 0.04, 4), 0x6a9a4a, -0.08, 0, -0.2, { sway: 1 }); for (let k = 0; k < 4; k++) B.add(ball(0.008, 0), 0xf2e2d2, -0.14 + k * 0.03, 0, -0.08 + (k % 2) * 0.02, { sy: 0.5 }); } };
   L[2] = chestLot; L[17] = chestLot; L[33] = chestLot;
   L[7] = bottleLot; L[22] = bottleLot; L[36] = bottleLot;
@@ -587,26 +584,105 @@ const SeaModels = (() => {
     return B.parts.length ? B.build() : null;
   }
 
-  // ===== what the players build, painted in their colour: huts (1 to 4 on a square), then a sea fort =====
+  // ===== player buildings: one to four timber pirate cottages, replaced by a two-storey pirate inn at level 5 =====
+  // body keeps its timber/plaster/lantern colours; roof is multiplied by the owning player's colour in Board3D.
+  // A cottage is at most .204 wide, below the .22 spacing of four build slots. The inn occupies one central slot.
+  function pirateMark(B, x, y, z, size) {
+    B.add(ball(size * .16, 0), C.white, x, y + size * .09, z, { sy: .83, sz: .22, vary: 0 });
+    for (const turn of [-.55, .55]) B.add(box(size * .62, size * .055, size * .035), C.white, x, y - size * .10, z, { rz: turn, vary: 0 });
+  }
   function hutParts() {
-    const B = new Builder(), R = new Builder();
-    for (const [px, pz] of [[-0.06, -0.05], [0.06, -0.05], [-0.06, 0.05], [0.06, 0.05]]) B.add(box(0.012, 0.04, 0.012), 0x6a4a2a, px, 0, pz);
-    B.add(box(0.15, 0.11, 0.13), C.bamboo, 0, 0.035, 0, { vary: 0.08 });
-    B.add(box(0.04, 0.07, 0.008), PAL.dark, 0, 0.035, 0.066);
-    R.add(pyr(0.22, 0.13, 0.19), 0xffffff, 0, 0.145, 0, { vary: 0.06 });
-    R.add(box(0.006, 0.05, 0.006), 0xffffff, 0, 0.27, 0, { vary: 0 });
-    return { body: B.build(), roof: R.build() };
+    const B = new Builder(), R = new Builder(), timber = 0x704529, darkWood = 0x503421;
+    // Raised timber floor, a tiny porch and three entrance steps.
+    B.add(box(.17, .016, .125), timber, 0, .029, -.013);
+    B.add(box(.174, .012, .066), C.plank, 0, .029, .076);
+    for (const x of [-.072, .072]) for (const z of [-.064, .100]) B.add(box(.010, .038, .010), darkWood, x, 0, z);
+    for (let i = 0; i < 3; i++) B.add(box(.042, .009, .012), timber, -.032, i * .009, .127 - i * .010);
+    B.add(box(.17, .128, .12), 0xe5cda3, 0, .044, -.013, { vary: .045 });
+    for (const x of [-.081, .081]) for (const z of [-.071, .045]) B.add(box(.010, .13, .010), darkWood, x, .043, z);
+    for (const y of [.046, .163]) B.add(box(.172, .010, .012), timber, 0, y, .048);
+    // Door, warm framed window and open wooden shutters face the player (+z).
+    B.add(box(.039, .080, .006), darkWood, -.032, .044, .049, { vary: .06 });
+    B.add(box(.004, .073, .003), C.plank, -.036, .047, .053);
+    B.add(ball(.0026), C.trim, -.021, .080, .054, { vary: 0 });
+    B.add(box(.040, .041, .006), darkWood, .041, .088, .050);
+    B.add(box(.029, .030, .004), 0xffcf78, .041, .093, .054, { vary: 0 });
+    for (const x of [.016, .066]) B.add(box(.012, .039, .006), 0x81937b, x, .089, .056, { ry: x < .04 ? -.30 : .30 });
+    B.add(box(.003, .031, .004), timber, .041, .092, .057);
+    B.add(box(.030, .003, .004), timber, .041, .106, .057);
+    // Boarded sides read as a cottage even from a side view.
+    for (const x of [-.086, .086]) for (const y of [.075, .107, .139]) B.add(box(.006, .005, .115), C.plank, x, y, -.013);
+    for (const x of [-.076, .076]) B.add(box(.008, .108, .008), timber, x, .041, .102);
+    R.add(roof(.204, .071, .166), 0xffffff, 0, .173, -.013, { vary: 0 });
+    R.add(roof(.174, .020, .070), 0xffffff, 0, .145, .077, { vary: 0 });
+    B.add(box(.204, .009, .009), darkWood, 0, .240, -.013);
+    // A barrel, hanging lantern and little skull flag make its pirate theme recognizable.
+    B.add(cyl(.012, .014, .030, 8), 0x93623b, .067, .041, .092, { vary: .07 });
+    for (const y of [.046, .061]) B.add(cyl(.0144, .0144, .003, 8), C.iron, .067, y, .092, { vary: 0 });
+    B.add(box(.008, .007, .013), darkWood, -.071, .113, .077);
+    B.add(box(.008, .015, .008), 0xffd793, -.071, .096, .078, { vary: 0 });
+    B.add(box(.003, .015, .003), C.iron, -.071, .096, .083, { vary: 0 });
+    B.add(box(.004, .059, .004), timber, -.060, .243, -.018);
+    B.add(box(.046, .024, .003), C.black, -.037, .274, -.018, { vary: 0 });
+    pirateMark(B, -.037, .286, -.0158, .025);
+    const body = B.build(), roofPart = R.build();
+    body.name = 'Pirate_Cottage_Body'; roofPart.name = 'Pirate_Cottage_Roof';
+    return { body, roof: roofPart };
   }
   function seaFortParts() {
-    const B = new Builder(), R = new Builder();
-    B.add(cyl(0.2, 0.22, 0.14, 14), 0xc9bda2, 0, 0, 0, { vary: 0.07 });
-    for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; B.add(box(0.05, 0.04, 0.04), 0xc9bda2, Math.cos(a) * 0.19, 0.14, Math.sin(a) * 0.19, { ry: -a }); }
-    B.add(cyl(0.08, 0.085, 0.3, 12), 0xd6cbb6, 0, 0, -0.02, { vary: 0.06 });
-    for (const a of [0.5, -0.5]) B.add(cyl(0.012, 0.016, 0.08, 8), C.iron, Math.sin(a) * 0.2, 0.07, Math.cos(a) * 0.2, { rx: Math.PI / 2 - 0.1, ry: a });
-    B.add(box(0.05, 0.08, 0.01), PAL.dark, 0, 0, 0.215);
-    R.add(cone(0.1, 0.13, 12), 0xffffff, 0, 0.3, -0.02, { vary: 0 });
-    R.add(box(0.004, 0.05, 0.06), 0xffffff, 0.0, 0.46, 0.01, { vary: 0 });
-    return { body: B.build(), roof: R.build() };
+    const B = new Builder(), R = new Builder(), timber = 0x68432b, darkWood = 0x493022;
+    // A welcoming two-storey inn, not a defensive stone tower: warm plaster, timber frame and long balcony.
+    B.add(box(.445, .034, .248), 0xb49a70, 0, 0, -.012, { vary: .08 });
+    B.add(box(.430, .248, .232), 0xf0dab4, 0, .034, -.014, { vary: .04 });
+    for (const x of [-.211, 0, .211]) for (const z of [-.129, .105]) B.add(box(.013, .249, .012), timber, x, .033, z);
+    for (const y of [.039, .164, .272]) B.add(box(.435, .012, .014), timber, 0, y, .108);
+    for (const x of [-.221, .221]) for (const y of [.078, .122, .203, .244]) B.add(box(.009, .008, .222), timber, x, y, -.014);
+    // Wide porch and balcony, with enough open space to see the door and amber windows.
+    B.add(box(.478, .014, .095), C.plank, 0, .029, .138);
+    B.add(box(.478, .014, .090), timber, 0, .171, .140);
+    for (const x of [-.220, -.078, .078, .220]) B.add(box(.010, .251, .010), timber, x, .034, .170);
+    B.add(box(.478, .009, .010), C.trim, 0, .218, .181);
+    for (let i = 0; i < 7; i++) B.add(box(.007, .035, .008), timber, -.207 + i * .069, .185, .181);
+    for (let i = 0; i < 3; i++) B.add(box(.090, .010, .017), timber, 0, i * .010, .207 - i * .014);
+    B.add(box(.071, .116, .008), darkWood, 0, .034, .108);
+    B.add(box(.008, .109, .004), C.plank, 0, .038, .113);
+    B.add(ball(.004), C.trim, .022, .086, .116, { vary: 0 });
+    for (const y of [.081, .205]) for (const x of [-.146, .146]) {
+      B.add(box(.062, .052, .008), darkWood, x, y, .110);
+      B.add(box(.046, .038, .005), 0xffd485, x, y + .007, .115, { vary: 0 });
+      B.add(box(.004, .039, .005), timber, x, y + .007, .119);
+      B.add(box(.047, .004, .005), timber, x, y + .023, .119);
+    }
+    R.add(roof(.514, .122, .272), 0xffffff, 0, .284, -.015, { vary: 0 });
+    // Two dormer windows project from the colourful roof; the balcony has its own shallow awning.
+    for (const x of [-.132, .132]) {
+      B.add(box(.060, .046, .041), 0xe5cda3, x, .311, .064, { vary: .035 });
+      B.add(box(.037, .032, .005), darkWood, x, .318, .086);
+      B.add(box(.026, .023, .004), 0xffd485, x, .322, .090, { vary: 0 });
+      R.add(roof(.063, .035, .080), 0xffffff, x, .356, .064, { ry: Math.PI / 2, vary: 0 });
+    }
+    R.add(roof(.478, .024, .095), 0xffffff, 0, .282, .140, { vary: 0 });
+    B.add(box(.514, .010, .012), darkWood, 0, .401, -.015);
+    B.add(box(.030, .091, .031), 0x957c67, -.171, .337, -.040, { vary: .08 });
+    B.add(box(.039, .009, .040), darkWood, -.171, .428, -.040);
+    // Hanging inn sign, paired lanterns and barrels replace the former battlements/cannons.
+    B.add(box(.008, .009, .047), darkWood, .175, .144, .132);
+    B.add(box(.079, .043, .008), 0xa8753f, .175, .104, .177, { vary: .03 });
+    pirateMark(B, .175, .125, .182, .060);
+    for (const x of [-.175, .175]) {
+      B.add(box(.017, .026, .012), C.iron, x, .114, .136);
+      B.add(box(.011, .019, .009), 0xffdc94, x, .118, .144, { vary: 0 });
+    }
+    for (const x of [-.172, .172]) {
+      B.add(cyl(.021, .024, .048, 10), 0x94613a, x, .043, .138, { vary: .07 });
+      for (const y of [.049, .075]) B.add(cyl(.0245, .0245, .005, 10), C.iron, x, y, .138, { vary: 0 });
+    }
+    B.add(box(.005, .087, .005), timber, .176, .404, -.021);
+    B.add(box(.075, .034, .004), C.black, .139, .450, -.021, { vary: 0 });
+    pirateMark(B, .139, .467, -.0178, .037);
+    const body = B.build(), roofPart = R.build();
+    body.name = 'Pirate_Inn_Body'; roofPart.name = 'Pirate_Inn_Roof';
+    return { body, roof: roofPart };
   }
 
   // ===== what moves, place by place (in the place's frame; heights above its land) =====
@@ -631,14 +707,15 @@ const SeaModels = (() => {
     39: { url: 'art/m_cocos_animated.glb', animated: true, s: 1.22, x: 0.12, z: -0.02 }
   };
   const shelf = (R, d) => { tint(R, 0xe3cf98, 0xb8a27a); isle(R, d.x || 0, d.z || 0, 0.36 * (d.s || 1), 0.34 * (d.s || 1), -0.035, 0, 0.6); };
-  // the corner squares' models: little dioramas standing on the square (in the square's frame, on its top)
+  // Corner dioramas are centred and fitted by their complete GLB bounds in Board3D. Widths leave a margin inside
+  // the 1.5-unit square; authored origin offsets must not spill into a neighbouring card.
   const CORNER_MODELS = {
-    0: { url: 'art/m_port_animated.glb', animated: true, s: 1.32, x: 0.02, z: -0.38 },
-    10: { url: 'art/m_castaway_animated.glb', animated: true, s: 1.30, x: 0.02, z: -0.38 },
-    20: { url: 'art/m_tavern_animated.glb', animated: true, s: 1.35, x: 0.02, z: -0.38 },
-    30: { url: 'art/m_kraken_animated.glb', animated: true, s: 1.32, x: 0.02, z: -0.38 }
+    0: { url: 'art/m_port_animated.glb', animated: true, fitWidth: 1.32, x: 0, z: 0 },
+    10: { url: 'art/m_castaway_animated.glb', animated: true, fitWidth: 1.30, x: 0, z: 0 },
+    20: { url: 'art/m_tavern_animated.glb', animated: true, fitWidth: 1.34, x: 0, z: 0 },
+    30: { url: 'art/m_kraken_animated.glb', animated: true, fitWidth: 1.32, x: 0, z: 0 }
   };
-  // the ships' models (they ride at anchor in their lot's water: see FX), and the whirlpool's swirl, which turns: s their
+  // the ships' models (they ride at anchor in their lot's water: see FX): s their
   // size, y how far their water line is above their file's bottom, ry which way their bow points in it
   const SHIP_MODEL = {
     5: { url: 'art/m_qar_animated.glb', animated: true, s: 0.82, y: -0.045, ry: Math.PI },
@@ -646,7 +723,6 @@ const SeaModels = (() => {
     25: { url: 'art/m_galley_animated.glb', animated: true, s: 0.85, y: -0.035, ry: Math.PI },
     35: { url: 'art/m_fortune_animated.glb', animated: true, s: 0.81, y: -0.05, ry: Math.PI }
   };
-  const SWIRL_MODEL = { url: 'art/m_whirlpool_animated.glb', animated: true, s: 0.85, sy: 0.12, y: 0.004 };
 
   const ride = (x, z, ry, k = 'galleon', model = null) => ({ k, moor: true, at: [x, z], ry, model });
   const FX = {
@@ -674,7 +750,8 @@ const SeaModels = (() => {
     25: { actors: [ride(-0.06, 0.12, 0.1, 'galley', SHIP_MODEL[25])] }, 35: { actors: [ride(0.06, 0.12, -0.2, 'galleon', SHIP_MODEL[35])] },
     28: { smoke: [[-0.24, 0.0, 0.04]] },
     4: { sparkle: [[0.02, -0.04, 0.05, 1]] },
-    38: { actors: [{ k: 'swirl', spin: -1.3, at: [0.0, -0.06], h: 0, model: SWIRL_MODEL }, { k: 'barrel', orbit: true, at: [0.0, -0.06], r: 0.2, w: -1.1 }, { k: 'barrel', orbit: true, at: [0.0, -0.06], r: 0.12, w: -1.6, phase: 3 }] },
+    // Tile 38's live round vortex and sinking lagoon boats are built by Lagoon3D.
+    38: {},
     2: { sparkle: [[0.02, -0.1, 0.06, 1]] }, 17: { sparkle: [[0.02, -0.1, 0.06, 1]] }, 33: { sparkle: [[0.02, -0.1, 0.06, 1]] },
     7: { actors: [{ k: 'bottle', bob: true, at: [0.12, 0.06] }], sparkle: [[0.12, 0.06, 0.06, 2]] },
     22: { actors: [{ k: 'bottle', bob: true, at: [0.1, 0.04] }], sparkle: [[0.1, 0.04, 0.06, 2]] },
@@ -777,7 +854,7 @@ const SeaModels = (() => {
   // ----- public -----
   function relief(i, R) { if (MODELS[i] && !MODELS[i].own) shelf(R, MODELS[i]); else if (L[i] && L[i].r) L[i].r(R); else R.tint(0x5aa34a, 9); }
   function lot(i, ground) {
-    if (MODELS[i]) return null;
+    if (MODELS[i] || (typeof PlaceModels3D !== 'undefined' && PlaceModels3D.indices.includes(i))) return null;
     const B = new Builder();
     B.ground = ground; B.wl = WL_LOT;
     if (L[i] && L[i].b) L[i].b(B);
@@ -806,7 +883,14 @@ const SeaModels = (() => {
   }
   return {
     world: 'sea', relief, lot, corner, ringRelief, inner, centerRelief, centerWater, center, far, CENTER, CENTER_FX, actor, tokenShip, models: MODELS, cornerModels: CORNER_MODELS, centerModel: CENTER_MODEL,
-    fx: i => FX[i] || null,
+    fx: i => {
+      if (typeof MapProps3D !== 'undefined' && [2,7,17,22,33,36].includes(i)) return null;
+      if (typeof PlaceModels3D !== 'undefined' && PlaceModels3D.indices.includes(i)) {
+        const fx = FX[i];
+        return fx ? { ...fx, smoke: [6,16,18].includes(i) ? [] : fx.smoke, actors: (fx.actors || []).filter(a => a.k !== 'mill' && a.k !== 'tortoise') } : null;
+      }
+      return FX[i] || null;
+    },
     tower: () => hutCache || (hutCache = hutParts()),
     castle: () => fortCache || (fortCache = seaFortParts()),
     LIFE: ['galleon', 'galley', 'sloop', 'junk', 'dolphin', 'bottle', 'tentacle', 'swirl', 'barrel', 'tortoise', 'goat', 'pony', 'sheep', 'mill', 'cloud', 'gull', 'gwing'],

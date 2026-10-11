@@ -38,6 +38,7 @@ const Terrain = (() => {
   let bins = null, sea = false;
   const BIN = 1, B0 = -7, NB = 14;
   const SEA_Y = 0.02, BED = -0.16, RIM_SEA = -0.06, OCEAN_Y = -0.3;     // the water, the sea floor, along the squares, the ocean
+  const VORTEX = { x: 3.45, z: 3.0, radius: 0.55, depth: 0.82 };
   function reset() { feats.length = pads.length = waters.length = paths.length = tints.length = 0; bins = null; }
   function setWorld(w) { sea = w === 'sea'; reset(); }
   function put(f) { feats.push(f); bins = null; return f; }
@@ -107,6 +108,11 @@ const Terrain = (() => {
       if (q >= 1) continue;
       if (p.y == null) p.y = raw(p.x, p.z);          // taken once every shape is in place
       h += (p.y - h) * smooth(1, 0.5, q);
+    }
+    if (sea) {
+      // The round whirlpool depresses the seabed beneath its funnel, so the floor cannot cap the water opening.
+      const q = Math.hypot(x - VORTEX.x, z - VORTEX.z) / (VORTEX.radius + 0.14);
+      if (q < 1) h = Math.min(h, SEA_Y - VORTEX.depth * (1 - smooth(0.72, 1, q)));
     }
     return h;
   }
@@ -274,7 +280,7 @@ const Terrain = (() => {
   // ----- the archipelago's lagoon: the water inside the ring of squares, coloured by how deep it is (pale turquoise
   // over sand, blue where it is deep), with the foam lapping each shore (the board's shader moves it: anim.y = 4 and how
   // deep it is, anim.x how near the shore). Where land stands well above it, there is none. -----
-  const DEEP = [[0, 0x72d6c7], [0.03, 0x25bdbb], [0.09, 0x119fae], [0.17, 0x0c849f], [0.3, 0x086e91]].map(([d, c]) => [d, new T.Color(c)]);
+  const DEEP = [[0, 0xc8eee6], [0.03, 0x9ddbd4], [0.09, 0x7dc9c9], [0.17, 0x56b6c2], [0.3, 0x429faf]].map(([d, c]) => [d, new T.Color(c)]);
   function depthColor(d, out) {
     if (d <= DEEP[0][0]) return out.copy(DEEP[0][1]);
     for (let k = 1; k < DEEP.length; k++) if (d < DEEP[k][0]) return out.copy(DEEP[k - 1][1]).lerp(DEEP[k][1], (d - DEEP[k - 1][0]) / (DEEP[k][0] - DEEP[k - 1][0]));
@@ -318,7 +324,7 @@ const Terrain = (() => {
   // where the woods are (the trees grow there, and the ground under them is darker)
   const woods = (x, z) => smooth(-0.12, 0.22, fbm(x * 0.24 + 2, z * 0.24 - 1));
   function ocean(rings, seg) {
-    const r0 = 6.25, r1 = 70, pos = [], col = [], anim = [], idx = [], NEAR = new T.Color(0x138fa7), MID = new T.Color(0x107c9b), FAR = new T.Color(0x1a698a);
+    const r0 = 6.25, r1 = 70, pos = [], col = [], anim = [], idx = [], NEAR = new T.Color(0x64bdc8), MID = new T.Color(0x50adbd), FAR = new T.Color(0x388ea8);
     for (let k = 0; k <= rings; k++) {
       const r = r0 * Math.pow(r1 / r0, k / rings);
       for (let s = 0; s < seg; s++) {
@@ -407,5 +413,5 @@ const Terrain = (() => {
     if (sea) { const r = Math.max(Math.abs(x), Math.abs(z)); return r > 6.2 ? OCEAN_Y : height(x, z) < SEA_Y ? SEA_Y : null; }
     return null;
   }
-  return Object.assign(api, { reset, setWorld, board, waterGeo, seaGeo, waterAt, outer, outY, groves, noise, fbm, RIM, SEA_Y, BED, OCEAN_Y, get sea() { return sea; } });
+  return Object.assign(api, { reset, setWorld, board, waterGeo, seaGeo, waterAt, outer, outY, groves, noise, fbm, RIM, SEA_Y, BED, OCEAN_Y, VORTEX, get sea() { return sea; } });
 })();

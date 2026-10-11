@@ -17,6 +17,21 @@ const SEA_SCENES = { g: ['sc_north', 'sc_med', 'sc_atlantic', 'sc_antilles', 'sc
   0: 'sc_port', 10: 'sc_isle', 20: 'sc_tavern', 30: 'sc_kraken', chest: 'sc_chest', scroll: 'sc_bottle' };
 const seaScene = t => SEA_SCENES[t.i] || (t.k === 'p' ? SEA_SCENES.g[t.g] : SEA_SCENES[t.k]) || null;
 
+// Cards use the full, sharp reference, not the blurred backdrop made for headings.
+const SEA_CARD_ORIGINALS = {
+  0: '00_corner_port', 3: '03_gotland_visby', 4: '04_customs_house',
+  5: '05_ship_queen_annes_revenge', 9: '09_gramvousa_fort', 10: '10_corner_castaway',
+  12: '12_lighthouse', 15: '15_ship_whydah', 18: '18_tortuga', 20: '20_corner_tavern',
+  25: '25_ship_adventure_galley', 28: '28_shipyard', 30: '30_corner_kraken',
+  31: '31_cheung_chau', 35: '35_ship_royal_fortune', 37: '37_oak_island', 38: '38_whirlpool'
+};
+function seaCardPicture(t) {
+  if (SEA_CARD_ORIGINALS[t.i]) return { name: 'card_' + SEA_CARD_ORIGINALS[t.i] + '.jpg' };
+  const name = seaScene(t);
+  // The legacy banners are 1000 × 400. Their sharp subject occupies the right square.
+  return name ? { name, crop: name === 'sc_bottle' ? [430, 0, 570, 400] : [600, 0, 400, 400] } : null;
+}
+
 // (where a place has no picture of its own, one is drawn)
 // ----- the picture behind a square's name: its sea, as it looks there -----
 const SEA_LOOK = [

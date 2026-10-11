@@ -26,14 +26,15 @@ const Board3D = (() => {
 
   let ok = false, R = null, scene = null, cam = null, host = null, W = 1, H = 1, root = null, sun = null, ray = null, maxAniso = 4, mobile = false;
   const tiles = [], labelCv = [], labelTex = [], labelMat = [], sideMat = [], lotMesh = [], lotGround = [], flags = [], mark = [];
-  const toks = [];
+  const toks = [], cornerTitles = [];
   let st = null, pos = [], turnSeat = -1, pickCb = null, built = false, mats = null, ownerMats = [], wheel = null;
   let landG = null, landTop = 4, fallFoot = null;
   const lotF = [], ringF = [];
   // the world on the board: the land (models.js) or the archipelago's sea (sea.js), as the room's theme says; made again
   // when the theme changes (see retheme)
   let MOD = Models, worldBuilt = null, hemi = null, seaMesh = null;
-  let marineLife = null;
+  let marineLife = null, lagoonLife = null, reefLife = null, weatherLife = null;
+  let placeModelsLife = null, mapPropsLife = null, placeEffects = null;
   const animatedModels = [];
   let modelDelta = 0;
   const wantWorld = () => (typeof THEME !== 'undefined' && THEME.world === 'sea' && typeof SeaModels !== 'undefined' && SeaModels) ? 'sea' : 'land';
@@ -148,6 +149,7 @@ const Board3D = (() => {
     const cv = labelCv[i] || (labelCv[i] = document.createElement('canvas'));
     cv.width = cw; cv.height = ch;
     const x = cv.getContext('2d');
+    if (wantWorld() === 'sea') return drawSeaLabel(i, cv, x);
     const g = x.createLinearGradient(0, 0, 0, ch);
     g.addColorStop(0, '#fcf5e0'); g.addColorStop(1, '#f0dfb3');
     x.fillStyle = g; x.fillRect(0, 0, cw, ch);
@@ -201,12 +203,91 @@ const Board3D = (() => {
     }
     return cv;
   }
+  // Illustrated nautical deeds on the board: the place, its price, and its owner are distinct.
+  function drawSeaLabel(i, cv, x) {
+    const t = BOARD[i], w = cv.width, h = cv.height, mid = w / 2, k = mark[i], owned = k && k.o >= 0;
+    const wash = x.createLinearGradient(0, 0, 0, h);
+    wash.addColorStop(0, '#f6eacb'); wash.addColorStop(1, '#d7bb7c');
+    x.fillStyle = wash; x.fillRect(0, 0, w, h);
+    x.strokeStyle = '#664823'; x.lineWidth = 7; rr(x, 6, 6, w-12, h-12, 12); x.stroke();
+    x.strokeStyle = '#b08a49'; x.lineWidth = 2; rr(x, 15, 15, w-30, h-30, 8); x.stroke();
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    if (!(i % 10)) {
+      // The full square belongs to its diorama; its name floats above the model.
+      x.fillStyle = '#406f70'; rr(x, 18, 18, w-36, h-36, 12); x.fill();
+      x.strokeStyle = '#addcd0'; x.lineWidth = 3;
+      for (let n = 0; n < 5; n++) { x.beginPath(); x.arc(mid, h/2, 52+n*25, 0, TAU); x.stroke(); }
+      x.fillStyle = '#d9be7e';
+      for (let n=0;n<8;n++) { x.save(); x.translate(mid,h/2); x.rotate(n*Math.PI/4); x.beginPath(); x.moveTo(-10,0); x.lineTo(0,-132); x.lineTo(10,0); x.closePath(); x.fill(); x.restore(); }
+      return cv;
+    }
+    const band = t.k === 'p' ? GROUPS[t.g].c : t.k === 'road' ? '#315762' : t.k === 'tax' ? '#814937' : '#277477';
+    const type = t.k === 'p' ? 'კუნძული' : t.k === 'road' ? 'ხომალდი' : t.k === 'util' ? (i === 12 ? 'საზღვაო შუქურა' : 'გემთსაშენი') : t.k === 'tax' ? 'საფრთხე' : t.k === 'scroll' ? 'ზღვის გზავნილი' : 'დამალული განძი';
+    x.fillStyle = band; rr(x, 18, 18, w-36, 47, 6); x.fill();
+    x.fillStyle = '#fff5d6'; fit(x, type, 800, FONT.sans, 23, w-50); x.fillText(type, mid, 42);
+    const picture = typeof seaCardPicture === 'function' ? seaCardPicture(t) : null;
+    const im = picture ? pic(picture.name) : null;
+    x.save(); rr(x, 20, 70, w-40, 151, 6); x.clip();
+    if (im) {
+      const [sx,sy,sw,sh] = picture.crop || [0,0,im.naturalWidth,im.naturalHeight];
+      // Contain the subject: the ship's mast and the whole island remain visible.
+      const scale = Math.min((w-40)/sw,151/sh), dw = sw*scale, dh = sh*scale;
+      x.fillStyle = '#2d7182'; x.fillRect(20,70,w-40,151);
+      x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+      x.drawImage(im,sx,sy,sw,sh,mid-dw/2,145.5-dh/2,dw,dh);
+    } else {
+      x.fillStyle = '#31838a'; x.fillRect(20,70,w-40,151);
+      iconAt(x,t.k==='chest'?'ui_chest_wood':t.k==='scroll'?'ui_page':'ui_coin',mid,146,104);
+    }
+    x.restore();
+    const title = t.k === 'road' ? t.s : t.n;
+    const ls = lines(x, title, 900, FONT.serif, 32, w-40, 21), lh = fontPx(x)*1.08;
+    x.fillStyle = '#2e271a'; ls.forEach((l,n)=>x.fillText(l,mid,245+(n-(ls.length-1)/2)*lh));
+    if (OWNABLE(t)) priceLine(x,mid,294,String(t.p),'#3b2918',37);
+    else if (t.k === 'tax') priceLine(x,mid,294,String(t.a),'#902f20',35);
+    else { x.fillStyle='#625337'; fit(x,t.k==='scroll'?'გახსენი წერილი':'აღმოაჩინე განძი',700,FONT.sans,21,w-42); x.fillText(t.k==='scroll'?'გახსენი წერილი':'აღმოაჩინე განძი',mid,292); }
+    x.fillStyle = owned ? SEAT_COLORS[k.o] : '#e7d6a5'; rr(x,19,322,w-38,43,6); x.fill();
+    if(owned) {
+      const owner = st && st.players[k.o] ? st.players[k.o].name : 'მეკობრე '+(k.o+1);
+      x.fillStyle='#172d35'; fit(x,owner,900,FONT.sans,21,w-36); x.fillText(owner,mid,335);
+      const development = k.m ? 'დაგირავებულია' : t.k === 'p' ? k.lv>=5?'სასტუმრო · 1':k.lv?'ქოხი · '+k.lv:'თავისუფალი მიწა' : t.k==='road'?'მფლობელის ხომალდი':'მფლობელის ნაგებობა';
+      x.fillStyle='#172d35'; fit(x,development,800,FONT.sans,16,w-38); x.fillText(development,mid,353);
+    } else { x.fillStyle='#635335'; fit(x,OWNABLE(t)?'შეძენა შესაძლებელია':'ბედის გამოცდა',700,FONT.sans,18,w-42); x.fillText(OWNABLE(t)?'შეძენა შესაძლებელია':'ბედის გამოცდა',mid,344); }
+    return cv;
+  }
+  function updateTileLabel(i) {
+    if(wantWorld() !== 'sea' || !labelTex[i]) return;
+    drawLabel(i); labelTex[i].needsUpdate = true;
+  }
+  function cornerTitle(i, tile, top) {
+    if(wantWorld() !== 'sea') return;
+    const existing=cornerTitles.find(c=>c.i===i);
+    const cv=existing?existing.sprite.material.map.image:document.createElement('canvas'); cv.width=512; cv.height=192;
+    const x=cv.getContext('2d');
+    x.save();x.translate(256,96);x.scale(2.7,1);
+    const fog=x.createRadialGradient(0,0,20,0,0,94);
+    fog.addColorStop(0,'rgba(212,255,247,.98)'); fog.addColorStop(.55,'rgba(163,242,234,.91)'); fog.addColorStop(1,'rgba(107,234,236,0)');
+    x.fillStyle=fog;x.fillRect(-96,-96,192,192);x.restore();
+    x.strokeStyle='rgba(209,255,245,.74)'; x.lineWidth=2;
+    x.beginPath();x.moveTo(72,152);x.quadraticCurveTo(256,172,440,152);x.stroke();
+    x.textAlign='center';x.textBaseline='middle';
+    const ls=lines(x,BOARD[i].n,900,FONT.serif,48,414,32), lh=fontPx(x)*1.08;
+    x.fillStyle='#133d49';ls.forEach((l,n)=>x.fillText(l,256,81+(n-(ls.length-1)/2)*lh));
+    const words=THEME.w, sub=i===0?'+'+SALARY+' · '+words.startTile:i===10?words.jailTile:i===20?words.feastTile:words.gojailTile;
+    x.fillStyle='#245e65';fit(x,sub,800,FONT.sans,22,398);x.fillText(sub,256,136);
+    if(existing){existing.sprite.material.map.needsUpdate=true;return;}
+    const map=new T.CanvasTexture(cv);map.encoding=T.sRGBEncoding;map.anisotropy=maxAniso;
+    const sprite=new T.Sprite(new T.SpriteMaterial({map,transparent:true,depthWrite:false,opacity:.96}));
+    sprite.name='Corner_Hologram_'+i;sprite.renderOrder=4;sprite.scale.set(1.82,.68,1);sprite.position.set(0,top+.37,0);sprite.userData.i=i;
+    tile.add(sprite);cornerTitles.push({sprite,y:sprite.position.y,i});
+  }
   const PERF = { relabel: 0, relabelMs: 0, build: 0, frames: 0, shadows: 0 };    // counted for tests
   function relabelAll() {
     if (!ok) return;
     const t0 = performance.now();
     drawnWithFonts = fontsReady();
     for (let i = 0; i < 40; i++) { if (!labelTex[i]) continue; drawLabel(i); labelTex[i].needsUpdate = true; }
+    for(const c of cornerTitles) cornerTitle(c.i,c.sprite.parent,c.y-.37);
     PERF.relabel++; PERF.relabelMs += performance.now() - t0;
   }
 
@@ -214,15 +295,15 @@ const Board3D = (() => {
   // Every piece of the land and of what stands on it says in its 'anim' attribute what it is: x how much it sways (more
   // the higher it is above its ground), y what kind of surface it is (1 water lying still, 2 falling water, 3 the land
   // itself, which gets the fine grain of soil, grass and rock from a small noise picture). One clock for all of it.
-  const U = { time: { value: 0 }, fade: { value: 1 }, scale: { value: 800 }, detail: { value: null } };
-  // Two gentle Gerstner swells move the actual water mesh. Smaller crossing ripples tilt its normals, catching the
-  // scene's sunlight without bright stripes painted across the sea. Wavelength / height / speed are board units.
-  const SEA_WAVES = [[0.8, 0.6, 3.7, 0.042, 0.62], [0.31, 0.95074, 2.15, 0.018, 0.44], [0.97014, -0.24254, 0.64, 0.0053, 0.21], [-0.44721, 0.89443, 0.34, 0.0024, 0.16]];
+  const U = { time: { value: 0 }, fade: { value: 1 }, scale: { value: 800 }, detail: { value: null }, caustic: { value: null }, vortex: { value: new T.Vector3(3.45, 3, 0.55) } };
+  // Two gentle swells move the actual mesh. Broad normals and world-space colour stay stable when the camera moves;
+  // no undersampled tiny waves or delayed camera captures are mixed into the water. Length / height / speed are board units.
+  const SEA_WAVES = [[0.8, 0.6, 3.7, 0.042, 0.62], [0.31, 0.95074, 2.15, 0.018, 0.44]];
   const gf = v => (Math.round(v * 1e5) / 1e5).toFixed(5);
   const seaMove = SEA_WAVES.slice(0, 2).map(([x, z, len, a, c], k) => `float ph${k} = ${gf(Math.PI * 2 / len)} * ( dot( vec2( ${gf(x)}, ${gf(z)} ), wp4.xz ) - ${gf(c)} * uTime );
         transformed.y += swell * ${gf(a)} * sin( ph${k} );
         transformed.xz += swell * ${gf(a * 0.32)} * vec2( ${gf(x)}, ${gf(z)} ) * cos( ph${k} );`).join('\n        ');
-  const seaTilt = SEA_WAVES.map(([x, z, len, a, c], k) => `seaWave( p, vec2( ${gf(x)}, ${gf(z)} ), ${gf(len)}, ${gf(a)} * calm${k > 1 ? ' * fine' : ''}, ${gf(c)}, h, g );`).join('\n        ');
+  const seaTilt = SEA_WAVES.map(([x, z, len, a, c], k) => `seaWave( p, vec2( ${gf(x)}, ${gf(z)} ), ${gf(len)}, ${gf(a)} * calm, ${gf(c)}, h, g );`).join('\n        ');
   const LIVING = {
     vp: `#include <common>
 attribute vec2 anim;
@@ -230,11 +311,7 @@ uniform float uTime;
 varying vec3 vWP;
 varying float vWater;
 varying float vShore;
-#ifdef SEA
-uniform mat4 uSeaTextureMatrix;
-varying vec4 vSeaReflection;
-varying vec4 vSeaScreen;
-#endif`,
+`,
     v: `#include <begin_vertex>
       vec4 wp4 = vec4( position, 1.0 );
       #ifdef USE_INSTANCING
@@ -247,11 +324,14 @@ varying vec4 vSeaScreen;
       #ifdef SEA
         // The shore stays attached to land; sparse distant rings do not need displaced waves.
         float open = smoothstep( 6.2, 7.2, max( abs( wp4.x ), abs( wp4.z ) ) );
-        float swell = mix( 0.48, 1.0, open ) * ( 1.0 - anim.x ) * ( 1.0 - smoothstep( 18.0, 38.0, length( wp4.xz ) ) );
+        float nativeCoast = smoothstep( 3.2, 3.7, length( wp4.xz ) );
+        // The island already owns its textured turquoise coast at about y=-0.013. Keep this mesh below that coast,
+        // including every wave trough/crest, so the baked colours and foam stay visible without coplanar surfaces.
+        transformed.y -= 0.055 * ( 1.0 - nativeCoast );
+        float swell = mix( 0.48, 1.0, open ) * ( 1.0 - anim.x ) * nativeCoast * ( 1.0 - smoothstep( 18.0, 38.0, length( wp4.xz ) ) );
         ${seaMove}
         vec4 seaWorld = modelMatrix * vec4( transformed, 1.0 );
-        vSeaReflection = uSeaTextureMatrix * seaWorld;
-        vSeaScreen = projectionMatrix * viewMatrix * seaWorld;
+        vWP = seaWorld.xyz;
       #else
         if ( anim.x > 0.0 ) {
           float ph = wp4.x * 1.9 + wp4.z * 1.3;
@@ -267,15 +347,8 @@ varying vec3 vWP;
 varying float vWater;
 varying float vShore;
 #ifdef SEA
-uniform sampler2D uSeaReflection;
-uniform sampler2D uSeaTransmission;
-uniform sampler2D uSeaDepth;
-uniform float uSeaReflectionReady;
-uniform float uSeaCaptureReady;
-uniform float uSeaHasDepth;
-uniform vec2 uSeaCameraRange;
-varying vec4 vSeaReflection;
-varying vec4 vSeaScreen;
+uniform vec3 uVortex;
+uniform sampler2D uCaustic;
 #endif
 // one train of the sea's waves: its height and its slope here, added to h and g
 void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, inout vec2 g ) {
@@ -285,46 +358,41 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
 }`,
     f: `#include <emissivemap_fragment>
       #ifdef SEA
-      float seaFresnel = 0.0, seaFoam = 0.0;
-      vec2 seaSlope = vec2( 0.0 );
-      #endif
-      #ifdef SEA
       {
-        // Calm, clear water: depth colour comes from the seabed, reflections from the view angle, and highlights from
-        // the same directional light as the islands. Foam is confined to shallow land contacts, never the open ocean.
+        // The native island paints its water as pale turquoise pools and soft foam. The surrounding mesh uses the
+        // same colours in world space, with broad, irregular patches instead of camera-dependent colour/depth samples.
         vec2 p = vWP.xz;
-        float depth = vWater - 4.0, open = smoothstep( 6.2, 7.2, max( abs( p.x ), abs( p.y ) ) );
-        float fine = 1.0 - smoothstep( 16.0, 42.0, length( vViewPosition ) );
-        float calm = mix( 0.48, 1.0, open ) * ( 1.0 - 0.78 * vShore );
+        if ( distance( p, uVortex.xy ) < uVortex.z ) discard;
+        float depth = max( 0.0, vWater - 4.0 );
+        float open = smoothstep( 6.2, 7.2, max( abs( p.x ), abs( p.y ) ) );
+        float calm = mix( 0.48, 1.0, open ) * ( 1.0 - 0.9 * vShore ) * smoothstep( 3.2, 3.7, length( p ) )
+          * ( 1.0 - smoothstep( 18.0, 38.0, length( p ) ) );
         float h = 0.0;
         vec2 g = vec2( 0.0 );
         ${seaTilt}
-        float broadHeight = h;
-        seaWave( p, vec2( 0.70711, -0.70711 ), 0.18, 0.00085 * fine * calm, 0.095, h, g );
-        seaWave( p, vec2( 0.19612, 0.98058 ), 0.11, 0.00052 * fine * calm, 0.072, h, g );
         normal = normalize( mat3( viewMatrix ) * vec3( -g.x, 1.0, -g.y ) );
-        float fres = pow( 1.0 - clamp( dot( normal, normalize( vViewPosition ) ), 0.0, 1.0 ), 5.0 );
-        seaFresnel = fres;
-        seaSlope = g;
-        diffuseColor.rgb *= 0.98 + 0.085 * clamp( broadHeight / 0.0677, -1.0, 1.0 );
-        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.16, 0.34, 0.43 ), fres * 0.28 );
-        float shallow = 1.0 - smoothstep( 0.015, 0.16, depth );
-        if ( shallow * fine > 0.0 ) {
-          // Subtle refracted light over shallow sand; a low bound keeps this from becoming a glowing white texture.
-          vec2 q = p * 0.8 + g * 0.45;
-          float n1 = texture2D( uDetail, q + uTime * vec2( 0.019, 0.011 ) ).r;
-          float n2 = texture2D( uDetail, q * 1.37 + vec2( 0.31, 0.57 ) - uTime * vec2( 0.012, 0.021 ) ).r;
-          diffuseColor.rgb += vec3( 0.012, 0.022, 0.018 ) * pow( 1.0 - abs( n1 - n2 ), 14.0 ) * shallow * shallow * fine;
-        }
-        float shore = smoothstep( 0.8, 0.985, vShore ) * ( 1.0 - smoothstep( 0.035, 0.07, depth ) );
-        if ( shore > 0.0 ) {
-          float grain = texture2D( uDetail, p * 4.5 + uTime * vec2( 0.015, -0.009 ) ).r;
-          float lap = 0.5 + 0.5 * sin( uTime * 1.35 - vShore * 8.0 + dot( p, vec2( 1.7, 1.1 ) ) );
-          float foam = shore * ( 0.34 + 0.35 * smoothstep( 0.58, 0.96, lap ) ) * ( 0.65 + 0.35 * grain );
-          seaFoam = foam;
-          diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.65, 0.83, 0.8 ), foam );
-          specularStrength *= 1.0 - foam;
-        }
+        // Clear turquoise water like the reference: the shallow bed and actual reef models remain visible through
+        // its alpha. Mip-filtered curved light networks move slowly in world space, with no screen-space sampling.
+        vec2 flow = p * 0.24 + uTime * vec2( 0.0025, -0.0017 );
+        float n1 = texture2D( uDetail, flow ).r;
+        float n2 = texture2D( uDetail, flow * 1.47 + vec2( 0.37, 0.61 ) - uTime * vec2( 0.0012, 0.0018 ) ).r;
+        float shallow = 1.0 - smoothstep( 0.02, 0.24, depth );
+        vec3 turquoise = mix( vec3( 0.08650, 0.56471, 0.57112 ), vec3( 0.43415, 0.79910, 0.70838 ), shallow );
+        turquoise *= 0.97 + 0.06 * n1;
+        float caustic1 = texture2D( uCaustic, p * 0.17 + uTime * vec2( 0.0042, -0.0028 ) ).r;
+        float caustic2 = texture2D( uCaustic, p * 0.137 + vec2( 0.39, 0.71 ) + uTime * vec2( -0.0027, 0.0031 ) ).r;
+        float caustic = max( caustic1 * 0.85, caustic2 * 0.67 );
+        diffuseColor.rgb = mix( turquoise, vec3( 0.80, 0.94, 0.90 ), caustic * ( 0.035 + 0.13 * shallow ) * ( 1.0 - 0.62 * open ) );
+        diffuseColor.a *= mix( mix( 0.58, 0.82, 1.0 - shallow ), 0.90, open );
+        // Shore foam breaks into unequal scallops and small gaps; it never lays long repeating strips across the sea.
+        float shoreNoise = texture2D( uDetail, p * 0.57 + vec2( 0.18, 0.73 ) + uTime * vec2( -0.002, 0.003 ) ).r;
+        float edge = smoothstep( 0.72 + 0.19 * shoreNoise, 0.995, vShore ) * ( 1.0 - smoothstep( 0.035, 0.075, depth ) );
+        float broken = smoothstep( 0.32, 0.64, shoreNoise * 0.72 + n2 * 0.28 );
+        float lap = 0.76 + 0.24 * sin( uTime * 0.48 + shoreNoise * 13.0 + n1 * 5.0 );
+        float foam = edge * ( 0.16 + 0.55 * broken ) * lap;
+        diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.70110, 0.72306, 0.70838 ), foam );
+        diffuseColor.a = min( 0.94, diffuseColor.a + foam * 0.20 );
+        specularStrength *= 0.24 * ( 1.0 - foam );
       }
       #else
       if ( vWater > 4.5 ) {
@@ -351,183 +419,21 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       }
       #endif`
   };
-  const SEA_OPTICS = `
-    #ifdef SEA
-    {
-      // Actual camera capture supplies the sand, submerged rocks and hulls. Beer-Lambert absorption removes red first;
-      // the view-depth difference supplies the water column, not a painted circular shoreline or noise overlay.
-      vec2 screenUV = vSeaScreen.xy / max( 0.0001, vSeaScreen.w ) * 0.5 + 0.5;
-      float waterViewDepth = max( 0.0, vViewPosition.z );
-      float column = max( 0.0, vWater - 4.0 );
-      if ( uSeaHasDepth > 0.5 ) {
-        float bedZ = -perspectiveDepthToViewZ( texture2D( uSeaDepth, screenUV ).x, uSeaCameraRange.x, uSeaCameraRange.y );
-        column = max( 0.0, bedZ - waterViewDepth );
-      }
-      vec2 refractUV = clamp( screenUV + seaSlope * 0.035 * smoothstep( 0.0, 0.35, column ), vec2( 0.001 ), vec2( 0.999 ) );
-      if ( uSeaHasDepth > 0.5 ) {
-        float bentZ = -perspectiveDepthToViewZ( texture2D( uSeaDepth, refractUV ).x, uSeaCameraRange.x, uSeaCameraRange.y );
-        if ( bentZ < waterViewDepth + 0.002 ) refractUV = screenUV; // do not drag a foreground palm or cliff into the water
-      }
-      vec3 transmitted = texture2D( uSeaTransmission, refractUV ).rgb;
-      vec3 absorption = exp( -min( column, 12.0 ) * vec3( 4.3, 1.35, 0.85 ) );
-      vec3 throughWater = transmitted * absorption + outgoingLight * ( vec3( 1.0 ) - absorption );
-      outgoingLight = mix( outgoingLight, throughWater, uSeaCaptureReady * ( 1.0 - seaFoam ) );
-      // An oblique clipped mirrored camera renders the island, moving ships and sky. The animated slope bends that
-      // projective reflection, while Schlick Fresnel strengthens it towards a grazing view.
-      vec2 reflectedUV = vSeaReflection.xy / max( 0.0001, vSeaReflection.w );
-      float inFrame = step( 0.0, reflectedUV.x ) * step( reflectedUV.x, 1.0 ) * step( 0.0, reflectedUV.y ) * step( reflectedUV.y, 1.0 ) * step( 0.0001, vSeaReflection.w );
-      reflectedUV = clamp( reflectedUV + seaSlope * 0.04, vec2( 0.001 ), vec2( 0.999 ) );
-      vec3 mirrored = texture2D( uSeaReflection, reflectedUV ).rgb;
-      float reflected = ( 0.045 + 0.955 * seaFresnel ) * ( 1.0 - seaFoam ) * uSeaReflectionReady * inFrame;
-      outgoingLight = mix( outgoingLight, mirrored, min( 0.94, reflected ) );
-    }
-    #endif
-    #include <output_fragment>`;
-  // Bounded scene captures make the water optical: the two sea levels have their own reflected cameras; both use one
-  // main-camera colour/depth capture for clear shallow water. The oblique mirror projection follows Three r149 Water
-  // (MIT, mrdoob/three.js/examples/jsm/objects/Water.js); only the actual water surfaces are excluded from captures.
-  const SEA_REFRACTION = {
-    target: null, size: 0, mapU: { value: null }, depthU: { value: null }, readyU: { value: 0 }, hasDepthU: { value: 0 },
-    rangeU: { value: new T.Vector2(0.5, 200) }
-  };
-  const seaMirrors = [];
-  let seaCaptureAt = -Infinity, seaCaptureIndex = 0, seaCapturing = false, seaShadowAt = -1;
-  const seaCameraAt = new T.Matrix4(), seaProjectionAt = new T.Matrix4();
-  function seaTarget(size, depthTexture) {
-    const target = new T.WebGLRenderTarget(size, size, { minFilter: T.LinearFilter, magFilter: T.LinearFilter, depthBuffer: true, stencilBuffer: false });
-    target.texture.generateMipmaps = false;
-    target.texture.encoding = T.LinearEncoding;
-    if (depthTexture) {
-      target.depthTexture = new T.DepthTexture(size, size, T.UnsignedShortType);
-      target.depthTexture.format = T.DepthFormat;
-      target.depthTexture.minFilter = target.depthTexture.magFilter = T.NearestFilter;
-    }
-    return target;
-  }
-  function seaSurface(mesh, height) {
-    const state = {
-      mesh, height, target: null, size: 0, camera: new T.PerspectiveCamera(), plane: new T.Plane(new T.Vector3(0, 1, 0), -height),
-      matrixU: { value: new T.Matrix4() }, mapU: { value: null }, readyU: { value: 0 }
-    };
-    // Per-plane materials keep independent projective uniforms; all textures still share the same compiled program.
-    const material = mats.sea.clone();
-    material.userData.seaReflection = state;
-    mesh.material = living(material, true);
-    seaMirrors.push(state);
-    seaCaptureAt = -Infinity;
-  }
-  function disposeSeaCaptures() {
-    for (const state of seaMirrors) { if (state.target) state.target.dispose(); state.mapU.value = null; state.readyU.value = 0; }
-    seaMirrors.length = 0;
-    if (SEA_REFRACTION.target) SEA_REFRACTION.target.dispose();
-    SEA_REFRACTION.target = null; SEA_REFRACTION.size = 0;
-    SEA_REFRACTION.mapU.value = SEA_REFRACTION.depthU.value = null;
-    SEA_REFRACTION.readyU.value = SEA_REFRACTION.hasDepthU.value = 0;
-    seaCaptureAt = -Infinity; seaCaptureIndex = 0; seaShadowAt = -1;
-  }
-  function seaCaptureTargets() {
-    const size = mobile ? (prStep > 1 || quality === 0 ? 128 : 256) : (prStep > 1 || quality === 0 ? 256 : 512);
-    if (SEA_REFRACTION.size === size) return;
-    const hasDepth = R.capabilities.isWebGL2 || R.extensions.has('WEBGL_depth_texture');
-    if (SEA_REFRACTION.target) SEA_REFRACTION.target.dispose();
-    SEA_REFRACTION.target = seaTarget(size, hasDepth);
-    SEA_REFRACTION.size = size; SEA_REFRACTION.mapU.value = SEA_REFRACTION.target.texture;
-    SEA_REFRACTION.depthU.value = SEA_REFRACTION.target.depthTexture || null;
-    SEA_REFRACTION.hasDepthU.value = hasDepth ? 1 : 0;
-    SEA_REFRACTION.readyU.value = 0;
-    for (const state of seaMirrors) {
-      if (state.target) state.target.dispose();
-      state.target = seaTarget(size, false); state.size = size;
-      state.mapU.value = state.target.texture; state.readyU.value = 0;
-    }
-    seaCaptureAt = -Infinity;
-  }
-  function mirroredSeaCamera(state) {
-    cam.updateMatrixWorld();
-    const mirror = state.camera, position = new T.Vector3().setFromMatrixPosition(cam.matrixWorld);
-    if (position.y <= state.height) return false;
-    const look = cam.getWorldDirection(new T.Vector3()).add(position);
-    mirror.position.copy(position); mirror.position.y = 2 * state.height - position.y;
-    look.y = 2 * state.height - look.y;
-    mirror.up.copy(cam.up).reflect(state.plane.normal);
-    mirror.lookAt(look); mirror.near = cam.near; mirror.far = cam.far;
-    mirror.updateMatrixWorld(); mirror.projectionMatrix.copy(cam.projectionMatrix);
-    state.matrixU.value.set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1)
-      .multiply(mirror.projectionMatrix).multiply(mirror.matrixWorldInverse);
-    const plane = state.plane.clone().applyMatrix4(mirror.matrixWorldInverse);
-    const clip = new T.Vector4(plane.normal.x, plane.normal.y, plane.normal.z, plane.constant), p = mirror.projectionMatrix.elements;
-    const q = new T.Vector4((Math.sign(clip.x) + p[8]) / p[0], (Math.sign(clip.y) + p[9]) / p[5], -1, (1 + p[10]) / p[14]);
-    if (Math.abs(clip.dot(q)) < 1e-6) return false;
-    clip.multiplyScalar(2 / clip.dot(q));
-    p[2] = clip.x; p[6] = clip.y; p[10] = clip.z + 1 - 0.0005; p[14] = clip.w;
-    mirror.projectionMatrixInverse.copy(mirror.projectionMatrix).invert();
-    return true;
-  }
-  function seaCapture(force = false) {
-    if (!R || seaCapturing || worldBuilt !== 'sea' || !seaMirrors.length) return;
-    seaCaptureTargets();
-    cam.updateMatrixWorld();
-    const cameraMoved = cam.matrixWorld.elements.some((v, k) => Math.abs(v - seaCameraAt.elements[k]) > 0.00002)
-      || cam.projectionMatrix.elements.some((v, k) => Math.abs(v - seaProjectionAt.elements[k]) > 0.00002);
-    const now = performance.now(), cadence = mobile ? (prStep > 1 ? 240 : 125) : (prStep > 1 ? 125 : 66);
-    if (!force && now - seaCaptureAt < cadence) return;
-    if (!force && REDUCED && !cameraMoved && seaShadowAt === PERF.shadows && SEA_REFRACTION.readyU.value && seaMirrors.every(s => s.readyU.value)) return;
-    const old = {
-      target: R.getRenderTarget(), cube: R.getActiveCubeFace(), mip: R.getActiveMipmapLevel(), viewport: R.getViewport(new T.Vector4()),
-      scissor: R.getScissor(new T.Vector4()), scissorTest: R.getScissorTest(), xr: R.xr.enabled, shadowAuto: R.shadowMap.autoUpdate,
-      shadowNeeds: R.shadowMap.needsUpdate, autoClear: R.autoClear, color: R.getClearColor(new T.Color()).clone(), alpha: R.getClearAlpha(),
-      background: scene.background, toneMapping: R.toneMapping
-    };
-    const visibility = seaMirrors.map(s => [s.mesh, s.mesh.visible]);
-    seaCapturing = true;
-    try {
-      for (const [mesh] of visibility) mesh.visible = false;
-      R.xr.enabled = false; R.shadowMap.autoUpdate = false; R.shadowMap.needsUpdate = false; R.autoClear = true;
-      R.toneMapping = T.NoToneMapping; scene.background = scene.fog.color;
-      R.setScissorTest(false); R.setClearColor(scene.fog.color, 1);
-      R.state.buffers.depth.setMask(true);
-      // A real depth capture supplies the lagoon's clear water. Native coast textures stay in the scene beneath it.
-      R.setRenderTarget(SEA_REFRACTION.target);
-      R.clear(); R.render(scene, cam);
-      SEA_REFRACTION.rangeU.value.set(cam.near, cam.far); SEA_REFRACTION.readyU.value = 1;
-      // Alternate the two reflected planes, limiting work to one reflected scene pass per update.
-      const candidates = force ? seaMirrors : [seaMirrors[seaCaptureIndex++ % seaMirrors.length]];
-      for (const state of candidates) {
-        if (!mirroredSeaCamera(state)) continue;
-        R.setRenderTarget(state.target); R.clear(); R.render(scene, state.camera); state.readyU.value = 1;
-      }
-      seaCaptureAt = now; seaCameraAt.copy(cam.matrixWorld); seaProjectionAt.copy(cam.projectionMatrix);
-      seaShadowAt = PERF.shadows;
-      PERF.waterCaptures = (PERF.waterCaptures || 0) + 1;
-    } finally {
-      for (const [mesh, visible] of visibility) mesh.visible = visible;
-      scene.background = old.background; R.toneMapping = old.toneMapping; R.xr.enabled = old.xr;
-      R.shadowMap.autoUpdate = old.shadowAuto; R.shadowMap.needsUpdate = old.shadowNeeds; R.autoClear = old.autoClear;
-      R.setClearColor(old.color, old.alpha); R.setRenderTarget(old.target, old.cube, old.mip);
-      R.setViewport(old.viewport); R.setScissor(old.scissor); R.setScissorTest(old.scissorTest);
-      seaCapturing = false;
-    }
+  // The two water meshes use independent materials, but one stable world-space shader and clock.
+  // Geometry and materials are disposed with the board; there are no camera capture targets to retain or refresh.
+  function seaSurface(mesh) {
+    if (!U.caustic.value) U.caustic.value = causticTexture();
+    mesh.material = living(mats.sea.clone(), true);
   }
   // (the sea has a shader of its own: the land's and the scenery's carries none of its work, nor the sea's theirs)
   function living(m, sea) {
     m.onBeforeCompile = sh => {
       sh.uniforms.uTime = U.time; sh.uniforms.uDetail = U.detail;
-      if (sea) {
-        const state = m.userData.seaReflection;
-        sh.uniforms.uSeaTextureMatrix = state ? state.matrixU : { value: new T.Matrix4() };
-        sh.uniforms.uSeaReflection = state ? state.mapU : { value: null };
-        sh.uniforms.uSeaReflectionReady = state ? state.readyU : { value: 0 };
-        sh.uniforms.uSeaTransmission = SEA_REFRACTION.mapU;
-        sh.uniforms.uSeaDepth = SEA_REFRACTION.depthU;
-        sh.uniforms.uSeaCaptureReady = SEA_REFRACTION.readyU;
-        sh.uniforms.uSeaHasDepth = SEA_REFRACTION.hasDepthU;
-        sh.uniforms.uSeaCameraRange = SEA_REFRACTION.rangeU;
-      }
+      if (sea) { sh.uniforms.uVortex = U.vortex; sh.uniforms.uCaustic = U.caustic; }
       sh.vertexShader = sh.vertexShader.replace('#include <common>', LIVING.vp).replace('#include <begin_vertex>', LIVING.v);
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', LIVING.fp).replace('#include <emissivemap_fragment>', LIVING.f);
-      if (sea) sh.fragmentShader = sh.fragmentShader.replace('#include <output_fragment>', SEA_OPTICS);
     };
-    m.customProgramCacheKey = sea ? () => 'livingsea-optical' : () => 'living';
+    m.customProgramCacheKey = sea ? () => 'livingsea-reference-caustics' : () => 'living';
     if (sea) m.defines = Object.assign({}, m.defines, { SEA: '' });
     return m;
   }
@@ -609,6 +515,42 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     return t;
   }
 
+  // One small seamless data texture supplies curved, broken caustic light. A warped periodic Voronoi field makes
+  // uneven cells and softly rounded edges; mipmaps filter those edges before they become sub-pixel at map scale.
+  // It is created once, shared across the two water materials and world remakes, and never downloaded or regenerated.
+  function causticTexture() {
+    const N = 256, cells = 7, cv = document.createElement('canvas'), x = cv.getContext('2d');
+    cv.width = cv.height = N;
+    const im = x.createImageData(N, N), r = Models.rng(731104), seeds = new Float32Array(cells * cells * 2);
+    for (let i = 0; i < seeds.length; i++) seeds[i] = 0.16 + r() * 0.68;
+    const wrap = n => ((n % cells) + cells) % cells;
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const u = (i + 0.5) / N, v = (j + 0.5) / N, a = TAU * u, b = TAU * v;
+      const wx = u * cells + 0.34 * Math.sin(b * 2 + 0.65 * Math.sin(a)) + 0.15 * Math.sin(a * 2 - b);
+      const wz = v * cells + 0.31 * Math.sin(a * 2 - 0.62 * Math.sin(b)) + 0.14 * Math.sin(b * 2 + a);
+      const cx = Math.floor(wx), cz = Math.floor(wz);
+      let first = Infinity, second = Infinity;
+      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+        const key = (wrap(cz + dz) * cells + wrap(cx + dx)) * 2;
+        const px = cx + dx + seeds[key] - wx, pz = cz + dz + seeds[key + 1] - wz, d = px * px + pz * pz;
+        if (d < first) { second = first; first = d; } else if (d < second) second = d;
+      }
+      const gap = Math.sqrt(second) - Math.sqrt(first);
+      const core = 1 - smooth(0.015, 0.095, gap), halo = 1 - smooth(0.025, 0.19, gap);
+      const pulse = 0.5 + 0.25 * Math.sin(a * 3 + b * 2 + 0.7 * Math.sin(b)) + 0.25 * Math.sin(b * 3 - a * 2);
+      const broken = 0.36 + 0.64 * smooth(0.14, 0.72, pulse);
+      const value = Math.round(clamp((core * 0.74 + halo * 0.26) * broken, 0, 1) * 255), k = (j * N + i) * 4;
+      im.data[k] = im.data[k + 1] = im.data[k + 2] = value; im.data[k + 3] = 255;
+    }
+    x.putImageData(im, 0, 0);
+    const texture = new T.CanvasTexture(cv);
+    texture.wrapS = texture.wrapT = T.RepeatWrapping;
+    texture.minFilter = T.LinearMipmapLinearFilter; texture.magFilter = T.LinearFilter;
+    texture.generateMipmaps = true; texture.anisotropy = Math.min(4, maxAniso);
+    texture.userData.keep = true;
+    return texture;
+  }
+
   // ===== building the board =====
   function slabGeo(w, d, h, r = 0.08, bevel = 0.03, hole = null) {
     const sh = new T.Shape(), x0 = -w / 2 + bevel, y0 = -d / 2 + bevel, ww = w - 2 * bevel, dd = d - 2 * bevel, rad = Math.max(0.001, Math.min(r, ww / 2, dd / 2));
@@ -626,7 +568,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     U.detail.value = detailTexture();
     mats = {
       scenery: living(new T.MeshLambertMaterial({ vertexColors: true })),
-      sea: living(new T.MeshPhongMaterial({ vertexColors: true, shininess: 95, specular: 0x5a9aaa }), true),
+      sea: living(new T.MeshPhongMaterial({ vertexColors: true, shininess: 28, specular: 0x31565a, transparent: true, depthWrite: false }), true),
       cloud: new T.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.86 }),
       wing: new T.MeshLambertMaterial({ vertexColors: true, side: T.DoubleSide }),
       plinthTop: new T.MeshLambertMaterial({ color: 0x4a2e1a }),
@@ -723,7 +665,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (wg) { const wm = new T.Mesh(wg, mats.scenery); wm.receiveShadow = true; landG.add(wm); }
     yield;
     // the archipelago's lagoon: not part of the land that grows (the islands rise out of it)
-    if (MOD.world === 'sea') { seaMesh = new T.Mesh(yield* Terrain.seaGeo(mobile ? 72 : 96), mats.sea); seaSurface(seaMesh, Terrain.SEA_Y); seaMesh.receiveShadow = true; root.add(seaMesh); yield; }
+    if (MOD.world === 'sea') { seaMesh = new T.Mesh(yield* Terrain.seaGeo(mobile ? 72 : 96), mats.sea); seaSurface(seaMesh); seaMesh.receiveShadow = true; root.add(seaMesh); yield; }
     // what stands on the land: each lot's scenery, set on its own ground
     for (let i = 0; i < 40; i++) {
       if (!(i % 10)) continue;
@@ -759,7 +701,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     yield;
     // the country around the board: meadows, groves, hills, and the far mountains in the haze
     const om = new T.Mesh(Terrain.outer(mobile ? 34 : 42, mobile ? 80 : 104), MOD.world === 'sea' ? mats.sea : mats.scenery);
-    if (MOD.world === 'sea') seaSurface(om, Terrain.OCEAN_Y);
+    if (MOD.world === 'sea') seaSurface(om);
     om.receiveShadow = true;
     root.add(om);
     if (MOD.far) { const fm = new T.Mesh(MOD.far(), mats.scenery); root.add(fm); }       // the islands far off in the ocean
@@ -792,6 +734,37 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
           const swell = (1 - smooth(18, 38, Math.hypot(x, z))) * (0.48 + 0.52 * smooth(6.2, 7.2, Math.max(Math.abs(x), Math.abs(z))));
           return Terrain.OCEAN_Y + swell * SEA_WAVES.slice(0, 2).reduce((h, w) => h + w[3] * Math.sin(Math.PI * 2 / w[2] * (w[0] * x + w[1] * z - w[4] * t)), 0);
         }
+      });
+    }
+    if (MOD.world === 'sea' && typeof Lagoon3D !== 'undefined' && Lagoon3D) {
+      const vortex = Terrain.VORTEX;
+      lagoonLife = Lagoon3D.create({
+        parent: root, center: { x: vortex.x, z: vortex.z }, radius: vortex.radius + 0.01,
+        waterY: Terrain.SEA_Y, reducedMotion: REDUCED,
+        waterHeight: (x, z, t) => {
+          const nativeCoast = smooth(3.2, 3.7, Math.hypot(x, z));
+          return Terrain.SEA_Y - 0.055 * (1 - nativeCoast) + 0.48 * nativeCoast
+            * SEA_WAVES.reduce((h, w) => h + w[3] * Math.sin(Math.PI * 2 / w[2] * (w[0] * x + w[1] * z - w[4] * t)), 0);
+        }
+      });
+      U.vortex.value.set(vortex.x, vortex.z, lagoonLife.mask.radius);
+    }
+    if (MOD.world === 'sea' && typeof Reef3D !== 'undefined' && Reef3D) {
+      reefLife = Reef3D.create({ parent: root, waterY: Terrain.SEA_Y, outerWaterY: Terrain.OCEAN_Y, reducedMotion: REDUCED });
+    }
+    if (MOD.world === 'sea') {
+      if (typeof PlaceModels3D !== 'undefined') {
+        placeModelsLife = PlaceModels3D.create({ parent: landG, places: PlaceModels3D.indices.map(i => ({ i, name: BOARD[i].n, frame: lotF[i] })), reducedMotion: REDUCED });
+        if (placeModelsLife.getObject) for (const i of PlaceModels3D.indices) lotMesh[i] = placeModelsLife.getObject(i);
+      }
+      if (typeof MapProps3D !== 'undefined') mapPropsLife = MapProps3D.create({ parent: landG, places: [2,7,17,22,33,36].map(i => ({ i, frame: lotF[i] })), waterY: Terrain.SEA_Y, reducedMotion: REDUCED });
+      if (typeof PlaceFX3D !== 'undefined') placeEffects = PlaceFX3D.create({ parent: root, reducedMotion: REDUCED,
+        places: BOARD.map((tile, i) => ({ i, corner: !(i % 10), at: i % 10 ? lotF[i].at(0, -.10, .035) : toWorld(i, 0, 0, TH + .025) })) });
+    }
+    if (MOD.world === 'sea' && typeof Weather3D !== 'undefined' && Weather3D) {
+      weatherLife = Weather3D.create({
+        parent: root, waterY: Terrain.SEA_Y, outerWaterY: Terrain.OCEAN_Y, reducedMotion: REDUCED,
+        onThunder: event => { if (typeof Sound !== 'undefined' && Sound.thunder) Sound.thunder(event.strength); }
       });
     }
   }
@@ -863,8 +836,13 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       GLB.loadScene(d.url).then(pack => {
         if (landG !== land) return;
         const g = new T.Group(), model = nativeModel(pack, i);
-        g.position.set(d.x || 0, TH, d.z || 0); g.rotation.y = d.ry || 0; g.scale.setScalar(d.s || 1);
-        g.add(model); tile.add(g); lotMesh[i] = model; shadowDirty = true;
+        const fit = new T.Group(); fit.add(model); fit.rotation.y = d.ry || 0; fit.updateMatrixWorld(true);
+        const box = new T.Box3().setFromObject(fit), size=box.getSize(new T.Vector3()), middle=box.getCenter(new T.Vector3());
+        const scale = Math.min(C-.16,d.fitWidth || C-.16)/Math.max(size.x,size.z,.001);
+        // Fit after rotation, with a safety margin for native foliage motion. No geometry reaches the adjoining deeds.
+        fit.position.set(-middle.x,-box.min.y,-middle.z);g.add(fit);g.scale.setScalar(scale);g.position.set(0,TH+.012,0);
+        g.name='Corner_Diorama_'+i;g.userData.footprint=Math.max(size.x,size.z)*scale;
+        tile.add(g);lotMesh[i]=model;cornerTitle(i,tile,TH+.012+size.y*scale);shadowDirty=true;
       }).catch(e => Diag.note('3d', `animated model ${d.url} not read: ${e && e.message}`));
       return;
     }
@@ -873,9 +851,12 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       geometry.userData.keep = material.userData.keep = true;
       modelWater(material);
       const g = new T.Group(), m = new T.Mesh(geometry, material);
-      g.position.set(d.x || 0, TH, d.z || 0); g.rotation.y = d.ry || 0; g.scale.setScalar(d.s || 1);
+      m.rotation.y=d.ry||0;m.updateMatrixWorld(true);
+      const box=new T.Box3().setFromObject(m),size=box.getSize(new T.Vector3()),middle=box.getCenter(new T.Vector3());
+      m.position.set(-middle.x,-box.min.y,-middle.z);const scale=Math.min(C-.16,d.fitWidth||C-.16)/Math.max(size.x,size.z,.001);
+      g.position.set(0,TH+.012,0);g.scale.setScalar(scale);
       m.castShadow = true; m.receiveShadow = true; m.userData.i = i; m.userData.model = true;
-      g.add(m); tile.add(g);
+      g.add(m); tile.add(g);cornerTitle(i,tile,TH+.012+size.y*scale);
       lotMesh[i] = m;
       shadowDirty = true;
     }).catch(e => Diag.note('3d', `model ${d.url} not read: ${e && e.message}`));
@@ -1145,7 +1126,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       for (const [x, z, h] of fx.leaves || []) emit(at(x, z, h), 4, 5);
       for (const a of fx.actors || []) {
         const act = actorOf(a, at, F, tile, rnd() * 20);
-        if (a.model && typeof GLB !== 'undefined' && GLB) modelActor(act, a.model); else add(act);
+        if (a.model && typeof GLB !== 'undefined' && GLB) modelActor(act, a.model, i); else add(act);
       }
       for (const b of fx.birds || []) { const c = at(b.at[0], b.at[1], b.h); circler(c.x, c.y, c.z, b.r, b.w, rnd() * 6, rnd() * 9, 0.9); }
     }
@@ -1186,14 +1167,16 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     lifeStep(0);
   }
   // an actor that is a model from a file (a ship at anchor, the whirlpool's swirl): its own mesh, moved like the others
-  function modelActor(act, d) {
+  function modelActor(act, d, i) {
     const rec = { act, d, mesh: null }, land = landG;
     life.models.push(rec);
     if (d.animated) {
       GLB.loadScene(d.url).then(pack => {
         if (landG !== land) return;
         const g = new T.Group(); g.rotation.order = 'YXZ';
-        g.add(nativeModel(pack)); root.add(g); rec.mesh = g;
+        const model = nativeModel(pack, i);
+        g.add(model); root.add(g); rec.mesh = g;
+        if (i != null && OWNABLE(BOARD[i])) { lotMesh[i] = model; if (mark[i] && mark[i].m) setMort(i, true, false); }
         lifeStep(U.time.value); shadowDirty = true;
       }).catch(e => Diag.note('3d', `animated model ${d.url} not read: ${e && e.message}`));
       return;
@@ -1245,22 +1228,51 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   // ===== owners: the flag on the lot, towers on the colour band, the square's sides in the owner's colour =====
   function flagFor(i) {
     if (flags[i]) return flags[i];
-    const g = new T.Group();
+    const g = new T.Group(), nautical=wantWorld()==='sea';
     if (!mats.poleGeo) { const B = new Models.Builder(); B.add(Models.shapes.cyl(0.011, 0.014, 0.62, 6), 0x4a3020); B.add(new T.SphereGeometry(0.022, 8, 6), 0xe0ad45, 0, 0.63, 0); mats.poleGeo = B.build(); }
-    const pole = new T.Mesh(mats.poleGeo, mats.scenery);
+    const pole = new T.Mesh(mats.poleGeo, mats.scenery);pole.scale.y=nautical?1.45:1;
     pole.castShadow = true; g.add(pole);
-    const cg = new T.PlaneGeometry(0.26, 0.16, 8, 1);
-    cg.translate(0.13, 0, 0);
-    const cloth = new T.Mesh(cg, new T.MeshLambertMaterial({ color: 0xffffff, side: T.DoubleSide }));
-    cloth.position.set(0.012, 0.52, 0);
+    const width=nautical?.43:.26,height=nautical?.28:.16;
+    const cg = new T.PlaneGeometry(width, height, 16, 6);
+    cg.translate(width/2, 0, 0);
+    if(nautical) { // Swallowtail pennant: a real cut edge, not a rectangular decal.
+      const p=cg.attributes.position;
+      for(let j=0;j<p.count;j++) if(p.getX(j)>width*.85) p.setX(j,p.getX(j)-.075*(1-Math.abs(p.getY(j))/(height/2)));
+    }
+    const cloth = new T.Mesh(cg, new T.MeshLambertMaterial({ color: 0xffffff, side: T.DoubleSide, emissive:nautical?0x3c3016:0x000000,emissiveIntensity:.18 }));
+    cloth.position.set(0.012, nautical?.78:.52, 0);
     cloth.userData.base = Float32Array.from(cg.attributes.position.array);
     g.add(cloth);
-    const p = toWorld(i, 0.38, -(D / 2) + 0.03, 0.03);
+    const p = toWorld(i, nautical?-.39:.38, -(D / 2) + (nautical?.07:.03), nautical?TH+.025:.03);
     g.position.copy(p); g.rotation.y = yawOf(sideOf(i));
+    let glow=null,canvas=null;
+    if(nautical) {
+      canvas=document.createElement('canvas');canvas.width=384;canvas.height=256;
+      const map=new T.CanvasTexture(canvas);map.encoding=T.sRGBEncoding;map.anisotropy=maxAniso;cloth.material.map=map;
+      glow=new T.Mesh(new T.RingGeometry(.045,.085,24),new T.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.42,depthWrite:false}));
+      glow.rotation.x=-Math.PI/2;glow.position.y=.006;g.add(glow);
+    }
     g.visible = false;
     root.add(g);
-    flags[i] = { g, cloth, h: 1 };
+    flags[i] = { g, cloth, glow, canvas, width, nautical, h: 1 };
     return flags[i];
+  }
+  function colorFlag(f,seat,mort=false) {
+    const color=SEAT_COLORS[seat]||'#888';
+    if(!f.nautical) {f.cloth.material.color.set(color);if(mort)f.cloth.material.color.lerp(new T.Color(0x777777),.55);return;}
+    const x=f.canvas.getContext('2d');x.clearRect(0,0,384,256);x.fillStyle=color;x.fillRect(0,0,384,256);
+    x.fillStyle='rgba(10,30,36,.18)';x.fillRect(0,178,384,78);
+    x.strokeStyle='#ffdf96';x.lineWidth=11;x.strokeRect(7,7,370,242);
+    // Ivory skull, crossed cutlasses and brass eyelets remain recognizable at game scale.
+    x.strokeStyle='#102c36';x.lineWidth=17;x.lineCap='round';
+    x.beginPath();x.moveTo(97,179);x.lineTo(257,83);x.moveTo(101,80);x.lineTo(258,180);x.stroke();
+    x.strokeStyle='#fff1c5';x.lineWidth=10;x.stroke();
+    x.fillStyle='#fff1c5';x.beginPath();x.ellipse(180,102,55,51,0,0,TAU);x.fill();x.fillRect(150,127,60,35);
+    x.fillStyle='#14313a';for(const ex of [160,199]){x.beginPath();x.ellipse(ex,104,12,16,0,0,TAU);x.fill();}
+    x.beginPath();x.moveTo(180,121);x.lineTo(171,136);x.lineTo(188,136);x.closePath();x.fill();
+    x.strokeStyle='#14313a';x.lineWidth=4;for(let n=0;n<3;n++){x.beginPath();x.moveTo(165+n*15,148);x.lineTo(165+n*15,163);x.stroke();}
+    x.fillStyle='#fff1c5';x.font=`900 28px ${FONT.num}`;x.textAlign='center';x.textBaseline='middle';x.fillText(String(seat+1).padStart(2,'0'),180,214);
+    f.cloth.material.map.needsUpdate=true;f.cloth.material.color.set(mort?0x858585:0xffffff);f.glow.material.color.set(color);f.glow.visible=!mort;
   }
   const towerSlots = [[], [0], [-0.17, 0.17], [-0.28, 0, 0.28], [-0.33, -0.11, 0.11, 0.33]];
   // all the towers of the board are drawn as one instanced mesh (and the fortresses as another), roofs coloured per copy
@@ -1414,36 +1426,41 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     const k = mark[i] || (mark[i] = { o: -1, lv: 0, m: false });
     const was = k.o;
     k.o = seat;
+    updateTileLabel(i);
     sideMat[i].color.copy(CREAM);
     if (seat >= 0) sideMat[i].color.lerp(new T.Color(SEAT_COLORS[seat]), 0.6);
     const f = flagFor(i);
     if (seat < 0) { f.g.visible = false; layoutBuildings(performance.now()); return; }
-    f.cloth.material.color.set(SEAT_COLORS[seat]);
+    colorFlag(f,seat,k.m);
     f.g.visible = true;
     layoutBuildings(performance.now());
     if (anim && was !== seat) {
       f.cloth.position.y = 0.12;
       tween(0.7, e => { f.cloth.position.y = 0.12 + (topOf(k) - 0.12) * e; }, ease.out);
-      pop(i);
+      if (wantWorld() === 'sea') placeEvent(i, 'purchase', seat); else pop(i);
     } else f.cloth.position.y = topOf(k);
   }
-  const topOf = k => k.m ? 0.3 : 0.52;
+  const topOf = k => wantWorld()==='sea' ? k.m?.4:.78 : k.m?.3:.52;
   function setLevel(i, lv, anim) {
     if (!ok || BOARD[i].k !== 'p') return;
     const k = mark[i] || (mark[i] = { o: -1, lv: 0, m: false });
     const prev = k.lv;
     k.lv = lv;
+    updateTileLabel(i);
     placeBuildings(i, lv, k.o, anim, prev);
-    if (anim) pop(i, 0.06);
+    if (anim) { if (wantWorld() === 'sea') placeEvent(i, 'build', k.o); else pop(i, 0.06); }
   }
   function setMort(i, m, anim) {
     if (!ok || !OWNABLE(BOARD[i])) return;
     const k = mark[i] || (mark[i] = { o: -1, lv: 0, m: false });
     k.m = m;
+    updateTileLabel(i);
     layoutBuildings(performance.now());
     labelMat[i].color.set(m ? 0x9b8f7a : 0xffffff);
     const lm = lotMesh[i];
-    if (lm && lm.userData.nativeScene) {
+    if (placeModelsLife && typeof PlaceModels3D !== 'undefined' && PlaceModels3D.indices.includes(i)) {
+      if (placeModelsLife.setMort) placeModelsLife.setMort(i, m);
+    } else if (lm && lm.userData.nativeScene) {
       lm.traverse(o => {
         if (!o.isMesh) return;
         const u = o.userData;
@@ -1466,12 +1483,20 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (f && f.g.visible) {
       const to = topOf(k), from = f.cloth.position.y;
       if (anim) tween(0.5, e => { f.cloth.position.y = from + (to - from) * e; }); else f.cloth.position.y = to;
-      f.cloth.material.color.set(SEAT_COLORS[k.o] || '#888');
-      if (m) f.cloth.material.color.lerp(new T.Color(0x777777), 0.55);
+      colorFlag(f,k.o,m);
     }
   }
-  // a square's scenery jumps (bought, built on, landed on): a lot's leaves its land for a moment, a corner's stretches
+  function placeEvent(i, kind = 'arrival', seat = turnSeat) {
+    if (wantWorld() !== 'sea' || !Number.isInteger(i) || i < 0 || i >= 40) return;
+    const color = SEAT_COLORS[seat] || '#f4cb75';
+    if (placeEffects) placeEffects.trigger(i, kind, color);
+    if (placeModelsLife) placeModelsLife.trigger(i, kind, color);
+    if (mapPropsLife) mapPropsLife.trigger(i, kind, color);
+    shadowDirty = true;
+  }
+  // Sea landmarks react with their moving parts and 3D spray; the land keeps its pop.
   function pop(i, amt = 0.14) {
+    if (wantWorld() === 'sea') { placeEvent(i, 'inspect'); return; }
     const m = lotMesh[i];
     if (!m) return;
     if (!(i % 10)) tween(0.5, e => { m.scale.set(1, 1 + Math.sin(e * Math.PI) * amt, 1); }, ease.lin);
@@ -1480,7 +1505,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   // a whole region has one owner: its lots jump one after another and confetti flies
   function celebrate(g, seat) {
     if (!ok) return;
-    GROUP_TILES[g].forEach((i, k) => later(k * 0.18).then(() => { pop(i, 0.28); confetti(lotF[i] ? lotF[i].at(0, 0, 0.4) : toWorld(i, 0, -(D / 2 + LOT / 2), 0.6), seat); }));
+    const my = epoch;
+    GROUP_TILES[g].forEach((i, k) => later(k * 0.18).then(() => { if (epoch !== my) return; if (wantWorld() === 'sea') placeEvent(i, 'celebrate', seat); else { pop(i, 0.28); confetti(lotF[i] ? lotF[i].at(0, 0, 0.4) : toWorld(i, 0, -(D / 2 + LOT / 2), 0.6), seat); } }));
   }
   let confGeo = null;
   function confetti(p, seat) {
@@ -1674,11 +1700,17 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   }
   const jailedNow = s => !!(st.players[s] && st.players[s].jail && pos[s] === JAIL);
   function spot(seat, at) {
-    const caught = jailedNow(seat);
-    const here = st.players.map((p, s) => s).filter(s => !st.players[s].out && pos[s] === at && jailedNow(s) === caught);
+    const caught = jailedNow(seat), seaCorner = wantWorld()==='sea' && at%10===0;
+    const here = st.players.map((p, s) => s).filter(s => !st.players[s].out && pos[s] === at && (seaCorner || jailedNow(s) === caught));
     const k = Math.max(0, here.indexOf(seat)), n = Math.max(1, here.length);
     const cols = n <= 2 ? n : n <= 4 ? 2 : 3, rows = Math.ceil(n / cols);
     const gx = (k % cols) - (cols - 1) / 2, gz = Math.floor(k / cols) - (rows - 1) / 2;
+    if(seaCorner) {
+      // A mooring lane along the two outer edges leaves the entire corner diorama free.
+      // Captured and visiting pirates share distinct slots, even when all six arrive together.
+      const berth=[[.33,.98],[-.1,.98],[-.5,.98],[1.10,.4],[1.10,-.02],[1.10,-.44]][k%6];
+      return toWorld(at,berth[0],berth[1],TH);
+    }
     if (at === JAIL && caught) return toWorld(at, -0.08 + gx * 0.22, -0.3 + gz * 0.14, TH + 0.03);
     const corner = at % 10 === 0;
     return toWorld(at, gx * (corner ? 0.34 : 0.3), (corner ? 0.3 : 0.33) + gz * 0.2, TH);
@@ -1721,7 +1753,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (epoch !== my) return;
     pos[seat] = to;
     placeTokens(true);
-    if (to % 10) pop(to, 0.05);                   // the place it came to stirs
+    if (wantWorld() === 'sea') placeEvent(to, 'arrival', seat); else if (to % 10) pop(to, 0.05);
   }
   async function fly(seat, to) {
     if (!ok || !toks[seat]) { pos[seat] = to; return; }
@@ -1732,7 +1764,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (epoch !== my) return;
     bounceTile(to);
     placeTokens(true);
-    if (to % 10) pop(to, 0.05);
+    if (wantWorld() === 'sea') placeEvent(to, 'arrival', seat); else if (to % 10) pop(to, 0.05);
   }
   function setTurn(seat) {
     turnSeat = seat;
@@ -1822,22 +1854,25 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     const r = host.getBoundingClientRect();
     const v = new T.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(v, cam);
-    const objs = [...tiles, ...lotGround, ...lotMesh.filter(Boolean)];
+    const objs = [...tiles, ...lotGround, ...lotMesh.filter(Boolean), ...(mapPropsLife ? [mapPropsLife.group] : [])];
     const hit = ray.intersectObjects(objs, true)[0];
     if (!hit) return;
     let o = hit.object;
     if (o.userData.ground) {
-      // the lot whose rectangle holds the point
+      // Neighbouring lot rectangles can overlap beside corners; choose the nearest centre.
+      let nearest = -1, best = Infinity;
       for (let i = 0; i < 40; i++) {
         if (!(i % 10)) continue;
         const c = toWorld(i, 0, -(D / 2 + LOT / 2)), r = yawOf(sideOf(i)), dx = hit.point.x - c.x, dz = hit.point.z - c.z;
         const lx = dx * Math.cos(r) - dz * Math.sin(r), lz = dx * Math.sin(r) + dz * Math.cos(r);
-        if (Math.abs(lx) <= TW / 2 && Math.abs(lz) <= LOT / 2) return pickCb(i);
+        const distance = dx * dx + dz * dz;
+        if (Math.abs(lx) <= TW / 2 && Math.abs(lz) <= LOT / 2 && distance < best) { nearest = i; best = distance; }
       }
+      if (nearest >= 0) { placeEvent(nearest, 'inspect'); pickCb(nearest); }
       return;
     }
     while (o && o.userData.i == null) o = o.parent;
-    if (o && o.userData.i != null && o.userData.i < 40) pickCb(o.userData.i);
+    if (o && o.userData.i != null && o.userData.i < 40) { placeEvent(o.userData.i, 'inspect'); pickCb(o.userData.i); }
   }
 
   // ===== the frame loop =====
@@ -1870,6 +1905,12 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     moveCamera(dt * speedK);
     const t = now / 1000;
     if (marineLife) marineLife.update(REDUCED ? 3 : t, dt);
+    if (lagoonLife) lagoonLife.update(REDUCED ? 3 : t, dt);
+    if (reefLife) reefLife.update(REDUCED ? 3 : t, dt);
+    if (weatherLife) weatherLife.update(REDUCED ? 3 : t, dt);
+    if (placeModelsLife) placeModelsLife.update(REDUCED ? 3 : t, dt);
+    if (mapPropsLife) mapPropsLife.update(REDUCED ? 3 : t, dt);
+    if (placeEffects) placeEffects.update(REDUCED ? 3 : t, dt);
     pinFrame(t);
     // the figures face the camera; the one whose turn it is glows
     for (const tk of toks) {
@@ -1883,12 +1924,14 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
         tk.hull.rotation.x = REDUCED ? 0 : 0.06 * Math.sin(t * 1.6 + tk.seat * 1.7); tk.hull.rotation.z = REDUCED ? 0 : 0.03 * Math.sin(t * 1.1 + tk.seat);
       }
     }
+    for (const c of cornerTitles) c.sprite.position.y=c.y+(REDUCED?0:Math.sin(t*.8+c.i)*.025);
     // flags wave, the wheel turns
     for (const f of flags) {
       if (!f || !f.g.visible) continue;
       const p = f.cloth.geometry.attributes.position, b = f.cloth.userData.base;
-      for (let k = 0; k < p.count; k++) { const x = b[k * 3]; p.array[k * 3 + 2] = Math.sin(t * 5 + x * 22 + f.g.position.x) * 0.025 * (x / 0.26); }
+      for (let k = 0; k < p.count; k++) { const x = b[k * 3]; p.array[k * 3 + 2] = REDUCED ? 0 : Math.sin(t * 3.4 + x * 15 + f.g.position.x) * (f.nautical ? .044 : .025) * (x / f.width); }
       p.needsUpdate = true;
+      if(f.glow) f.glow.material.opacity=REDUCED?.35:.33+.09*Math.sin(t*1.8+f.g.position.x);
     }
     if (wheel) wheel.children[0].rotation.z = (REDUCED ? 0 : t) * 1.4;
     if (BLD.busy || tweens.length) layoutBuildings(now);
@@ -1918,7 +1961,6 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     // Render throttling saves power, but native clips still advance by all elapsed time between drawn frames.
     if (modelDelta) { for (const { mixer } of animatedModels) mixer.update(modelDelta); modelDelta = 0; }
     R.setViewport(0, 0, W, H); R.setScissorTest(false);
-    seaCapture();
     R.clear();
     R.render(scene, cam);
     Dice3D.frame(R, diceDt);
@@ -2011,7 +2053,6 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     });
     cv.addEventListener('webglcontextrestored', () => {
       Diag.note('3d', `graphics back after ${Math.round(performance.now() - lostAt)} ms`); lostAt = 0;
-      seaCaptureAt = -Infinity; SEA_REFRACTION.readyU.value = 0; for (const state of seaMirrors) state.readyU.value = 0;
       shadowDirty = true; relabelSoon(); if (built) start();
     });
     if (document.fonts) {
@@ -2047,12 +2088,17 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     const t0 = performance.now();
     stop(); halt();
     if (marineLife) { marineLife.dispose(); marineLife = null; }
+    if (lagoonLife) { lagoonLife.dispose(); lagoonLife = null; }
+    if (reefLife) { reefLife.dispose(); reefLife = null; }
+    if (weatherLife) { weatherLife.dispose(); weatherLife = null; }
+    if (placeModelsLife) { placeModelsLife.dispose(); placeModelsLife = null; }
+    if (mapPropsLife) { mapPropsLife.dispose(); mapPropsLife = null; }
+    if (placeEffects) { placeEffects.dispose(); placeEffects = null; }
     clearAnimatedModels();
-    disposeSeaCaptures();
     if (root) { disposeAll(root); scene.remove(root); }
     root = landG = seaMesh = wheel = fallFoot = null;
     tiles.length = lotMesh.length = lotGround.length = flags.length = mark.length = toks.length = 0;
-    labelTex.length = labelMat.length = sideMat.length = 0;
+    labelTex.length = labelMat.length = sideMat.length = cornerTitles.length = 0;
     life.ready = false; life.groups.length = 0; life.models.length = 0; life.pts = null;
     BLD.ready = false; BLD.grow = {}; BLD.busy = 0;
     built = false; camInit = false;
@@ -2094,7 +2140,6 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       R.shadowMap.needsUpdate = true;
       R.setViewport(0, 0, W, H); R.setScissorTest(false); R.clear();
       R.render(scene, cam);                        // the shadow pass compiles its own shaders on its first run
-      seaCapture(true);
       Dice3D.warm(R);
       R.clear();
       shadowDirty = true;
@@ -2173,6 +2218,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
 
   return {
     init, prepare, show, sync, walk, fly, setOwner, setLevel, setMort, pop, celebrate, coins, focus, snap, setMode, setTurn, leave, resize, halt, retheme, pins,
+    reveal: placeEvent,
+    placeStats: () => ({ landmarks: placeModelsLife && placeModelsLife.stats(), props: mapPropsLife && mapPropsLife.stats(), effects: placeEffects && placeEffects.stats() }),
     speed(k) { speedK = k > 0 ? k : 1; },
     get ok() { return done; }, get mode() { return mode; }, get world() { return worldBuilt; },
     // how long ago a frame was drawn (the animations wait for frames: none coming means they must not be waited for)

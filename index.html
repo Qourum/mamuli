@@ -833,6 +833,21 @@ pre.diag { margin: 10px 0 0; padding: 10px; max-height: 52vh; overflow: auto; bo
 .asset-download p { margin: 0; font-size: 11px; line-height: 1.45; color: var(--muted); }
 .asset-download[data-state="failed"] p { color: #efb994; }
 
+/* the phone test (?test in the address): the frames badge and its panel */
+.ptest-badge { position: fixed; left: 0; top: 66%; z-index: 9000; min-height: 34px; padding: 4px 10px 4px 8px;
+  border-radius: 0 99px 99px 0; border: 1px solid rgba(232, 180, 76, .55); border-left: 0; background: rgba(13, 16, 22, .82); color: var(--cream);
+  font: 13px/1.2 var(--f-num); letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+.ptest { position: fixed; left: 8px; right: 8px; bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); z-index: 9001; max-height: 80vh; overflow: auto;
+  padding: 14px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line); color: var(--text); box-shadow: 0 10px 34px rgba(0, 0, 0, .55); }
+.ptest h3 { margin: 0 0 4px; font: 900 18px var(--f-display); color: var(--gold); }
+.ptest b { display: block; margin-top: 10px; font: 700 13px var(--f-ui); color: var(--cream); }
+.ptest small { display: block; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.ptest small.st { color: var(--cream); margin-top: 4px; }
+.ptest .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ptest .btn.on { border-color: var(--gold); color: var(--gold-hi); }
+.ptest pre { margin: 10px 0 0; padding: 8px 10px; border-radius: 10px; background: var(--ink-2); color: var(--text); white-space: pre-wrap; word-break: break-word;
+  font: 12px/1.5 ui-monospace, Menlo, monospace; user-select: text; -webkit-user-select: text; }
+
 /* Illustrated holdings and trade decisions. These cards use existing artwork;
    opening a portfolio creates no extra WebGL context or animated effect. */
 .portfolio-summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 16px; }
@@ -1016,7 +1031,7 @@ svg.asset-picture { width: auto; max-width: 100%; aspect-ratio: 1; margin: 0 aut
 <script src="vendor/three.min.js"></script>
 <script src="vendor/GLTFLoader.min.js"></script>
 <script>
-const BUILD = "5e6497fbee";
+const BUILD = "9ef97381c1";
 const SITE = true;
 // ===== the technical log: what this phone went through, to copy and send when something goes wrong =====
 // Errors, the 3D board losing or getting back its graphics, slow frames (and what was on the screen then), shaders made
@@ -7650,12 +7665,13 @@ const PlaceFX3D = (() => {
 const RenderPacer = (() => {
   function create(mobile = false) {
     let previous = null, next = null, lastInterval = null, delta = 1 / 60, interval = mobile ? 1 / 60 : 1 / 30, count = 0;
+    let override = null;     // a target set by hand (the phone test, ?test): frames a second, 0 = every frame the display offers
     // A 60 Hz display needs a small early margin at a matching 60 FPS target;
     // otherwise timestamp jitter can discard frames that the display cannot recover.
     const tolerance = 1.25;
     return {
       step(now, active) {
-        interval = mobile ? 1 / 60 : active ? 0 : 1 / 30;
+        interval = override != null ? (override ? 1 / override : 0) : mobile ? 1 / 60 : active ? 0 : 1 / 30;
         const milliseconds = interval * 1000;
         if (milliseconds !== lastInterval) {
           next = milliseconds && previous !== null ? previous + milliseconds : null;
@@ -7672,6 +7688,7 @@ const RenderPacer = (() => {
         count++; return true;
       },
       reset() { previous = next = lastInterval = null; delta = 1 / 60; },
+      target(fps) { override = fps == null ? null : fps; },
       get delta() { return delta; },
       get interval() { return interval || 1 / 60; },
       get frames() { return count; }
@@ -9560,7 +9577,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     camT.yaw = y;
   }
   function moveCamera(dt) {
-    aim();
+    if (bench) benchAim(dt); else aim();
     const k = camInit ? 1 - Math.exp(-dt * 3.2) : 1, ky = camInit ? 1 - Math.exp(-dt * 2.6) : 1;
     camInit = true;
     for (const f of ['x', 'y', 'z', 'd', 'el']) camS[f] += (camT[f] - camS[f]) * k;
@@ -9651,7 +9668,11 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   let pacer = RenderPacer.create(false), busyAvg = 1 / 60, busyN = 0, prStep = 0, prNext = 0, shadowTime = 0;
   let drewAt = 0, lostAt = 0, progN = 0;          // when a frame was last drawn; when the graphics were lost; shaders made
   const PR_STEPS = [1, 0.85, 0.72, 0.6];
+  // the phone test (?test, perf.js) may set the quality by hand, the frame target, and run a benchmark: the camera goes
+  // round the board while the time of every drawn frame is written down
+  let manual = false, bench = null;
   function adapt(real, target = 1 / 60) {
+    if (manual) return;                          // the quality was set by hand: it stays
     if (real > 1 || real <= 0) return;
     real = Math.min(real, .25);                // bound isolated stalls without ignoring a consistently slow phone
     busyAvg = busyAvg * 0.95 + real * 0.05;
@@ -9678,6 +9699,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (still && prNext) coarser();
     // Do not deform meshes, update animals or upload instances for an unpainted frame.
     if (!pacer.step(now, !still)) return;
+    if (bench) benchFrame(now, pacer.delta);
     const cpuStart = performance.now();
     const visualDt = Math.min(.25, pacer.delta), t = now / 1000;
     // Set this frame's storm before water-following craft sample its wave height.
@@ -9751,6 +9773,62 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (running || !ok) return;
     running = true; last = 0; pacer.reset(); drewAt = performance.now();
     requestAnimationFrame(loop);
+  }
+
+  // ----- the phone test (only perf.js, with ?test in the address, calls these) -----
+  function setShadows(on, soft, size) {
+    const type = soft ? T.PCFSoftShadowMap : T.PCFShadowMap, changed = R.shadowMap.enabled !== on || R.shadowMap.type !== type;
+    R.shadowMap.enabled = on; R.shadowMap.type = type;
+    if (sun.shadow.mapSize.x !== size) { sun.shadow.mapSize.set(size, size); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
+    if (changed) {        // the shaders depend on the shadows: all made again (a pause, once)
+      scene.traverse(m => { if (m.material) for (const x of [].concat(m.material)) x.needsUpdate = true; });
+      if (Dice3D._refresh) Dice3D._refresh();
+    }
+    shadowDirty = true;
+  }
+  // pixels per point of the screen (at most the screen's own), the shadows (on, soft) and their map; auto: the game's own
+  const PRESETS = { low: [1, false, false, 512], mid: [1.5, true, false, 1024], high: [2, true, true, 1024], max: [3, true, true, 2048] };
+  function testSet(o) {
+    if (!R || !done) return false;
+    if (o.cap !== undefined) { pacer.target(o.cap); pacer.reset(); }
+    if (o.preset) {
+      const P = PRESETS[o.preset];
+      if (P) { manual = true; prNext = 0; R.setPixelRatio(Math.min(window.devicePixelRatio || 1, P[0])); setShadows(P[1], P[2], P[3]); }
+      else { manual = false; prStep = 0; prNext = 0; busyAvg = 1 / 60; busyN = 0; R.setPixelRatio(basePR); setShadows(quality > 0, !mobile, mobile ? 512 : 2048); }
+      resize();
+    }
+    return true;
+  }
+  function stats(times) {
+    if (!times.length) return null;
+    const s = times.slice().sort((a, b) => a - b), n = s.length, avg = s.reduce((a, b) => a + b, 0) / n;
+    return { frames: n, fps: Math.round(1000 / avg), low1: Math.round(1000 / s[Math.min(n - 1, Math.floor(n * 0.99))]), worst: Math.round(s[n - 1]),
+      stutters: s.filter(t => t > 34).length };
+  }
+  function benchAim(dt) {      // round the whole board, a little lower than the overview: more of the sea in view
+    camT.x = 0; camT.z = 0; camT.y = 0; camT.d = overD * 0.8; camT.el = elOver * 0.82;
+    camT.yaw += dt * 0.5;
+  }
+  function benchFrame(now, delta) {
+    if (now < bench.from) return;                  // the first second: the camera gets going
+    bench.times.push(delta * 1000);
+    if (now >= bench.until) bench.done(stats(bench.times));
+  }
+  function testBench(secs) {
+    return new Promise(res => {
+      if (!running || !built) return res(null);
+      const now = performance.now(), b = { from: now + 1000, until: now + 1000 + secs * 1000, times: [] };
+      let settled = false;
+      b.done = s => { if (settled) return; settled = true; if (bench === b) bench = null; res(s); };
+      bench = b;
+      setTimeout(() => b.done(stats(b.times)), secs * 1000 + 4000);      // frames that stopped coming (the page hidden)
+    });
+  }
+  function testInfo() {
+    if (!R) return null;
+    return { pr: +R.getPixelRatio().toFixed(2), w: Math.round(W * R.getPixelRatio()), h: Math.round(H * R.getPixelRatio()), shadows: R.shadowMap.enabled,
+      soft: R.shadowMap.type === T.PCFSoftShadowMap, map: sun.shadow.mapSize.x, target: Math.round(1 / pacer.interval), manual, mobile,
+      calls: PERF.calls || 0, tris: PERF.tris || 0, cpuMs: +(PERF.cpuMs || 0).toFixed(1), playing: running && built, world: worldBuilt };
   }
   function stop() { running = false; }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') stop(); else if (built) start(); });
@@ -10026,6 +10104,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       return `gpu ${name} · webgl${R.capabilities.isWebGL2 ? 2 : 1} · pixel ratio ${R.getPixelRatio().toFixed(2)} (${prStep} steps down) · quality ${quality} · frame ${Math.round(busyAvg * 1000)} ms (~${Math.round(1 / busyAvg)} fps / ${Math.round(1 / pacer.interval)} target) · CPU submit ${(PERF.cpuMs || 0).toFixed(1)} ms (effects ${(PERF.effectsMs || 0).toFixed(1)}, clips ${(PERF.clipsMs || 0).toFixed(1)}, draw ${(PERF.drawMs || 0).toFixed(1)}) · draw ${PERF.calls || 0}/${Math.round((PERF.tris || 0) / 1000)}k triangles · ${mobile ? 'phone' : 'computer'} · shaders ${R.info.programs.length} · textures ${m.textures} · geometries ${m.geometries}${models}${lostAt ? ' · GRAPHICS LOST' : ''}`;
     },
     onPick(cb) { pickCb = cb; },
+    test: { set: testSet, bench: testBench, info: testInfo },
     setPos(seat, at) { pos[seat] = at; },
     tween, ease, toWorld,
     _screen(i) { const c = centerOf(i).setY(TH); c.project(cam); const r = host.getBoundingClientRect(); return [r.left + (c.x + 1) / 2 * r.width, r.top + (1 - c.y) / 2 * r.height]; },
@@ -10386,6 +10465,8 @@ const Dice3D = (() => {
   // (for tests) where the dice are now
   const where = () => dice.map(d => [d.m.position.x, d.m.position.y, d.m.position.z, d.m.quaternion.x, d.m.quaternion.y, d.m.quaternion.z, d.m.quaternion.w].map(v => +v.toFixed(5)));
   return { init, layout, roll, expect, frame, skip, warm, get busy() { return !!play; }, _sim: (THREE, rnd) => { T = T || THREE; return simulate(rnd); },
+    // the board's shadows were switched on or off (the phone test): the dice's shaders are made again too
+    _refresh() { if (scene) scene.traverse(m => { if (m.material) for (const x of [].concat(m.material)) x.needsUpdate = true; }); },
     _top: top, _where: where, _ahead: seed => ahead.has(seed >>> 0), get _landed() { return !!(play && play.done); } };
 })();
 
@@ -12604,6 +12685,130 @@ function boot() {
   setTimeout(() => Board3D.prepare($('#stage')), 400);
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+
+// ===== the phone test: with ?test in the address, how the board runs on this device =====
+// A badge at the screen's edge shows how many frames a second the board draws. Tapped, it opens a panel: the quality set
+// by hand (the game's own choice, or low to maximum), the frame target (the game's own, 60, 120, or every frame the
+// screen offers), and a test that turns the camera round the board for eight seconds under each quality and measures
+// every drawn frame. The results go into the technical log and are copied, to be sent.
+
+const PerfTest = (() => {
+  if (!/[?&]test\b/.test(location.search)) return null;
+  const QUAL = [['auto', 'ავტო'], ['low', 'დაბალი'], ['mid', 'საშუალო'], ['high', 'მაღალი'], ['max', 'მაქსიმუმი']];
+  const CAPS = [['auto', 'ავტო'], [60, '60'], [120, '120'], [0, 'ზღვრის გარეშე']];
+  const NAME = Object.fromEntries(QUAL);
+  const RUNS = [['low', 0], ['mid', 0], ['high', 0], ['max', 0], ['auto', 'auto']];     // each quality as fast as it goes; then the game as it is
+  const results = [];
+  let badge = null, panel = null, hz = 0, preset = 'auto', cap = 'auto', busy = false, doing = '', lastF = 0, lastT = 0, fps = 0;
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const info = () => (typeof Board3D !== 'undefined' && Board3D.test ? Board3D.test.info() : null);
+  const gpuName = () => { try { return Board3D.gpu().replace(/^gpu /, '').split(' · ')[0]; } catch (e) { return '?'; } };
+  const capOf = c => (c === 'auto' ? undefined : c);
+  const set = o => Board3D.test.set(Object.assign({}, o, 'cap' in o ? { cap: o.cap === 'auto' ? null : o.cap } : {}));
+
+  // the screen's own rate: the time between the frames the browser offers, over about a second
+  function measureHz() {
+    return new Promise(res => {
+      const ts = [];
+      const step = t => {
+        ts.push(t);
+        if (ts.length < 70) return requestAnimationFrame(step);
+        const d = ts.slice(1).map((x, k) => x - ts[k]).sort((a, b) => a - b);
+        res(Math.round(1000 / d[d.length >> 1]));
+      };
+      requestAnimationFrame(step);
+    });
+  }
+  function tick() {
+    const now = performance.now(), p = typeof Board3D !== 'undefined' && Board3D._perf ? Board3D._perf() : null;
+    if (p && lastT) fps = Math.round((p.frames - lastF) * 1000 / (now - lastT));
+    if (p) { lastF = p.frames; lastT = now; }
+    const i = info();
+    if (badge) badge.textContent = i && i.playing ? `${fps} fps · ${i.pr}x` : 'ტესტი';
+    if (panel && !panel.hidden) status();
+  }
+  function status() {
+    const s = panel.querySelector('[data-st]'), i = info();
+    if (!s) return;
+    s.textContent = doing || (i ? `${i.w}×${i.h} პიქსელი (${i.pr}x) · ჩრდილები ${i.shadows ? `${i.soft ? 'რბილი' : 'ჩვეულებრივი'} ${i.map}` : 'არა'} · ${Math.round(i.tris / 1000)} ათასი სამკუთხედი, ${i.calls} ხატვა · ${fps} fps (მიზანი ${i.target})` : '3D დაფა ჯერ არ არის');
+  }
+  function line(r) {
+    const s = r.s, c = r.cap === 'auto' ? `მიზანი ${r.target}` : 'ზღვრის გარეშე';
+    return `${NAME[r.q]} ${r.w}×${r.h} (${r.pr}x, ${c}): ` + (s ? `${s.fps} fps · ნელი 1% ${s.low1} · უარესი ${s.worst} მწ · შეფერხება ${s.stutters}/${s.frames}` : 'კადრები არ მოვიდა');
+  }
+  function report() {
+    const i = info() || {};
+    return [`შენი ჯერი · ტელეფონის ტესტი ${typeof BUILD !== 'undefined' ? BUILD : ''}`, navigator.userAgent,
+      `ეკრანი ${screen.width}×${screen.height} · dpr ${window.devicePixelRatio || 1} · ${hz || '?'} ჰც · ${gpuName()} · ${i.mobile ? 'ტელეფონი' : 'კომპიუტერი'}`,
+      `სამყარო ${i.world || '?'}`, ...results.map(line)].join('\n');
+  }
+  function render() {
+    const i = info(), playing = i && i.playing;
+    panel.innerHTML = `
+      <h3>ტელეფონის ტესტი</h3>
+      <small>${esc(gpuName())} · ეკრანი ${screen.width}×${screen.height}, dpr ${window.devicePixelRatio || 1}${hz ? ` · ${hz} ჰც` : ''}</small>
+      <small class="st" data-st></small>
+      <b>ხარისხი</b>
+      <div class="row">${QUAL.map(([k, n]) => `<button class="btn small${k === preset ? ' on' : ''}" data-q="${k}" ${busy ? 'disabled' : ''}>${n}</button>`).join('')}</div>
+      <b>კადრები წამში</b>
+      <div class="row">${CAPS.map(([k, n]) => `<button class="btn small${k === cap ? ' on' : ''}" data-cap="${k}" ${busy ? 'disabled' : ''}>${n}</button>`).join('')}</div>
+      <div class="row"><button class="btn gold wide" data-run ${busy || !playing ? 'disabled' : ''}>${busy ? 'ტესტი მიდის…' : 'ტესტის გაშვება (1 წუთი)'}</button></div>
+      ${playing ? '' : '<small>ჯერ თამაში დაიწყე ბოტებთან, მერე აქ გაუშვი ტესტი: კამერა დაფას შემოუვლის და ყოველ კადრს გაზომავს.</small>'}
+      ${results.length ? `<pre data-res>${esc(report())}</pre><div class="row"><button class="btn wide" data-copy ${busy ? 'disabled' : ''}>შედეგების კოპირება</button></div>` : ''}
+      <div class="row"><button class="btn ghost wide" data-close>დახურვა</button></div>`;
+    status();
+  }
+  async function runAll() {
+    const i = info();
+    if (busy || !i || !i.playing) return;
+    busy = true; results.length = 0; render();
+    if (!hz) hz = await measureHz();
+    for (const [q, c] of RUNS) {
+      set({ preset: q, cap: c });
+      doing = `${NAME[q]}: მზადდება…`; status();
+      await wait(1500);                              // the shaders made again, the first slow frames over
+      doing = `${NAME[q]}: იზომება…`; status();
+      const s = await Board3D.test.bench(8), a = info() || {};
+      const r = { q, cap: c, s, pr: a.pr, w: a.w, h: a.h, target: a.target };
+      results.push(r);
+      Diag.note('test', line(r));
+      render();
+    }
+    doing = '';
+    set({ preset, cap });
+    busy = false; render();
+  }
+  function copy() {
+    const text = report(), pre = panel.querySelector('[data-res]');
+    const select = () => { if (!pre) return; const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); UI.toast('მონიშნულია: დააკოპირე'); };
+    try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(() => UI.toast('დაკოპირდა'), select); return; } } catch (e) { }
+    select();
+  }
+  function onClick(e) {
+    const b = e.target.closest('button');
+    if (!b || b.disabled) return;
+    if (b.dataset.q) { preset = b.dataset.q; set({ preset }); render(); }
+    else if (b.dataset.cap != null) { cap = b.dataset.cap === 'auto' ? 'auto' : +b.dataset.cap; set({ cap }); render(); }
+    else if (b.hasAttribute('data-run')) runAll();
+    else if (b.hasAttribute('data-copy')) copy();
+    else if (b.hasAttribute('data-close')) panel.hidden = true;
+  }
+  function start() {
+    badge = document.createElement('button');
+    badge.className = 'ptest-badge'; badge.type = 'button'; badge.textContent = 'ტესტი';
+    badge.setAttribute('aria-label', 'ტელეფონის ტესტი');
+    badge.addEventListener('click', () => { panel.hidden = !panel.hidden; if (!panel.hidden) render(); });
+    panel = document.createElement('div');
+    panel.className = 'ptest'; panel.hidden = true;
+    panel.addEventListener('click', onClick);
+    document.body.append(badge, panel);
+    setInterval(tick, 500);
+    setTimeout(() => measureHz().then(h => { hz = h; if (!panel.hidden) render(); }), 2500);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+  return { report, get results() { return results; }, runAll, capOf };
+})();
 </script>
 </body>
 </html>

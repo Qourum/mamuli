@@ -345,5 +345,7 @@ const Dice3D = (() => {
   // (for tests) where the dice are now
   const where = () => dice.map(d => [d.m.position.x, d.m.position.y, d.m.position.z, d.m.quaternion.x, d.m.quaternion.y, d.m.quaternion.z, d.m.quaternion.w].map(v => +v.toFixed(5)));
   return { init, layout, roll, expect, frame, skip, warm, get busy() { return !!play; }, _sim: (THREE, rnd) => { T = T || THREE; return simulate(rnd); },
+    // the board's shadows were switched on or off (the phone test): the dice's shaders are made again too
+    _refresh() { if (scene) scene.traverse(m => { if (m.material) for (const x of [].concat(m.material)) x.needsUpdate = true; }); },
     _top: top, _where: where, _ahead: seed => ahead.has(seed >>> 0), get _landed() { return !!(play && play.done); } };
 })();

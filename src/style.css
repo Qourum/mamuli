@@ -808,3 +808,18 @@ pre.diag { margin: 10px 0 0; padding: 10px; max-height: 52vh; overflow: auto; bo
 .asset-download[data-state="complete"] progress::-moz-progress-bar { background: #82cfa6; }
 .asset-download p { margin: 0; font-size: 11px; line-height: 1.45; color: var(--muted); }
 .asset-download[data-state="failed"] p { color: #efb994; }
+
+/* the phone test (?test in the address): the frames badge and its panel */
+.ptest-badge { position: fixed; left: 0; top: 66%; z-index: 9000; min-height: 34px; padding: 4px 10px 4px 8px;
+  border-radius: 0 99px 99px 0; border: 1px solid rgba(232, 180, 76, .55); border-left: 0; background: rgba(13, 16, 22, .82); color: var(--cream);
+  font: 13px/1.2 var(--f-num); letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+.ptest { position: fixed; left: 8px; right: 8px; bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); z-index: 9001; max-height: 80vh; overflow: auto;
+  padding: 14px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line); color: var(--text); box-shadow: 0 10px 34px rgba(0, 0, 0, .55); }
+.ptest h3 { margin: 0 0 4px; font: 900 18px var(--f-display); color: var(--gold); }
+.ptest b { display: block; margin-top: 10px; font: 700 13px var(--f-ui); color: var(--cream); }
+.ptest small { display: block; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.ptest small.st { color: var(--cream); margin-top: 4px; }
+.ptest .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ptest .btn.on { border-color: var(--gold); color: var(--gold-hi); }
+.ptest pre { margin: 10px 0 0; padding: 8px 10px; border-radius: 10px; background: var(--ink-2); color: var(--text); white-space: pre-wrap; word-break: break-word;
+  font: 12px/1.5 ui-monospace, Menlo, monospace; user-select: text; -webkit-user-select: text; }

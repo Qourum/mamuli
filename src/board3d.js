@@ -1878,7 +1878,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     camT.yaw = y;
   }
   function moveCamera(dt) {
-    aim();
+    if (bench) benchAim(dt); else aim();
     const k = camInit ? 1 - Math.exp(-dt * 3.2) : 1, ky = camInit ? 1 - Math.exp(-dt * 2.6) : 1;
     camInit = true;
     for (const f of ['x', 'y', 'z', 'd', 'el']) camS[f] += (camT[f] - camS[f]) * k;
@@ -1969,7 +1969,11 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   let pacer = RenderPacer.create(false), busyAvg = 1 / 60, busyN = 0, prStep = 0, prNext = 0, shadowTime = 0;
   let drewAt = 0, lostAt = 0, progN = 0;          // when a frame was last drawn; when the graphics were lost; shaders made
   const PR_STEPS = [1, 0.85, 0.72, 0.6];
+  // the phone test (?test, perf.js) may set the quality by hand, the frame target, and run a benchmark: the camera goes
+  // round the board while the time of every drawn frame is written down
+  let manual = false, bench = null;
   function adapt(real, target = 1 / 60) {
+    if (manual) return;                          // the quality was set by hand: it stays
     if (real > 1 || real <= 0) return;
     real = Math.min(real, .25);                // bound isolated stalls without ignoring a consistently slow phone
     busyAvg = busyAvg * 0.95 + real * 0.05;
@@ -1996,6 +2000,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (still && prNext) coarser();
     // Do not deform meshes, update animals or upload instances for an unpainted frame.
     if (!pacer.step(now, !still)) return;
+    if (bench) benchFrame(now, pacer.delta);
     const cpuStart = performance.now();
     const visualDt = Math.min(.25, pacer.delta), t = now / 1000;
     // Set this frame's storm before water-following craft sample its wave height.
@@ -2069,6 +2074,62 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (running || !ok) return;
     running = true; last = 0; pacer.reset(); drewAt = performance.now();
     requestAnimationFrame(loop);
+  }
+
+  // ----- the phone test (only perf.js, with ?test in the address, calls these) -----
+  function setShadows(on, soft, size) {
+    const type = soft ? T.PCFSoftShadowMap : T.PCFShadowMap, changed = R.shadowMap.enabled !== on || R.shadowMap.type !== type;
+    R.shadowMap.enabled = on; R.shadowMap.type = type;
+    if (sun.shadow.mapSize.x !== size) { sun.shadow.mapSize.set(size, size); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
+    if (changed) {        // the shaders depend on the shadows: all made again (a pause, once)
+      scene.traverse(m => { if (m.material) for (const x of [].concat(m.material)) x.needsUpdate = true; });
+      if (Dice3D._refresh) Dice3D._refresh();
+    }
+    shadowDirty = true;
+  }
+  // pixels per point of the screen (at most the screen's own), the shadows (on, soft) and their map; auto: the game's own
+  const PRESETS = { low: [1, false, false, 512], mid: [1.5, true, false, 1024], high: [2, true, true, 1024], max: [3, true, true, 2048] };
+  function testSet(o) {
+    if (!R || !done) return false;
+    if (o.cap !== undefined) { pacer.target(o.cap); pacer.reset(); }
+    if (o.preset) {
+      const P = PRESETS[o.preset];
+      if (P) { manual = true; prNext = 0; R.setPixelRatio(Math.min(window.devicePixelRatio || 1, P[0])); setShadows(P[1], P[2], P[3]); }
+      else { manual = false; prStep = 0; prNext = 0; busyAvg = 1 / 60; busyN = 0; R.setPixelRatio(basePR); setShadows(quality > 0, !mobile, mobile ? 512 : 2048); }
+      resize();
+    }
+    return true;
+  }
+  function stats(times) {
+    if (!times.length) return null;
+    const s = times.slice().sort((a, b) => a - b), n = s.length, avg = s.reduce((a, b) => a + b, 0) / n;
+    return { frames: n, fps: Math.round(1000 / avg), low1: Math.round(1000 / s[Math.min(n - 1, Math.floor(n * 0.99))]), worst: Math.round(s[n - 1]),
+      stutters: s.filter(t => t > 34).length };
+  }
+  function benchAim(dt) {      // round the whole board, a little lower than the overview: more of the sea in view
+    camT.x = 0; camT.z = 0; camT.y = 0; camT.d = overD * 0.8; camT.el = elOver * 0.82;
+    camT.yaw += dt * 0.5;
+  }
+  function benchFrame(now, delta) {
+    if (now < bench.from) return;                  // the first second: the camera gets going
+    bench.times.push(delta * 1000);
+    if (now >= bench.until) bench.done(stats(bench.times));
+  }
+  function testBench(secs) {
+    return new Promise(res => {
+      if (!running || !built) return res(null);
+      const now = performance.now(), b = { from: now + 1000, until: now + 1000 + secs * 1000, times: [] };
+      let settled = false;
+      b.done = s => { if (settled) return; settled = true; if (bench === b) bench = null; res(s); };
+      bench = b;
+      setTimeout(() => b.done(stats(b.times)), secs * 1000 + 4000);      // frames that stopped coming (the page hidden)
+    });
+  }
+  function testInfo() {
+    if (!R) return null;
+    return { pr: +R.getPixelRatio().toFixed(2), w: Math.round(W * R.getPixelRatio()), h: Math.round(H * R.getPixelRatio()), shadows: R.shadowMap.enabled,
+      soft: R.shadowMap.type === T.PCFSoftShadowMap, map: sun.shadow.mapSize.x, target: Math.round(1 / pacer.interval), manual, mobile,
+      calls: PERF.calls || 0, tris: PERF.tris || 0, cpuMs: +(PERF.cpuMs || 0).toFixed(1), playing: running && built, world: worldBuilt };
   }
   function stop() { running = false; }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') stop(); else if (built) start(); });
@@ -2344,6 +2405,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       return `gpu ${name} · webgl${R.capabilities.isWebGL2 ? 2 : 1} · pixel ratio ${R.getPixelRatio().toFixed(2)} (${prStep} steps down) · quality ${quality} · frame ${Math.round(busyAvg * 1000)} ms (~${Math.round(1 / busyAvg)} fps / ${Math.round(1 / pacer.interval)} target) · CPU submit ${(PERF.cpuMs || 0).toFixed(1)} ms (effects ${(PERF.effectsMs || 0).toFixed(1)}, clips ${(PERF.clipsMs || 0).toFixed(1)}, draw ${(PERF.drawMs || 0).toFixed(1)}) · draw ${PERF.calls || 0}/${Math.round((PERF.tris || 0) / 1000)}k triangles · ${mobile ? 'phone' : 'computer'} · shaders ${R.info.programs.length} · textures ${m.textures} · geometries ${m.geometries}${models}${lostAt ? ' · GRAPHICS LOST' : ''}`;
     },
     onPick(cb) { pickCb = cb; },
+    test: { set: testSet, bench: testBench, info: testInfo },
     setPos(seat, at) { pos[seat] = at; },
     tween, ease, toWorld,
     _screen(i) { const c = centerOf(i).setY(TH); c.project(cam); const r = host.getBoundingClientRect(); return [r.left + (c.x + 1) / 2 * r.width, r.top + (1 - c.y) / 2 * r.height]; },

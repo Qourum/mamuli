@@ -907,8 +907,8 @@ const Sheet = (() => {
   function refresh() { if (kind) draw(); }
   function draw() {
     const st = View.st;
-    if (!st && kind !== 'rules' && kind !== 'install' && kind !== 'diag') return close();
-    const fn = { deed, player, estate, build, trade, offer, log, menu, over, bankrupt: bankruptSheet, rules, install, diag }[kind];
+    if (!st && kind !== 'rules' && kind !== 'install' && kind !== 'diag' && kind !== 'gfx') return close();
+    const fn = { deed, player, estate, build, trade, offer, log, menu, over, bankrupt: bankruptSheet, rules, install, diag, gfx }[kind];
     if (!fn) return close();
     const html = fn(st);
     if (html == null) return close();
@@ -1169,10 +1169,46 @@ const Sheet = (() => {
       <div class="menu-list">
         <button class="btn wide" data-sheet="rules">წესები</button>
         <button class="btn wide" data-sound>ხმა: ${Sound.on ? 'ჩართული' : 'გამორთული'}</button>
+        ${typeof Gfx !== 'undefined' && Gfx ? `<button class="btn wide" data-sheet="gfx">გრაფიკა: ${esc(Gfx.names[Gfx.chosen])}</button>` : ''}
         ${host && st && st.phase !== 'over' ? '<button class="btn wide" data-confirm="stop">თამაშის დასრულება ახლავე</button>' : ''}
         <button class="btn wide danger" data-confirm="leave">${ROOM && ROOM.mode === 'online' ? 'ოთახიდან გასვლა' : 'მთავარ მენიუში გასვლა'}</button>
         <button class="btn wide ghost small" data-sheet="diag">ტექნიკური ჟურნალი</button>
       </div><div id="confirm"></div>`;
+  }
+  // the graphics (gfx.js): the level, kept on this device; a phone's frames a second; the frame counter. Each level
+  // says how many pixels it draws on this screen. A new level is made when the page is opened again (the models and
+  // the smoothing are chosen then): in a game with bots that is at once, and the game goes on where it was.
+  function gfx() {
+    if (typeof Gfx === 'undefined' || !Gfx) return null;
+    const now = Gfx.level, next = Gfx.chosen, phone = Gfx.phone, d = window.devicePixelRatio || 1;
+    const ABOUT = phone ? {
+      low: 'სუსტი ტელეფონისთვის: ჩრდილების გარეშე',
+      standard: 'ტელეფონის მოდელები, უბრალო ჩრდილები',
+      high: 'უფრო მკვეთრი სურათი, გლუვი კიდეები, წმინდა ჩრდილები',
+      ultra: 'კომპიუტერის ხარისხი: სრული მოდელები და ტექსტურები, რბილი ჩრდილები'
+    } : {
+      low: 'ჩრდილების გარეშე, სუსტი კომპიუტერისთვის',
+      standard: 'სრული მოდელები, გლუვი კიდეები, რბილი ჩრდილები',
+      high: 'კიდევ უფრო მკვეთრი, სადაც ეკრანი იძლევა',
+      ultra: 'ყველაზე მკვეთრი ტექსტურები დახრილ ხედშიც'
+    };
+    const size = l => { const k = Math.min(d, Gfx.specOf(l).pr); return `${Math.round(innerWidth * k)}×${Math.round(innerHeight * k)}${k >= d ? ', ეკრანის ყველა პიქსელი' : ''}`; };
+    const online = ROOM && ROOM.mode === 'online', bots = botGame();
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+    const apply = next === now ? '' : `<div class="gfx-apply"><p>ახლა „${esc(Gfx.names[now])}“ მუშაობს. „${esc(Gfx.names[next])}“ ჩაირთვება, როცა თამაში თავიდან ჩაიტვირთება.</p>
+      ${online ? '<p class="hint">ონლაინ ოთახში ახლა არ ჩავტვირთავ: ჩაირთვება, როცა თამაშს შემდეგ ჯერზე გახსნი.</p>' : `<button class="btn gold wide" data-gfx-reload>ახლავე ჩატვირთვა</button>${bots ? '<p class="hint">ბოტებთან თამაში შენახულია და იქიდანვე გაგრძელდება.</p>' : ''}`}</div>`;
+    return `<div class="sheet-h"><h2>გრაფიკა</h2><button class="x" data-close aria-label="დახურვა">×</button></div>
+      <div class="gfx-levels">${Gfx.levels.map(l => `<button class="gfx-lv${l === next ? ' on' : ''}" data-gfx="${l}" aria-pressed="${l === next}"><b>${esc(Gfx.names[l])}${l === Gfx.def ? '<i>ნაგულისხმევი</i>' : ''}</b><small><span class="amt">${size(l)}</span> · ${ABOUT[l]}</small></button>`).join('')}</div>
+      ${apply}
+      ${phone ? `<p class="lbl gfx-lbl">კადრები წამში</p><div class="row gfx-fps">${[60, 120].map(f => `<button class="btn small${Gfx.fps === f ? ' on' : ''}" data-fps="${f}" aria-pressed="${Gfx.fps === f}">${f}</button>`).join('')}</div>
+      <p class="hint">120 მხოლოდ 120-ჰერციან ეკრანზე ჩანს და ბატარეას მეტს ხარჯავს.${ios ? ' iPhone-ზე Safari 60-ზე მეტს არ ხატავს, თუ არ გამორთე: Settings → Apps → Safari → Advanced → Feature Flags → <span class="en">Prefer Page Rendering Updates near 60fps</span>.' : ''}</p>` : ''}
+      <div class="menu-list gfx-more"><button class="btn wide" data-meter>კადრების მთვლელი: ${Gfx.meter ? 'ჩართული' : 'გამორთული'}</button></div>
+      <p class="hint">${phone ? 'თუ ტელეფონი ვერ აუვა, თამაში გარჩევადობას თავად დაწევს, რომ არ გაჭედოს. 8K ტელეფონზე არაფერს მატებს: ეკრანს ბევრად ნაკლები პიქსელი აქვს, ამიტომ მაქსიმუმი ულტრაა, ეკრანის ყველა პიქსელი.' : 'თუ კადრები შენელდა, თამაში გარჩევადობას თავად დაწევს.'}</p>`;
+  }
+  // a game with bots (or on one screen) is on the screen, and kept: opened again, the page goes back into it
+  function botGame() {
+    const saved = store.get('local');
+    return UI.screen === 'game' && !!ROOM && ROOM.role === 'local' && !!(saved && saved.st && saved.st.phase !== 'lobby' && saved.st.phase !== 'over');
   }
   // what this phone went through, to send to whoever makes the game when something went wrong
   function diag() {
@@ -1241,6 +1277,15 @@ const Sheet = (() => {
     const sh = ev.target.closest('[data-sheet]');
     if (sh) return open(sh.dataset.sheet);
     if (ev.target.closest('[data-sound]')) { Sound.on = !Sound.on; Sound.unlock(); return draw(); }
+    const lv = ev.target.closest('[data-gfx]');
+    if (lv) { Gfx.choose(lv.dataset.gfx); Diag.note('gfx', `chosen ${Gfx.chosen} (running ${Gfx.level})`); return draw(); }
+    if (ev.target.closest('[data-gfx-reload]')) {
+      try { if (botGame()) sessionStorage.setItem('mamuli.gfxResume', '1'); } catch (e) { }     // (app.js boot goes back into it)
+      location.reload(); return;
+    }
+    const fp = ev.target.closest('[data-fps]');
+    if (fp) { const f = Gfx.setFps(+fp.dataset.fps); if (Board3D.rate) Board3D.rate(f); return draw(); }
+    if (ev.target.closest('[data-meter]')) { const on = Gfx.setMeter(!Gfx.meter); if (typeof PerfTest !== 'undefined' && PerfTest) PerfTest.show(on); return draw(); }
     if (ev.target.closest('[data-invite]')) return Lobby.invite();
     if (ev.target.closest('[data-copylog]')) {
       const text = Diag.report(), pre = $('#diagText');

@@ -17,7 +17,7 @@ import base64, hashlib, json, os, shutil, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'src')
 METEKHI = os.environ.get('METEKHI', os.path.join(os.path.dirname(ROOT), 'qourum', 'metekhi'))
-JS = ['diag.js', 'data.js', 'themes.js', 'engine.js', 'trade-insights.js', 'net.js', 'voice.js', 'terrain.js', 'models.js', 'sea.js', 'glb.js', 'marine.js', 'lagoon.js', 'reef.js', 'weather.js', 'place-models.js', 'map-props.js', 'place-fx.js', 'render-pacer.js', 'board3d.js', 'dice3d.js', 'pictures.js', 'card3d.js', 'ui.js', 'app.js', 'perf.js']
+JS = ['diag.js', 'gfx.js', 'data.js', 'themes.js', 'engine.js', 'trade-insights.js', 'net.js', 'voice.js', 'terrain.js', 'models.js', 'sea.js', 'glb.js', 'marine.js', 'lagoon.js', 'reef.js', 'weather.js', 'place-models.js', 'map-props.js', 'place-fx.js', 'render-pacer.js', 'board3d.js', 'dice3d.js', 'pictures.js', 'card3d.js', 'ui.js', 'app.js', 'perf.js']
 THREE_CDN = 'https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js'
 HEROES = ['david', 'tamar', 'gorgasali', 'erekle', 'kakutsa', 'tariel', 'avtandil', 'gurdjieff', 'abrag', 'amirani', 'mikha', 'prometheus']
 PIRATES = ['blackbeard', 'bonny', 'read', 'chingshih', 'omalley', 'morgan', 'kidd', 'roberts', 'barbarossa', 'bellamy', 'labuse', 'stortebeker']

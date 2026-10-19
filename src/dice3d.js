@@ -52,7 +52,8 @@ const Dice3D = (() => {
     return g;
   }
 
-  const mobile = Math.min(screen.width, screen.height) < 700;
+  // the dice's own shadow map: the smaller one where the graphics level keeps the board's small too (gfx.js)
+  const mobile = typeof Gfx !== 'undefined' && Gfx ? Gfx.spec.shadow < 1024 : Math.min(screen.width, screen.height) < 700;
   function init(THREE, el) {
     if (ok) return;
     T = THREE; host = el;

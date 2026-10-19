@@ -21,7 +21,7 @@ const Card3D = (() => {
     if (sharedRenderer) return sharedRenderer;
     const T = window.THREE, r = new T.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'low-power' });
     sharedRenderer = r;
-    r.setPixelRatio(Math.min(1.5, window.devicePixelRatio || 1)); r.outputEncoding = T.sRGBEncoding;
+    r.setPixelRatio(Math.min(typeof Gfx !== 'undefined' && Gfx && Gfx.level === 'ultra' ? 2.5 : 1.5, window.devicePixelRatio || 1)); r.outputEncoding = T.sRGBEncoding;
     r.toneMapping = T.ACESFilmicToneMapping; r.toneMappingExposure = .86; r.setClearColor(0x000000, 0);
     if (r.shadowMap) { r.shadowMap.enabled = true; r.shadowMap.type = T.PCFSoftShadowMap; }
     r.domElement.setAttribute('aria-hidden', 'true');

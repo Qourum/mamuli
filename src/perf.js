@@ -1,12 +1,12 @@
-// ===== the phone test: with ?test in the address, how the board runs on this device =====
-// A badge at the screen's edge shows how many frames a second the board draws. Tapped, it opens a panel: the quality set
-// by hand (the game's own choice, or low to maximum), the frame target (the game's own, 60, 120, or every frame the
-// screen offers), and a test that turns the camera round the board for eight seconds under each quality and measures
-// every drawn frame. The results go into the technical log and are copied, to be sent.
+// ===== the phone test: with ?test in the address, or the frame counter on (the menu's „გრაფიკა“), how the board runs =====
+// A badge at the screen's edge shows how many frames a second the board draws. Tapped, it opens a panel: the pixels and
+// shadows set by hand (the game's own at its graphics level, or one to three pixels per point), the frame target (the
+// game's own, 60, 120, or every frame the screen offers), and a test that turns the camera round the board for eight
+// seconds under each and measures every drawn frame. The results go into the technical log and are copied, to be sent.
 
 const PerfTest = (() => {
-  if (!/[?&]test\b/.test(location.search)) return null;
-  const QUAL = [['auto', 'ავტო'], ['low', 'დაბალი'], ['mid', 'საშუალო'], ['high', 'მაღალი'], ['max', 'მაქსიმუმი']];
+  const asked = /[?&]test\b/.test(location.search);
+  const QUAL = [['auto', 'თამაშის'], ['low', '1x'], ['mid', '1.5x'], ['high', '2x'], ['max', '3x']];
   const CAPS = [['auto', 'ავტო'], [60, '60'], [120, '120'], [0, 'ზღვრის გარეშე']];
   const NAME = Object.fromEntries(QUAL);
   const RUNS = [['low', 0], ['mid', 0], ['high', 0], ['max', 0], ['auto', 'auto']];     // each quality as fast as it goes; then the game as it is
@@ -37,7 +37,10 @@ const PerfTest = (() => {
     if (p && lastT) fps = Math.round((p.frames - lastF) * 1000 / (now - lastT));
     if (p) { lastF = p.frames; lastT = now; }
     const i = info();
-    if (badge) badge.textContent = i && i.playing ? `${fps} fps · ${i.pr}x` : 'ტესტი';
+    if (badge) {
+      badge.textContent = i && i.playing ? `${fps} fps · ${i.pr}x` : 'ტესტი';
+      if (!asked) badge.hidden = !(shown && i && i.playing);   // the counter (not ?test) shows only over a game
+    }
     if (panel && !panel.hidden) status();
   }
   function status() {
@@ -52,6 +55,7 @@ const PerfTest = (() => {
   function report() {
     const i = info() || {};
     return [`შენი ჯერი · ტელეფონის ტესტი ${typeof BUILD !== 'undefined' ? BUILD : ''}`, navigator.userAgent,
+      `გრაფიკა ${typeof Gfx !== 'undefined' && Gfx ? `${Gfx.name} (${Gfx.level})${Gfx.phone ? `, ${Gfx.fps} კადრი` : ''}` : '?'}${i.aa ? ' · გლუვი კიდეები' : ''}${i.lite ? ' · ტელეფონის დაფა' : ''}`,
       `ეკრანი ${screen.width}×${screen.height} · dpr ${window.devicePixelRatio || 1} · ${hz || '?'} ჰც · ${gpuName()} · ${i.mobile ? 'ტელეფონი' : 'კომპიუტერი'}`,
       `სამყარო ${i.world || '?'}`, ...results.map(line)].join('\n');
   }
@@ -106,7 +110,10 @@ const PerfTest = (() => {
     else if (b.hasAttribute('data-copy')) copy();
     else if (b.hasAttribute('data-close')) panel.hidden = true;
   }
+  let started = false, shown = asked;
   function start() {
+    if (started) { tick(); return; }
+    started = true;
     badge = document.createElement('button');
     badge.className = 'ptest-badge'; badge.type = 'button'; badge.textContent = 'ტესტი';
     badge.setAttribute('aria-label', 'ტელეფონის ტესტი');
@@ -115,9 +122,16 @@ const PerfTest = (() => {
     panel.className = 'ptest'; panel.hidden = true;
     panel.addEventListener('click', onClick);
     document.body.append(badge, panel);
-    setInterval(tick, 500);
+    tick(); setInterval(tick, 500);
     setTimeout(() => measureHz().then(h => { hz = h; if (!panel.hidden) render(); }), 2500);
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
-  return { report, get results() { return results; }, runAll, capOf };
+  const later = fn => { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn); else fn(); };
+  // the frame counter on or off (the menu's „გრაფიკა“); with ?test it is always there
+  function show(on) {
+    shown = asked || !!on;
+    if (shown) later(start);
+    else if (started) { badge.hidden = true; panel.hidden = true; }
+  }
+  if (asked || (typeof Gfx !== 'undefined' && Gfx && Gfx.meter)) show(true);
+  return { report, get results() { return results; }, runAll, capOf, show };
 })();

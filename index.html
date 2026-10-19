@@ -768,6 +768,26 @@ pre.diag { margin: 10px 0 0; padding: 10px; max-height: 52vh; overflow: auto; bo
 .log li { padding: 6px 0; border-top: 1px solid var(--line-2); font-size: 13.5px; line-height: 1.4; }
 .log li:first-child { border-top: 0; color: var(--cream); }
 .menu-list { display: flex; flex-direction: column; gap: 8px; }
+/* the graphics sheet: the four levels (each with the pixels it draws here), a phone's frames a second, the counter */
+.menu-links { display: flex; justify-content: center; gap: 4px 18px; flex-wrap: wrap; }
+.gfx-levels { display: flex; flex-direction: column; gap: 8px; }
+.gfx-lv { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; min-height: 54px; padding: 9px 14px; text-align: left;
+  border-radius: 12px; border: 1px solid var(--line-3); background: var(--panel-2); color: var(--text); }
+.gfx-lv b { display: flex; align-items: baseline; gap: 8px; font: 900 16px/1.25 var(--f-display); color: var(--cream); }
+.gfx-lv b i { font: 600 11px var(--f-ui); font-style: normal; letter-spacing: .03em; color: var(--muted); }
+.gfx-lv small { font-size: 12.5px; line-height: 1.4; color: var(--muted); }
+.gfx-lv small .amt { font: 600 12.5px var(--f-ui); color: var(--text); }
+.gfx-lv.on { border-color: var(--gold); background: linear-gradient(180deg, rgba(232, 180, 76, .16), rgba(232, 180, 76, .05)), var(--panel-2); box-shadow: inset 0 0 0 1px rgba(232, 180, 76, .35); }
+.gfx-lv.on b { color: var(--gold-hi); }
+.gfx-apply { margin-top: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--ink-2); display: flex; flex-direction: column; gap: 8px; }
+.gfx-apply p { margin: 0; font-size: 13.5px; line-height: 1.45; }
+.gfx-apply .hint { margin: 0; }
+.gfx-lbl { margin-top: 14px; }
+.gfx-fps { justify-content: flex-start; }
+.gfx-fps .btn { min-width: 64px; }
+.gfx-fps .btn.on { border-color: var(--gold); color: var(--gold-hi); box-shadow: inset 0 0 0 1px rgba(232, 180, 76, .45); }
+.gfx-more { margin-top: 14px; }
+.hint .en { color: var(--text); }
 #confirm .prose { margin-top: 12px; }
 .over-h { text-align: center; margin: 4px 0 12px; }
 .over-h img { width: 96px; height: 96px; border-radius: 50%; box-shadow: 0 0 0 4px var(--c), 0 0 0 7px var(--gold), 0 10px 30px rgba(0, 0, 0, .6); }
@@ -978,7 +998,7 @@ svg.asset-picture { width: auto; max-width: 100%; aspect-ratio: 1; margin: 0 aut
           <button class="btn wide" id="bInstall"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 6.5v7M9 10.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.5 18h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>დააინსტალირე</button>
           <p class="note" id="installNote">მთავარ ეკრანზე დაჯდება და აპივით გაიხსნება, ბრაუზერის ზოლების გარეშე.</p>
         </div>
-        <button class="link" id="bRules">წესები</button>
+        <div class="menu-links"><button class="link" id="bRules">წესები</button><button class="link" id="bGfx">გრაფიკა</button></div>
       </div>
     </div>
   </section>
@@ -1031,7 +1051,7 @@ svg.asset-picture { width: auto; max-width: 100%; aspect-ratio: 1; margin: 0 aut
 <script src="vendor/three.min.js"></script>
 <script src="vendor/GLTFLoader.min.js"></script>
 <script>
-const BUILD = "9ef97381c1";
+const BUILD = "627d4d83ba";
 const SITE = true;
 // ===== the technical log: what this phone went through, to copy and send when something goes wrong =====
 // Errors, the 3D board losing or getting back its graphics, slow frames (and what was on the screen then), shaders made
@@ -1070,6 +1090,97 @@ const Diag = (() => {
   }
   const report = () => [device(), '', ...lines].join('\n');
   return { note, report, doing, slow };
+})();
+
+// ===== the graphics: how much the 3D board draws on this device (the menu's „გრაფიკა“) =====
+// Four levels, kept on the device. On a phone:
+//   low       one pixel per point, no shadows: for a weak phone
+//   standard  the phone models (a quarter of the triangles), their pictures at 512, 1.5 pixels per point, plain shadows
+//   high      the same models and pictures, two pixels per point, smoothed edges, a finer shadow map (a phone's default)
+//   ultra     what a computer draws: the full models, their full pictures, the full scenery, every pixel of the screen
+//             (up to three per point), smoothed edges, soft shadows
+// 8K would add nothing on a phone: its screen has some 3 million pixels, 8K has 33 million. Above the standard level the
+// board watches its frames and draws fewer pixels when they keep coming late (board3d.js, guard), so it does not lag.
+// A computer keeps its own drawing at the standard level (the full models, 1.75 pixels per point, soft shadows); high
+// and ultra allow it more pixels where its screen has them.
+// The level is read when the board is made (the models and the smoothing are chosen then), so a change takes effect
+// when the page is opened again. ?lq in the address is the low level for that visit, ?gfx=ultra (or another) that one.
+// A page that died, or lost its graphics, while a game was on a phone's screen at high or ultra (a phone short of memory
+// closes the page) opens one level lower next time, and says so.
+const Gfx = (() => {
+  const KEY = 'mamuli.gfx', LEVELS = ['low', 'standard', 'high', 'ultra'];
+  const NAMES = { low: 'დაბალი', standard: 'საშუალო', high: 'მაღალი', ultra: 'ულტრა' };
+  const nav = typeof navigator !== 'undefined' ? navigator : {}, scr = typeof screen !== 'undefined' ? screen : { width: 1280, height: 800 };
+  const phone = Math.min(scr.width, scr.height) < 700 || (nav.maxTouchPoints > 1 && /iPhone|iPad|iPod|Android|Macintosh/.test(nav.userAgent || ''));
+  const PHONE = {
+    low: { lite: true, phoneModels: true, cap: 512, pr: 1, aa: false, shadow: 0, soft: false, aniso: 2, net: false },
+    standard: { lite: true, phoneModels: true, cap: 512, pr: 1.5, aa: false, shadow: 512, soft: false, aniso: 4, net: false },
+    high: { lite: true, phoneModels: true, cap: 512, pr: 2, aa: true, shadow: 1024, soft: false, aniso: 8, net: true },
+    ultra: { lite: false, phoneModels: false, cap: 0, pr: 3, aa: true, shadow: 2048, soft: true, aniso: 16, net: true }
+  };
+  const COMPUTER = {
+    low: { lite: false, phoneModels: false, cap: 0, pr: 1, aa: false, shadow: 0, soft: false, aniso: 4, net: true },
+    standard: { lite: false, phoneModels: false, cap: 0, pr: 1.75, aa: true, shadow: 2048, soft: true, aniso: 8, net: true },
+    high: { lite: false, phoneModels: false, cap: 0, pr: 2, aa: true, shadow: 2048, soft: true, aniso: 8, net: true },
+    ultra: { lite: false, phoneModels: false, cap: 0, pr: 3, aa: true, shadow: 2048, soft: true, aniso: 16, net: true }
+  };
+  const read = () => { try { const v = JSON.parse(localStorage.getItem(KEY) || 'null'); return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; } };
+  const write = () => { try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) { } };
+  const search = typeof location !== 'undefined' ? location.search || '' : '';
+  const def = phone ? 'high' : 'standard';
+  const lower = l => LEVELS[Math.max(0, LEVELS.indexOf(l) - 1)];
+  const guarded = l => phone && LEVELS.indexOf(l) > LEVELS.indexOf('standard');
+  let saved = read(), fell = '';
+  let chosen = LEVELS.includes(saved.level) ? saved.level : def;
+  // the last visit at this level died with a game on the screen, or lost its graphics there: one level lower
+  if (guarded(chosen) && (saved.trying === chosen || saved.lost === chosen)) {
+    fell = chosen; chosen = lower(chosen); saved.level = chosen;
+  }
+  if (saved.trying || saved.lost) { delete saved.trying; delete saved.lost; write(); }
+  const asked = /[?&]lq\b/.test(search) ? 'low' : (/[?&]gfx=([a-z]+)/.exec(search) || [])[1];
+  const level = LEVELS.includes(asked) ? asked : chosen;           // this visit's level (the address may ask another)
+  const spec = (phone ? PHONE : COMPUTER)[level];
+  let fps = phone && saved.fps === 120 ? 120 : 60, meter = saved.meter === true;
+
+  // a game is on the screen: if the page dies now, the next visit knows it (cleared once it has run a minute with all
+  // its models arrived, or when the page is put away in an orderly way)
+  let clearT = 0;
+  function settled() {
+    clearTimeout(clearT); clearT = 0;
+    if (!saved.trying) return;
+    saved = read(); delete saved.trying; write();
+  }
+  function wait(ms) {
+    clearTimeout(clearT);
+    clearT = setTimeout(() => {
+      const a = typeof GLB !== 'undefined' && GLB && GLB.stats ? GLB.stats() : null;
+      if (a && (a.active || a.queued)) wait(15000); else settled();
+    }, ms);
+  }
+  function playing() {
+    if (!guarded(level) || level !== chosen) return;
+    saved = Object.assign(read(), { trying: level }); write();
+    wait(60000);
+  }
+  function lost() {
+    if (!guarded(level) || level !== chosen || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;
+    saved = Object.assign(read(), { lost: level }); write();
+  }
+  if (typeof addEventListener === 'function') addEventListener('pagehide', settled);
+  if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') settled(); });
+
+  return {
+    phone, level, spec, fell, def, levels: LEVELS, names: NAMES,
+    get name() { return NAMES[level]; },
+    get chosen() { return chosen; },               // the level kept on the device (the next visit's)
+    get fps() { return fps; }, get meter() { return meter; },
+    // the level for the next visit (this one keeps what it was made with)
+    choose(l) { if (!LEVELS.includes(l)) return chosen; chosen = l; saved = Object.assign(read(), { level: l }); write(); return chosen; },
+    setFps(f) { fps = phone && f === 120 ? 120 : 60; saved = Object.assign(read(), { fps }); write(); return fps; },
+    setMeter(on) { meter = !!on; saved = Object.assign(read(), { meter }); write(); return meter; },
+    playing, settled, lost,
+    specOf: l => (phone ? PHONE : COMPUTER)[l]
+  };
 })();
 
 // ===== მამული: the board, the regions, the cards and the heroes =====
@@ -5567,15 +5678,19 @@ const GLB = (() => {
   const cache = new Map();
   const scenes = new Map();
   const jobs = new Map(), queue = [], measuredTextures = new WeakSet(), measuredImages = new WeakMap();
-  const policy = { mobile: false, concurrency: 4 };
+  const policy = { mobile: false, cap: 0, concurrency: 4 };   // cap: the longest side of a model's picture (0: as made)
   const counts = { completed: 0, failed: 0, fetches: 0, retries: 0, timeouts: 0, maxActive: 0, lodModels: 0, triangles: 0, vertices: 0, textures: 0, images: 0, resizedImages: 0, resizeFailures: 0, originalImageBytes: 0, imageBytes: 0, originalTextureBytes: 0, textureBytes: 0 };
   const DEADLINE = 90000;
   let active = 0, scheduled = false, serial = 0;
   const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
   const imageBytes = (w, h) => Math.ceil(w * h * 4 * 4 / 3); // RGBA plus a full mip chain; an estimate, not driver telemetry.
-  function stats() { return { ...counts, mobile: policy.mobile, concurrency: policy.concurrency, active, queued: queue.length }; }
+  function stats() { return { ...counts, mobile: policy.mobile, cap: policy.cap, concurrency: policy.concurrency, active, queued: queue.length }; }
+  // mobile: the phone models (art/mobile); cap: their pictures at most this many points a side (the centre's twice that),
+  // 512 for the phone models unless said otherwise (gfx.js chooses both)
   function configure(options = {}) {
     if (options.mobile != null) policy.mobile = !!options.mobile;
+    if (options.cap != null) policy.cap = Math.max(0, Math.floor(Number(options.cap)) || 0);
+    else if (options.mobile != null) policy.cap = policy.mobile ? 512 : 0;
     policy.concurrency = Number.isFinite(options.concurrency) ? Math.max(1, Math.min(8, Math.floor(options.concurrency))) : policy.mobile ? 2 : 4;
     schedule(); return stats();
   }
@@ -5650,18 +5765,18 @@ const GLB = (() => {
     const residentTextures=new Set(textures);
     // Include parser-cached texture clones before releasing an ImageBitmap. They
     // share Texture.Source objects with material maps and may be reused later.
-    if(policy.mobile&&gltf.parser&&typeof gltf.parser.getDependencies==='function')
+    const cap=policy.cap?(/volcano/i.test(url)?policy.cap*2:policy.cap):0;
+    if(cap&&gltf.parser&&typeof gltf.parser.getDependencies==='function')
       for(const texture of await gltf.parser.getDependencies('texture'))if(texture&&texture.isTexture)textures.add(texture);
     const grouped=new Map();
     for(const texture of textures){const image=texture.image;if(!image)continue;if(!grouped.has(image))grouped.set(image,[]);grouped.get(image).push(texture);}
-    const cap=/volcano/i.test(url)?1024:512;
     for(const [image, refs]of grouped){
       let info=measuredImages.get(image);
       if(!info){
         const w=image.naturalWidth||image.width||0,h=image.naturalHeight||image.height||0;
         if(!w||!h)continue;
         const original=imageBytes(w,h);info={image,width:w,height:h,original,bytes:original};
-        if(policy.mobile&&Math.max(w,h)>cap){
+        if(cap&&Math.max(w,h)>cap){
           try{
             const canvas=document.createElement('canvas'),factor=cap/Math.max(w,h);
             canvas.width=Math.max(1,Math.round(w*factor));canvas.height=Math.max(1,Math.round(h*factor));
@@ -7666,12 +7781,13 @@ const RenderPacer = (() => {
   function create(mobile = false) {
     let previous = null, next = null, lastInterval = null, delta = 1 / 60, interval = mobile ? 1 / 60 : 1 / 30, count = 0;
     let override = null;     // a target set by hand (the phone test, ?test): frames a second, 0 = every frame the display offers
+    let rated = 60;          // a phone's frames a second while something moves (the menu's 60 or 120); still, it stays at 60
     // A 60 Hz display needs a small early margin at a matching 60 FPS target;
     // otherwise timestamp jitter can discard frames that the display cannot recover.
     const tolerance = 1.25;
     return {
       step(now, active) {
-        interval = override != null ? (override ? 1 / override : 0) : mobile ? 1 / 60 : active ? 0 : 1 / 30;
+        interval = override != null ? (override ? 1 / override : 0) : mobile ? (active ? 1 / rated : 1 / 60) : active ? 0 : 1 / 30;
         const milliseconds = interval * 1000;
         if (milliseconds !== lastInterval) {
           next = milliseconds && previous !== null ? previous + milliseconds : null;
@@ -7689,9 +7805,44 @@ const RenderPacer = (() => {
       },
       reset() { previous = next = lastInterval = null; delta = 1 / 60; },
       target(fps) { override = fps == null ? null : fps; },
+      rate(fps) { if (fps != null) rated = fps > 60 ? Math.min(240, fps) : 60; return rated; },
       get delta() { return delta; },
       get interval() { return interval || 1 / 60; },
       get frames() { return count; }
+    };
+  }
+  return { create };
+})();
+
+// A phone's safety net above the standard graphics level (board3d.js guard): watches the drawn frames and says when to
+// draw less. It judges at least two seconds of frames (and six of them) by their mean time, the slowest twentieth left
+// out: isolated stalls (a picture decoded, a shader made) do not count, and a 75, 90 or 144 Hz screen that shows a 60
+// target unevenly (some frames a refresh early, some a refresh late) means exactly the target. More than 15% over the
+// target (under 52 frames a second at 60) is lagging: 'rate' (a phone at 120 goes back to 60), else 'down' a step. A
+// step that did not help (less than a third of the lag gone: the models are slow, not the pixels) is taken back, 'up',
+// and then nothing more is said, so the board is not blurred for nothing; past the last step, 'stuck'.
+const FrameGuard = (() => {
+  function create(steps = 5) {
+    let times = [], seenT = 0, step = 0, before = 0, stuck = false;
+    const clear = () => { times = []; seenT = 0; };
+    return {
+      // one drawn frame: the seconds since the one before, the target interval, the phone's chosen rate
+      sample(real, interval, rated = 60) {
+        if (stuck || !(real > 0) || !(interval > 0)) return null;
+        times.push(real / interval); seenT += real;          // each frame against its own target (moving or still)
+        if (seenT < 2 || times.length < 6) return null;
+        const s = times.sort((a, b) => a - b).slice(0, times.length - Math.floor(times.length / 20));
+        const over = s.reduce((a, b) => a + b, 0) / s.length - 1, r = { over, fps: Math.round(times.length / seenT * 10) / 10, of: times.length };
+        clear();
+        if (over <= 0.15) { before = 0; return null; }
+        if (rated > 60) return { do: 'rate', step, ...r };
+        if (step > 0 && before && over > before * 0.67) { stuck = true; step--; return { do: 'up', step, before, ...r }; }
+        if (step < steps - 1) { before = over; step++; return { do: 'down', step, ...r }; }
+        stuck = true; return { do: 'stuck', step, ...r };
+      },
+      pause: clear,                                  // not judged now (a game's first seconds, models arriving)
+      reset() { clear(); step = 0; before = 0; stuck = false; },
+      get step() { return step; }, get stuck() { return stuck; }
     };
   }
   return { create };
@@ -7723,7 +7874,11 @@ const Board3D = (() => {
     lin: t => t
   };
 
-  let ok = false, R = null, scene = null, cam = null, host = null, W = 1, H = 1, root = null, sun = null, ray = null, maxAniso = 4, mobile = false;
+  // phone: this device is a phone or a tablet (its frame pace, its shadow refreshes, its safety net); mobile: the board is
+  // made the lighter phone way (the scenery, the effects); G: what the graphics level draws (gfx.js)
+  let ok = false, R = null, scene = null, cam = null, host = null, W = 1, H = 1, root = null, sun = null, ray = null, maxAniso = 4, mobile = false, phone = false;
+  const GFX_STANDARD = { lite: false, phoneModels: false, cap: 0, pr: 1.75, aa: true, shadow: 2048, soft: true, aniso: 8, net: true };
+  let G = typeof Gfx !== 'undefined' && Gfx ? Gfx.spec : GFX_STANDARD;
   const tiles = [], labelCv = [], labelTex = [], labelMat = [], sideMat = [], lotMesh = [], lotGround = [], flags = [], mark = [];
   const toks = [], cornerTitles = [];
   let st = null, pos = [], turnSeat = -1, pickCb = null, built = false, mats = null, ownerMats = [], wheel = null;
@@ -9664,6 +9819,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   // Phone geometry/effects have a fixed budget. Keep its canvas sharp: reducing
   // pixels did not help the measured vertex bottleneck, but blurred the board.
   // Desktop can still lower resolution when sustained frame cadence is slow.
+  // Above the standard level a phone draws more pixels (gfx.js): there the guard
+  // below takes them back when frames keep coming late.
   let last = 0, running = false, frame = 0, quality = 2, basePR = 1, shadowDirty = true, shadowLate = false, shadowAt = 0;
   let pacer = RenderPacer.create(false), busyAvg = 1 / 60, busyN = 0, prStep = 0, prNext = 0, shadowTime = 0;
   let drewAt = 0, lostAt = 0, progN = 0;          // when a frame was last drawn; when the graphics were lost; shaders made
@@ -9676,12 +9833,53 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (real > 1 || real <= 0) return;
     real = Math.min(real, .25);                // bound isolated stalls without ignoring a consistently slow phone
     busyAvg = busyAvg * 0.95 + real * 0.05;
-    if (mobile || ++busyN < 45 || busyAvg < Math.max(target * 1.25, 1 / 36) || prNext || prStep >= PR_STEPS.length - 1) return;
+    if (phone || !G.net || ++busyN < 45 || busyAvg < Math.max(target * 1.25, 1 / 36) || prNext || prStep >= PR_STEPS.length - 1) return;
     const pr = Math.max(1, basePR * PR_STEPS[prStep + 1]);
     prStep++; busyN = 0;
     if (pr < R.getPixelRatio() - 0.01) prNext = pr;
   }
-  function coarser() { Diag.note('3d', `resolution ${R.getPixelRatio().toFixed(2)} -> ${prNext.toFixed(2)} (frames ${Math.round(busyAvg * 1000)} ms)`); R.setPixelRatio(prNext); prNext = 0; busyAvg = 1 / 60; busyN = 0; PERF.coarser = (PERF.coarser || 0) + 1; resize(); }
+  function coarser() {
+    if (prNext) { Diag.note('3d', `resolution ${R.getPixelRatio().toFixed(2)} -> ${prNext.toFixed(2)} (frames ${Math.round(busyAvg * 1000)} ms)`); R.setPixelRatio(prNext); prNext = 0; PERF.coarser = (PERF.coarser || 0) + 1; resize(); }
+    if (shadowNext) { const soft = shadowNext === 'soft'; shadowNext = ''; Diag.note('3d', `shadows: the ${soft ? 'soft' : 'plainer'} filter`); setShadows(R.shadowMap.enabled, soft, sun.shadow.mapSize.x); }
+    busyAvg = 1 / 60; busyN = 0;
+  }
+  // ----- a phone above the standard level: frames that keep coming late take pixels back, then the soft shadows -----
+  // FrameGuard (render-pacer.js) judges the frames: a phone at 120 goes back to 60 first, then the pixels go down a step
+  // (at the third step the plainer shadow filter too). A step that did not help is taken back (the models are slow,
+  // not the pixels: the board is not blurred for nothing), and no more are taken; at ultra the game then says once that
+  // high would be smoother. Nothing is judged in a game's first seconds (the rise, the models arriving) or while models
+  // load. The steps are taken when the board stands still, so the picture does not jump in the middle of a move.
+  const LADDER = [1, 0.85, 0.72, 0.6, 0.5];
+  const fg = FrameGuard.create(LADDER.length);
+  let guardFrom = 0, warned = false, shadowNext = '';
+  function loading() { const a = typeof GLB !== 'undefined' && GLB && GLB.stats ? GLB.stats() : null; return !!(a && (a.active || a.queued)); }
+  function warn(why) {
+    Diag.note('3d', why);
+    if (warned || typeof Gfx === 'undefined' || !Gfx || Gfx.level !== 'ultra' || typeof UI === 'undefined') return;
+    warned = true;
+    UI.toast(`ტელეფონი ულტრას ვერ ეწევა. უფრო გლუვი იქნება „${Gfx.names.high}“: მენიუ → გრაფიკა.`, 6500);
+  }
+  function guard(real, interval) {
+    if (real > 0) busyAvg = busyAvg * 0.95 + Math.min(real, .25) * 0.05;     // (for the technical log)
+    if (manual || !G.net || fg.stuck || prNext || shadowNext) return;
+    if (performance.now() < guardFrom || loading()) { fg.pause(); return; }
+    const a = fg.sample(real, interval, pacer.rate());
+    if (!a) return;
+    PERF.late = (PERF.late || 0) + 1;
+    const of = `${a.fps} fps of ${Math.round(1 / interval)} (${a.of} frames)`;
+    if (a.do === 'rate') { pacer.rate(60); Diag.note('3d', `${of}: 60 frames a second`); return; }
+    prStep = a.step;
+    const pr = Math.max(1, basePR * LADDER[prStep]), soft = R.shadowMap.type === T.PCFSoftShadowMap;
+    if (a.do === 'down') {
+      if (pr < R.getPixelRatio() - 0.01) prNext = pr;
+      if (prStep === 2 && R.shadowMap.enabled && soft) shadowNext = 'plain';
+      Diag.note('3d', `${of}: step ${prStep}`);
+    } else if (a.do === 'up') {
+      if (pr > R.getPixelRatio() + 0.01) prNext = pr;
+      if (prStep < 2 && G.soft && R.shadowMap.enabled && !soft) shadowNext = 'soft';
+      warn(`${of}, ${Math.round(a.before * 100)}% over before the step: the pixels are not what is slow, back to step ${prStep}`);
+    } else warn(`${of} at the lowest step`);
+  }
   function loop(now) {
     if (!running) return;
     requestAnimationFrame(loop);
@@ -9696,7 +9894,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     const moving = tweens.length > 0 || BLD.busy > 0;
     const camStill = Math.abs(camT.yaw - camS.yaw) < 0.002 && Math.abs(camT.d - camS.d) < 0.01 && Math.abs(camT.x - camS.x) < 0.005 && Math.abs(camT.z - camS.z) < 0.005;
     const still = !moving && camStill && !Dice3D.busy;
-    if (still && prNext) coarser();
+    if (still && (prNext || shadowNext)) coarser();
     // Do not deform meshes, update animals or upload instances for an unpainted frame.
     if (!pacer.step(now, !still)) return;
     if (bench) benchFrame(now, pacer.delta);
@@ -9741,8 +9939,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     const need = moving || !camStill;
     if (need) shadowLate = true;
     const every = Dice3D.busy ? 4 : 1;
-    const nativeShadow = !mobile && !REDUCED && animatedModels.length && now - shadowTime >= 130;
-    if (shadowDirty || nativeShadow || (shadowLate && (!need || (!mobile && frame - shadowAt >= every)))) { R.shadowMap.needsUpdate = true; shadowDirty = false; shadowLate = false; shadowAt = frame; shadowTime = now; PERF.shadows++; }
+    const nativeShadow = !phone && !REDUCED && animatedModels.length && now - shadowTime >= 130;
+    if (shadowDirty || nativeShadow || (shadowLate && (!need || (!phone && frame - shadowAt >= every)))) { R.shadowMap.needsUpdate = true; shadowDirty = false; shadowLate = false; shadowAt = frame; shadowTime = now; PERF.shadows++; }
     PERF.frames++;
     const lt = REDUCED ? 3 : t;              // with less motion asked for, the board's life stands still
     U.time.value = lt;
@@ -9751,7 +9949,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     draw(visualDt * speedK);
     const cpuMs = performance.now() - cpuStart;
     PERF.cpuMs = PERF.cpuMs == null ? cpuMs : PERF.cpuMs * .95 + cpuMs * .05;
-    adapt(pacer.delta, pacer.interval);
+    if (phone) guard(pacer.delta, pacer.interval); else adapt(pacer.delta, pacer.interval);
   }
   function draw(diceDt) {
     const clipsStart = performance.now();
@@ -9794,7 +9992,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     if (o.preset) {
       const P = PRESETS[o.preset];
       if (P) { manual = true; prNext = 0; R.setPixelRatio(Math.min(window.devicePixelRatio || 1, P[0])); setShadows(P[1], P[2], P[3]); }
-      else { manual = false; prStep = 0; prNext = 0; busyAvg = 1 / 60; busyN = 0; R.setPixelRatio(basePR); setShadows(quality > 0, !mobile, mobile ? 512 : 2048); }
+      else { manual = false; prStep = 0; prNext = 0; shadowNext = ''; fg.reset(); busyAvg = 1 / 60; busyN = 0; R.setPixelRatio(basePR); setShadows(G.shadow > 0, G.soft, G.shadow || 512); }
       resize();
     }
     return true;
@@ -9827,7 +10025,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   function testInfo() {
     if (!R) return null;
     return { pr: +R.getPixelRatio().toFixed(2), w: Math.round(W * R.getPixelRatio()), h: Math.round(H * R.getPixelRatio()), shadows: R.shadowMap.enabled,
-      soft: R.shadowMap.type === T.PCFSoftShadowMap, map: sun.shadow.mapSize.x, target: Math.round(1 / pacer.interval), manual, mobile,
+      soft: R.shadowMap.type === T.PCFSoftShadowMap, map: sun.shadow.mapSize.x, target: Math.round(1 / pacer.interval), manual, mobile: phone, lite: mobile,
+      level: typeof Gfx !== 'undefined' && Gfx ? Gfx.level : '', aa: !!(R.getContextAttributes() || {}).antialias, step: prStep,
       calls: PERF.calls || 0, tris: PERF.tris || 0, cpuMs: +(PERF.cpuMs || 0).toFixed(1), playing: running && built, world: worldBuilt };
   }
   function stop() { running = false; }
@@ -9866,23 +10065,26 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     host = el;
     if (!T || !Models || !Terrain || /[?&]nogl\b/.test(location.search)) { failed = true; return; }
     for (const n of LABEL_PICS) pic(n);            // the squares' pictures start loading now
-    mobile = Math.min(screen.width, screen.height) < 700 || (navigator.maxTouchPoints > 1 && /iPhone|iPad|iPod|Android|Macintosh/.test(navigator.userAgent));
-    pacer = RenderPacer.create(mobile);
-    if (typeof GLB !== 'undefined' && GLB && GLB.configure) GLB.configure({ mobile, concurrency: mobile ? 2 : 4 });
+    // the graphics level (gfx.js): a phone's lighter board and models up to high, a computer's at ultra
+    if (typeof Gfx !== 'undefined' && Gfx) { phone = Gfx.phone; G = Gfx.spec; }
+    else { phone = Math.min(screen.width, screen.height) < 700 || (navigator.maxTouchPoints > 1 && /iPhone|iPad|iPod|Android|Macintosh/.test(navigator.userAgent)); G = phone ? { lite: true, phoneModels: true, cap: 512, pr: 1.5, aa: false, shadow: 512, soft: false, aniso: 4, net: false } : GFX_STANDARD; }
+    mobile = G.lite;
+    pacer = RenderPacer.create(phone);
+    if (phone && typeof Gfx !== 'undefined' && Gfx) pacer.rate(Gfx.fps);
+    if (typeof GLB !== 'undefined' && GLB && GLB.configure) GLB.configure({ mobile: G.phoneModels, cap: G.cap, concurrency: phone ? 2 : 4 });
     try {
-      R = new T.WebGLRenderer({ antialias: !mobile, alpha: true, powerPreference: mobile ? 'default' : 'high-performance' });
+      R = new T.WebGLRenderer({ antialias: G.aa, alpha: true, powerPreference: phone ? 'default' : 'high-performance' });
     } catch (e) { console.warn('no WebGL', e); failed = true; return; }
-    basePR = Math.min(window.devicePixelRatio || 1, mobile ? 1.5 : 1.75);
-    quality = mobile ? 1 : 2;
-    if (/[?&]lq\b/.test(location.search)) { basePR = 1; quality = 0; }
+    basePR = Math.min(window.devicePixelRatio || 1, G.pr);
+    quality = G.shadow ? (G.soft ? 2 : 1) : 0;
     R.setPixelRatio(basePR);
     R.outputEncoding = T.sRGBEncoding;
-    // a phone gets the plainer shadow filter (a quarter of the work per pixel) and a smaller shadow map
-    R.shadowMap.enabled = quality > 0; R.shadowMap.type = mobile ? T.PCFShadowMap : T.PCFSoftShadowMap;
+    // up to high a phone gets the plainer shadow filter (a quarter of the work per pixel) and a smaller shadow map
+    R.shadowMap.enabled = quality > 0; R.shadowMap.type = G.soft ? T.PCFSoftShadowMap : T.PCFShadowMap;
     R.shadowMap.autoUpdate = false;                // drawn again only when something moved (see the frame loop)
     R.setClearColor(0x000000, 0);
     R.autoClear = false;
-    maxAniso = Math.min(mobile ? 4 : 8, R.capabilities.getMaxAnisotropy());
+    maxAniso = Math.min(G.aniso, R.capabilities.getMaxAnisotropy());
     const cv = R.domElement;
     cv.className = 'board3d';
     el.appendChild(cv);
@@ -9893,7 +10095,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     scene.add(hemi);
     sun = new T.DirectionalLight(0xfff0d6, 1.0);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(mobile ? 512 : 2048, mobile ? 512 : 2048);
+    sun.shadow.mapSize.set(G.shadow || 512, G.shadow || 512);
     const sc = sun.shadow.camera; sc.left = -9; sc.right = 9; sc.top = 9; sc.bottom = -9; sc.near = 2; sc.far = 40;
     sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.02;
     scene.add(sun); scene.add(sun.target);
@@ -9910,6 +10112,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     // figures still arrive and the dice still land (unseen), and three.js makes everything again once they are back
     cv.addEventListener('webglcontextlost', e => {
       e.preventDefault(); lostAt = performance.now(); Diag.note('3d', 'graphics lost');
+      if (built && typeof Gfx !== 'undefined' && Gfx) Gfx.lost();        // at high or ultra the next visit opens a level lower
       setTimeout(() => { if (lostAt && performance.now() - lostAt > 4500 && built) UI.toast('3D დაფამ გრაფიკა დაკარგა. თამაში გრძელდება; გვერდის განახლება დაფას დააბრუნებს.', 5200); }, 5000);
     });
     cv.addEventListener('webglcontextrestored', () => {
@@ -10055,6 +10258,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     setTurn(st.phase === 'over' ? -1 : st.turn);
     focusSeat = st.phase === 'over' ? -1 : st.turn;
     if (!built) { built = true; camInit = false; landG.scale.y = 1; U.fade.value = 1; if (animate) rise(); }
+    guardFrom = performance.now() + 8000; fg.pause();      // the safety net waits for the rise and the models
+    if (typeof Gfx !== 'undefined' && Gfx) Gfx.playing();
     start();
   }
   // the state changed without animation (end of the animations, a resync): the same, without the rise
@@ -10090,6 +10295,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     reveal: placeEvent,
     placeStats: () => ({ landmarks: placeModelsLife && placeModelsLife.stats(), props: mapPropsLife && mapPropsLife.stats(), effects: placeEffects && placeEffects.stats() }),
     speed(k) { speedK = k > 0 ? k : 1; },
+    rate(fps) { if (phone && pacer) { pacer.rate(fps); pacer.reset(); } },        // a phone's 60 or 120 (the menu's „გრაფიკა“)
     get ok() { return done; }, get mode() { return mode; }, get world() { return worldBuilt; },
     // how long ago a frame was drawn (the animations wait for frames: none coming means they must not be waited for)
     get drawnAgo() { return running && !lostAt ? performance.now() - drewAt : Infinity; },
@@ -10101,7 +10307,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       try { const gl = R.getContext(), x = gl.getExtension('WEBGL_debug_renderer_info'); name = x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); } catch (e) { }
       const m = R.info.memory, assets = typeof GLB !== 'undefined' && GLB && GLB.stats ? GLB.stats() : null;
       const models = assets ? ` · models ${assets.completed} ready/${assets.queued + assets.active} loading/${assets.failed} failed · mobile LOD ${assets.lodModels || 0} · model textures ~${Math.round(assets.textureBytes / 1048576)} MiB` : '';
-      return `gpu ${name} · webgl${R.capabilities.isWebGL2 ? 2 : 1} · pixel ratio ${R.getPixelRatio().toFixed(2)} (${prStep} steps down) · quality ${quality} · frame ${Math.round(busyAvg * 1000)} ms (~${Math.round(1 / busyAvg)} fps / ${Math.round(1 / pacer.interval)} target) · CPU submit ${(PERF.cpuMs || 0).toFixed(1)} ms (effects ${(PERF.effectsMs || 0).toFixed(1)}, clips ${(PERF.clipsMs || 0).toFixed(1)}, draw ${(PERF.drawMs || 0).toFixed(1)}) · draw ${PERF.calls || 0}/${Math.round((PERF.tris || 0) / 1000)}k triangles · ${mobile ? 'phone' : 'computer'} · shaders ${R.info.programs.length} · textures ${m.textures} · geometries ${m.geometries}${models}${lostAt ? ' · GRAPHICS LOST' : ''}`;
+      return `gpu ${name} · webgl${R.capabilities.isWebGL2 ? 2 : 1} · pixel ratio ${R.getPixelRatio().toFixed(2)} (${prStep} steps down) · quality ${quality} · frame ${Math.round(busyAvg * 1000)} ms (~${Math.round(1 / busyAvg)} fps / ${Math.round(1 / pacer.interval)} target) · CPU submit ${(PERF.cpuMs || 0).toFixed(1)} ms (effects ${(PERF.effectsMs || 0).toFixed(1)}, clips ${(PERF.clipsMs || 0).toFixed(1)}, draw ${(PERF.drawMs || 0).toFixed(1)}) · draw ${PERF.calls || 0}/${Math.round((PERF.tris || 0) / 1000)}k triangles · ${phone ? 'phone' : 'computer'}${typeof Gfx !== 'undefined' && Gfx ? ` · graphics ${Gfx.level}${mobile ? ' (light board)' : ''}${(R.getContextAttributes() || {}).antialias ? ', smoothed' : ''}${phone ? `, ${pacer.rate()} fps, ${PERF.late || 0} late windows` : ''}` : ''} · shaders ${R.info.programs.length} · textures ${m.textures} · geometries ${m.geometries}${models}${lostAt ? ' · GRAPHICS LOST' : ''}`;
     },
     onPick(cb) { pickCb = cb; },
     test: { set: testSet, bench: testBench, info: testInfo },
@@ -10172,7 +10378,8 @@ const Dice3D = (() => {
     return g;
   }
 
-  const mobile = Math.min(screen.width, screen.height) < 700;
+  // the dice's own shadow map: the smaller one where the graphics level keeps the board's small too (gfx.js)
+  const mobile = typeof Gfx !== 'undefined' && Gfx ? Gfx.spec.shadow < 1024 : Math.min(screen.width, screen.height) < 700;
   function init(THREE, el) {
     if (ok) return;
     T = THREE; host = el;
@@ -10592,7 +10799,7 @@ const Card3D = (() => {
     if (sharedRenderer) return sharedRenderer;
     const T = window.THREE, r = new T.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'low-power' });
     sharedRenderer = r;
-    r.setPixelRatio(Math.min(1.5, window.devicePixelRatio || 1)); r.outputEncoding = T.sRGBEncoding;
+    r.setPixelRatio(Math.min(typeof Gfx !== 'undefined' && Gfx && Gfx.level === 'ultra' ? 2.5 : 1.5, window.devicePixelRatio || 1)); r.outputEncoding = T.sRGBEncoding;
     r.toneMapping = T.ACESFilmicToneMapping; r.toneMappingExposure = .86; r.setClearColor(0x000000, 0);
     if (r.shadowMap) { r.shadowMap.enabled = true; r.shadowMap.type = T.PCFSoftShadowMap; }
     r.domElement.setAttribute('aria-hidden', 'true');
@@ -11816,8 +12023,8 @@ const Sheet = (() => {
   function refresh() { if (kind) draw(); }
   function draw() {
     const st = View.st;
-    if (!st && kind !== 'rules' && kind !== 'install' && kind !== 'diag') return close();
-    const fn = { deed, player, estate, build, trade, offer, log, menu, over, bankrupt: bankruptSheet, rules, install, diag }[kind];
+    if (!st && kind !== 'rules' && kind !== 'install' && kind !== 'diag' && kind !== 'gfx') return close();
+    const fn = { deed, player, estate, build, trade, offer, log, menu, over, bankrupt: bankruptSheet, rules, install, diag, gfx }[kind];
     if (!fn) return close();
     const html = fn(st);
     if (html == null) return close();
@@ -12078,10 +12285,46 @@ const Sheet = (() => {
       <div class="menu-list">
         <button class="btn wide" data-sheet="rules">წესები</button>
         <button class="btn wide" data-sound>ხმა: ${Sound.on ? 'ჩართული' : 'გამორთული'}</button>
+        ${typeof Gfx !== 'undefined' && Gfx ? `<button class="btn wide" data-sheet="gfx">გრაფიკა: ${esc(Gfx.names[Gfx.chosen])}</button>` : ''}
         ${host && st && st.phase !== 'over' ? '<button class="btn wide" data-confirm="stop">თამაშის დასრულება ახლავე</button>' : ''}
         <button class="btn wide danger" data-confirm="leave">${ROOM && ROOM.mode === 'online' ? 'ოთახიდან გასვლა' : 'მთავარ მენიუში გასვლა'}</button>
         <button class="btn wide ghost small" data-sheet="diag">ტექნიკური ჟურნალი</button>
       </div><div id="confirm"></div>`;
+  }
+  // the graphics (gfx.js): the level, kept on this device; a phone's frames a second; the frame counter. Each level
+  // says how many pixels it draws on this screen. A new level is made when the page is opened again (the models and
+  // the smoothing are chosen then): in a game with bots that is at once, and the game goes on where it was.
+  function gfx() {
+    if (typeof Gfx === 'undefined' || !Gfx) return null;
+    const now = Gfx.level, next = Gfx.chosen, phone = Gfx.phone, d = window.devicePixelRatio || 1;
+    const ABOUT = phone ? {
+      low: 'სუსტი ტელეფონისთვის: ჩრდილების გარეშე',
+      standard: 'ტელეფონის მოდელები, უბრალო ჩრდილები',
+      high: 'უფრო მკვეთრი სურათი, გლუვი კიდეები, წმინდა ჩრდილები',
+      ultra: 'კომპიუტერის ხარისხი: სრული მოდელები და ტექსტურები, რბილი ჩრდილები'
+    } : {
+      low: 'ჩრდილების გარეშე, სუსტი კომპიუტერისთვის',
+      standard: 'სრული მოდელები, გლუვი კიდეები, რბილი ჩრდილები',
+      high: 'კიდევ უფრო მკვეთრი, სადაც ეკრანი იძლევა',
+      ultra: 'ყველაზე მკვეთრი ტექსტურები დახრილ ხედშიც'
+    };
+    const size = l => { const k = Math.min(d, Gfx.specOf(l).pr); return `${Math.round(innerWidth * k)}×${Math.round(innerHeight * k)}${k >= d ? ', ეკრანის ყველა პიქსელი' : ''}`; };
+    const online = ROOM && ROOM.mode === 'online', bots = botGame();
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+    const apply = next === now ? '' : `<div class="gfx-apply"><p>ახლა „${esc(Gfx.names[now])}“ მუშაობს. „${esc(Gfx.names[next])}“ ჩაირთვება, როცა თამაში თავიდან ჩაიტვირთება.</p>
+      ${online ? '<p class="hint">ონლაინ ოთახში ახლა არ ჩავტვირთავ: ჩაირთვება, როცა თამაშს შემდეგ ჯერზე გახსნი.</p>' : `<button class="btn gold wide" data-gfx-reload>ახლავე ჩატვირთვა</button>${bots ? '<p class="hint">ბოტებთან თამაში შენახულია და იქიდანვე გაგრძელდება.</p>' : ''}`}</div>`;
+    return `<div class="sheet-h"><h2>გრაფიკა</h2><button class="x" data-close aria-label="დახურვა">×</button></div>
+      <div class="gfx-levels">${Gfx.levels.map(l => `<button class="gfx-lv${l === next ? ' on' : ''}" data-gfx="${l}" aria-pressed="${l === next}"><b>${esc(Gfx.names[l])}${l === Gfx.def ? '<i>ნაგულისხმევი</i>' : ''}</b><small><span class="amt">${size(l)}</span> · ${ABOUT[l]}</small></button>`).join('')}</div>
+      ${apply}
+      ${phone ? `<p class="lbl gfx-lbl">კადრები წამში</p><div class="row gfx-fps">${[60, 120].map(f => `<button class="btn small${Gfx.fps === f ? ' on' : ''}" data-fps="${f}" aria-pressed="${Gfx.fps === f}">${f}</button>`).join('')}</div>
+      <p class="hint">120 მხოლოდ 120-ჰერციან ეკრანზე ჩანს და ბატარეას მეტს ხარჯავს.${ios ? ' iPhone-ზე Safari 60-ზე მეტს არ ხატავს, თუ არ გამორთე: Settings → Apps → Safari → Advanced → Feature Flags → <span class="en">Prefer Page Rendering Updates near 60fps</span>.' : ''}</p>` : ''}
+      <div class="menu-list gfx-more"><button class="btn wide" data-meter>კადრების მთვლელი: ${Gfx.meter ? 'ჩართული' : 'გამორთული'}</button></div>
+      <p class="hint">${phone ? 'თუ ტელეფონი ვერ აუვა, თამაში გარჩევადობას თავად დაწევს, რომ არ გაჭედოს. 8K ტელეფონზე არაფერს მატებს: ეკრანს ბევრად ნაკლები პიქსელი აქვს, ამიტომ მაქსიმუმი ულტრაა, ეკრანის ყველა პიქსელი.' : 'თუ კადრები შენელდა, თამაში გარჩევადობას თავად დაწევს.'}</p>`;
+  }
+  // a game with bots (or on one screen) is on the screen, and kept: opened again, the page goes back into it
+  function botGame() {
+    const saved = store.get('local');
+    return UI.screen === 'game' && !!ROOM && ROOM.role === 'local' && !!(saved && saved.st && saved.st.phase !== 'lobby' && saved.st.phase !== 'over');
   }
   // what this phone went through, to send to whoever makes the game when something went wrong
   function diag() {
@@ -12150,6 +12393,15 @@ const Sheet = (() => {
     const sh = ev.target.closest('[data-sheet]');
     if (sh) return open(sh.dataset.sheet);
     if (ev.target.closest('[data-sound]')) { Sound.on = !Sound.on; Sound.unlock(); return draw(); }
+    const lv = ev.target.closest('[data-gfx]');
+    if (lv) { Gfx.choose(lv.dataset.gfx); Diag.note('gfx', `chosen ${Gfx.chosen} (running ${Gfx.level})`); return draw(); }
+    if (ev.target.closest('[data-gfx-reload]')) {
+      try { if (botGame()) sessionStorage.setItem('mamuli.gfxResume', '1'); } catch (e) { }     // (app.js boot goes back into it)
+      location.reload(); return;
+    }
+    const fp = ev.target.closest('[data-fps]');
+    if (fp) { const f = Gfx.setFps(+fp.dataset.fps); if (Board3D.rate) Board3D.rate(f); return draw(); }
+    if (ev.target.closest('[data-meter]')) { const on = Gfx.setMeter(!Gfx.meter); if (typeof PerfTest !== 'undefined' && PerfTest) PerfTest.show(on); return draw(); }
     if (ev.target.closest('[data-invite]')) return Lobby.invite();
     if (ev.target.closest('[data-copylog]')) {
       const text = Diag.report(), pre = $('#diagText');
@@ -12275,6 +12527,7 @@ const Menu = (() => {
     else if (id === 'bResume') playLocal(true);
     else if (id === 'bInstall') Install.go();
     else if (id === 'bRules') { Sheet.open('rules'); }
+    else if (id === 'bGfx') { Sheet.open('gfx'); }
   }
   return { render, onClick };
 })();
@@ -12319,7 +12572,9 @@ function offlineHelper() {
   if (!box || !status || !bar || !button || offlineHelper.started) return;
   offlineHelper.started = true;
   box.hidden = false;
-  const profile = ((typeof screen !== 'undefined' && Math.min(screen.width, screen.height) < 700)
+  // the models this device draws (gfx.js): a phone up to high takes the phone models, at ultra the computer's
+  const profile = typeof Gfx !== 'undefined' && Gfx ? (Gfx.spec.phoneModels ? 'mobile' : 'desktop')
+    : ((typeof screen !== 'undefined' && Math.min(screen.width, screen.height) < 700)
     || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1 && /iPhone|iPad|iPod|Android|Macintosh/.test(navigator.userAgent || ''))) ? 'mobile' : 'desktop';
   const note = text => { try { if (typeof Diag !== 'undefined' && Diag.note) Diag.note('files', text); } catch (_) { } };
   const version = value => /^[A-Za-z0-9_.-]{1,40}$/.test(String(value || '')) ? String(value) : 'unknown';
@@ -12683,18 +12938,27 @@ function boot() {
   // world last played here)
   applyTheme({ theme: PROFILE.theme });
   setTimeout(() => Board3D.prepare($('#stage')), 400);
+  if (typeof Gfx !== 'undefined' && Gfx) {
+    // the page was opened again for new graphics (the menu's „გრაფიკა“) in a game with bots: that game goes on
+    let again = false;
+    try { again = sessionStorage.getItem('mamuli.gfxResume') === '1'; sessionStorage.removeItem('mamuli.gfxResume'); } catch (e) { }
+    const saved = store.get('local');
+    if (again && !codeFrom(location.hash) && saved && saved.st && saved.st.phase !== 'lobby' && saved.st.phase !== 'over') playLocal(true);
+    // the last visit at high or ultra stopped with a game on the screen: this one is a level lower, and says so
+    if (Gfx.fell) setTimeout(() => UI.toast(`„${Gfx.names[Gfx.fell]}“ გრაფიკაზე თამაში ამ მოწყობილობაზე შეწყდა, ამიტომ ახლა „${Gfx.name}“ ჩაირთო. შეცვლა: მთავარი მენიუ → გრაფიკა.`, 7000), 1200);
+  }
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 
-// ===== the phone test: with ?test in the address, how the board runs on this device =====
-// A badge at the screen's edge shows how many frames a second the board draws. Tapped, it opens a panel: the quality set
-// by hand (the game's own choice, or low to maximum), the frame target (the game's own, 60, 120, or every frame the
-// screen offers), and a test that turns the camera round the board for eight seconds under each quality and measures
-// every drawn frame. The results go into the technical log and are copied, to be sent.
+// ===== the phone test: with ?test in the address, or the frame counter on (the menu's „გრაფიკა“), how the board runs =====
+// A badge at the screen's edge shows how many frames a second the board draws. Tapped, it opens a panel: the pixels and
+// shadows set by hand (the game's own at its graphics level, or one to three pixels per point), the frame target (the
+// game's own, 60, 120, or every frame the screen offers), and a test that turns the camera round the board for eight
+// seconds under each and measures every drawn frame. The results go into the technical log and are copied, to be sent.
 
 const PerfTest = (() => {
-  if (!/[?&]test\b/.test(location.search)) return null;
-  const QUAL = [['auto', 'ავტო'], ['low', 'დაბალი'], ['mid', 'საშუალო'], ['high', 'მაღალი'], ['max', 'მაქსიმუმი']];
+  const asked = /[?&]test\b/.test(location.search);
+  const QUAL = [['auto', 'თამაშის'], ['low', '1x'], ['mid', '1.5x'], ['high', '2x'], ['max', '3x']];
   const CAPS = [['auto', 'ავტო'], [60, '60'], [120, '120'], [0, 'ზღვრის გარეშე']];
   const NAME = Object.fromEntries(QUAL);
   const RUNS = [['low', 0], ['mid', 0], ['high', 0], ['max', 0], ['auto', 'auto']];     // each quality as fast as it goes; then the game as it is
@@ -12725,7 +12989,10 @@ const PerfTest = (() => {
     if (p && lastT) fps = Math.round((p.frames - lastF) * 1000 / (now - lastT));
     if (p) { lastF = p.frames; lastT = now; }
     const i = info();
-    if (badge) badge.textContent = i && i.playing ? `${fps} fps · ${i.pr}x` : 'ტესტი';
+    if (badge) {
+      badge.textContent = i && i.playing ? `${fps} fps · ${i.pr}x` : 'ტესტი';
+      if (!asked) badge.hidden = !(shown && i && i.playing);   // the counter (not ?test) shows only over a game
+    }
     if (panel && !panel.hidden) status();
   }
   function status() {
@@ -12740,6 +13007,7 @@ const PerfTest = (() => {
   function report() {
     const i = info() || {};
     return [`შენი ჯერი · ტელეფონის ტესტი ${typeof BUILD !== 'undefined' ? BUILD : ''}`, navigator.userAgent,
+      `გრაფიკა ${typeof Gfx !== 'undefined' && Gfx ? `${Gfx.name} (${Gfx.level})${Gfx.phone ? `, ${Gfx.fps} კადრი` : ''}` : '?'}${i.aa ? ' · გლუვი კიდეები' : ''}${i.lite ? ' · ტელეფონის დაფა' : ''}`,
       `ეკრანი ${screen.width}×${screen.height} · dpr ${window.devicePixelRatio || 1} · ${hz || '?'} ჰც · ${gpuName()} · ${i.mobile ? 'ტელეფონი' : 'კომპიუტერი'}`,
       `სამყარო ${i.world || '?'}`, ...results.map(line)].join('\n');
   }
@@ -12794,7 +13062,10 @@ const PerfTest = (() => {
     else if (b.hasAttribute('data-copy')) copy();
     else if (b.hasAttribute('data-close')) panel.hidden = true;
   }
+  let started = false, shown = asked;
   function start() {
+    if (started) { tick(); return; }
+    started = true;
     badge = document.createElement('button');
     badge.className = 'ptest-badge'; badge.type = 'button'; badge.textContent = 'ტესტი';
     badge.setAttribute('aria-label', 'ტელეფონის ტესტი');
@@ -12803,11 +13074,18 @@ const PerfTest = (() => {
     panel.className = 'ptest'; panel.hidden = true;
     panel.addEventListener('click', onClick);
     document.body.append(badge, panel);
-    setInterval(tick, 500);
+    tick(); setInterval(tick, 500);
     setTimeout(() => measureHz().then(h => { hz = h; if (!panel.hidden) render(); }), 2500);
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
-  return { report, get results() { return results; }, runAll, capOf };
+  const later = fn => { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn); else fn(); };
+  // the frame counter on or off (the menu's „გრაფიკა“); with ?test it is always there
+  function show(on) {
+    shown = asked || !!on;
+    if (shown) later(start);
+    else if (started) { badge.hidden = true; panel.hidden = true; }
+  }
+  if (asked || (typeof Gfx !== 'undefined' && Gfx && Gfx.meter)) show(true);
+  return { report, get results() { return results; }, runAll, capOf, show };
 })();
 </script>
 </body>

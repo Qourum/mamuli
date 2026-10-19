@@ -13,15 +13,19 @@ const GLB = (() => {
   const cache = new Map();
   const scenes = new Map();
   const jobs = new Map(), queue = [], measuredTextures = new WeakSet(), measuredImages = new WeakMap();
-  const policy = { mobile: false, concurrency: 4 };
+  const policy = { mobile: false, cap: 0, concurrency: 4 };   // cap: the longest side of a model's picture (0: as made)
   const counts = { completed: 0, failed: 0, fetches: 0, retries: 0, timeouts: 0, maxActive: 0, lodModels: 0, triangles: 0, vertices: 0, textures: 0, images: 0, resizedImages: 0, resizeFailures: 0, originalImageBytes: 0, imageBytes: 0, originalTextureBytes: 0, textureBytes: 0 };
   const DEADLINE = 90000;
   let active = 0, scheduled = false, serial = 0;
   const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
   const imageBytes = (w, h) => Math.ceil(w * h * 4 * 4 / 3); // RGBA plus a full mip chain; an estimate, not driver telemetry.
-  function stats() { return { ...counts, mobile: policy.mobile, concurrency: policy.concurrency, active, queued: queue.length }; }
+  function stats() { return { ...counts, mobile: policy.mobile, cap: policy.cap, concurrency: policy.concurrency, active, queued: queue.length }; }
+  // mobile: the phone models (art/mobile); cap: their pictures at most this many points a side (the centre's twice that),
+  // 512 for the phone models unless said otherwise (gfx.js chooses both)
   function configure(options = {}) {
     if (options.mobile != null) policy.mobile = !!options.mobile;
+    if (options.cap != null) policy.cap = Math.max(0, Math.floor(Number(options.cap)) || 0);
+    else if (options.mobile != null) policy.cap = policy.mobile ? 512 : 0;
     policy.concurrency = Number.isFinite(options.concurrency) ? Math.max(1, Math.min(8, Math.floor(options.concurrency))) : policy.mobile ? 2 : 4;
     schedule(); return stats();
   }
@@ -96,18 +100,18 @@ const GLB = (() => {
     const residentTextures=new Set(textures);
     // Include parser-cached texture clones before releasing an ImageBitmap. They
     // share Texture.Source objects with material maps and may be reused later.
-    if(policy.mobile&&gltf.parser&&typeof gltf.parser.getDependencies==='function')
+    const cap=policy.cap?(/volcano/i.test(url)?policy.cap*2:policy.cap):0;
+    if(cap&&gltf.parser&&typeof gltf.parser.getDependencies==='function')
       for(const texture of await gltf.parser.getDependencies('texture'))if(texture&&texture.isTexture)textures.add(texture);
     const grouped=new Map();
     for(const texture of textures){const image=texture.image;if(!image)continue;if(!grouped.has(image))grouped.set(image,[]);grouped.get(image).push(texture);}
-    const cap=/volcano/i.test(url)?1024:512;
     for(const [image, refs]of grouped){
       let info=measuredImages.get(image);
       if(!info){
         const w=image.naturalWidth||image.width||0,h=image.naturalHeight||image.height||0;
         if(!w||!h)continue;
         const original=imageBytes(w,h);info={image,width:w,height:h,original,bytes:original};
-        if(policy.mobile&&Math.max(w,h)>cap){
+        if(cap&&Math.max(w,h)>cap){
           try{
             const canvas=document.createElement('canvas'),factor=cap/Math.max(w,h);
             canvas.width=Math.max(1,Math.round(w*factor));canvas.height=Math.max(1,Math.round(h*factor));

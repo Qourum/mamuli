@@ -56,6 +56,7 @@ const Menu = (() => {
     else if (id === 'bResume') playLocal(true);
     else if (id === 'bInstall') Install.go();
     else if (id === 'bRules') { Sheet.open('rules'); }
+    else if (id === 'bGfx') { Sheet.open('gfx'); }
   }
   return { render, onClick };
 })();
@@ -100,7 +101,9 @@ function offlineHelper() {
   if (!box || !status || !bar || !button || offlineHelper.started) return;
   offlineHelper.started = true;
   box.hidden = false;
-  const profile = ((typeof screen !== 'undefined' && Math.min(screen.width, screen.height) < 700)
+  // the models this device draws (gfx.js): a phone up to high takes the phone models, at ultra the computer's
+  const profile = typeof Gfx !== 'undefined' && Gfx ? (Gfx.spec.phoneModels ? 'mobile' : 'desktop')
+    : ((typeof screen !== 'undefined' && Math.min(screen.width, screen.height) < 700)
     || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1 && /iPhone|iPad|iPod|Android|Macintosh/.test(navigator.userAgent || ''))) ? 'mobile' : 'desktop';
   const note = text => { try { if (typeof Diag !== 'undefined' && Diag.note) Diag.note('files', text); } catch (_) { } };
   const version = value => /^[A-Za-z0-9_.-]{1,40}$/.test(String(value || '')) ? String(value) : 'unknown';
@@ -464,5 +467,14 @@ function boot() {
   // world last played here)
   applyTheme({ theme: PROFILE.theme });
   setTimeout(() => Board3D.prepare($('#stage')), 400);
+  if (typeof Gfx !== 'undefined' && Gfx) {
+    // the page was opened again for new graphics (the menu's „გრაფიკა“) in a game with bots: that game goes on
+    let again = false;
+    try { again = sessionStorage.getItem('mamuli.gfxResume') === '1'; sessionStorage.removeItem('mamuli.gfxResume'); } catch (e) { }
+    const saved = store.get('local');
+    if (again && !codeFrom(location.hash) && saved && saved.st && saved.st.phase !== 'lobby' && saved.st.phase !== 'over') playLocal(true);
+    // the last visit at high or ultra stopped with a game on the screen: this one is a level lower, and says so
+    if (Gfx.fell) setTimeout(() => UI.toast(`„${Gfx.names[Gfx.fell]}“ გრაფიკაზე თამაში ამ მოწყობილობაზე შეწყდა, ამიტომ ახლა „${Gfx.name}“ ჩაირთო. შეცვლა: მთავარი მენიუ → გრაფიკა.`, 7000), 1200);
+  }
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();

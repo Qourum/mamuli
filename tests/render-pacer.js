@@ -55,3 +55,13 @@ assert.equal(cadence.length, 61);
 assert(cadence.some(d => Math.abs(d - 1 / 90) < 1e-9));
 assert(cadence.some(d => Math.abs(d - 2 / 90) < 1e-9));
 console.log('render pacing: phone60 FPS on60/75/90/120 Hz, desktopidle30 FPS, sub-ms jitter, idle/active transitions, elapsed animation time, stalled deadline skipping and resume passed');
+// a phone at the menu's 120: every frame of a 120 Hz screen while something moves, 60 while still; 60 is the default
+{
+  const count = (rate, hz, active) => { const pacer = context.pacer.create(true); pacer.rate(rate); let n = 0; for (let i = 0; i <= hz * 10; i++) if (pacer.step(i * 1000 / hz, active)) n++; return n; };
+  assert.equal(count(120, 120, true), 1201, 'a 120 Hz phone at 120 draws every frame while moving');
+  assert.equal(count(120, 120, false), 601, 'still, it stays at 60');
+  assert.equal(count(120, 60, true), 601, 'a 60 Hz screen gives what it has');
+  assert.equal(count(60, 120, true), 601, '60 stays 60');
+  const r = context.pacer.create(true);
+  assert.equal(r.rate(), 60); assert.equal(r.rate(120), 120); assert.equal(r.rate(30), 60, 'never below 60'); assert.equal(r.rate(1000), 60 * 4, 'bounded');
+}

@@ -1,16 +1,21 @@
 // ===== the menu, the room's lobby, and starting up =====
 
-// this device's player: a name, a hero for each world (a king or a hero for მამული and ტფილისი, a pirate for the
-// archipelago), and the world last played here (a new room starts in it)
+// this device's player: a name, a hero for each set of heroes (a king or a hero of მამული, a pirate of the archipelago,
+// one of Old Tiflis's people; a world borrowing another's heroes shares its choice), and the world last played here (a
+// new room starts in it)
+const HERO_SETS = { mamuli: { pref: 'hero', first: 'david', lbl: 'გმირი' }, archipelago: { pref: 'pirate', first: 'blackbeard', lbl: 'მეკობრე' }, tbilisi: { pref: 'tiflis', first: 'kinto', lbl: 'ტფილისელი' } };
+const setOf = theme => HERO_SETS[heroSet(theme)] || HERO_SETS.mamuli;
 const PROFILE = (() => {
-  const p = store.get('profile') || {}, of = (h, t) => HEROES[h] && HEROES[h].t === t;
-  return { hero: of(p.hero, 'mamuli') ? p.hero : 'david', pirate: of(p.pirate, 'archipelago') ? p.pirate : 'blackbeard',
-    theme: THEMES[p.theme] ? p.theme : 'mamuli', name: Engine.cleanName(p.name || '') };
+  const p = store.get('profile') || {}, P = { theme: THEMES[p.theme] ? p.theme : 'mamuli', name: Engine.cleanName(p.name || '') };
+  for (const [set, { pref, first }] of Object.entries(HERO_SETS)) P[pref] = HEROES[p[pref]] && HEROES[p[pref]].t === set ? p[pref] : first;
+  return P;
 })();
 const saveProfile = () => store.set('profile', PROFILE);
 // all the worlds are offered in the lobby (a world still being made could be held back here)
 const WORLDS_OPEN = true;
-const heroPrefs = () => ({ mamuli: PROFILE.hero, archipelago: PROFILE.pirate, tbilisi: PROFILE.hero });
+const heroPrefs = () => Object.fromEntries(Object.keys(THEMES).map(k => [k, PROFILE[setOf(k).pref]]));
+// a hero chosen: kept as its set's choice
+const keepHero = h => { const set = HERO_SETS[HEROES[h].t]; if (set) PROFILE[set.pref] = h; };
 const myName = () => PROFILE.name || HEROES[myHero()].s;
 
 // ----- the first screen: the world first (მამული's towns, the pirates' islands or Tbilisi's districts), then the hero, then
@@ -21,18 +26,18 @@ const WORLD_CARDS = {
   archipelago: { pic: 'bg_sea', at: '50% 38%', pitch: 'იყიდე განძის კუნძულები, ააშენე ქოხები და გააკოტრე მეტოქე მეკობრეები' },
   tbilisi: { pic: 'g_tbilisi', at: '50% 12%', pitch: 'იყიდე თბილისის უბნები, ააშენე სახლები და სასტუმროები და გააკოტრე მეტოქეები' }
 };
-const myHero = () => PROFILE.theme === 'archipelago' ? PROFILE.pirate : PROFILE.hero;
+const myHero = () => PROFILE[setOf(PROFILE.theme).pref];
 const Menu = (() => {
   function render() {
-    const th = THEMES[PROFILE.theme] ? PROFILE.theme : 'mamuli', sea = th === 'archipelago', mine = myHero();
+    const th = THEMES[PROFILE.theme] ? PROFILE.theme : 'mamuli', mine = myHero();
     $('#worldPick').innerHTML = Object.values(THEMES).map(t => { const c = WORLD_CARDS[t.key] || WORLD_CARDS.mamuli; return `<button class="wcard${t.key === th ? ' on' : ''}" data-mworld="${t.key}" aria-pressed="${t.key === th}" style="background-image:linear-gradient(180deg,rgba(13,16,22,0) 25%,rgba(13,16,22,.88)),url(${ART(c.pic)});background-position:${c.at}"><b>${esc(t.name)}</b><small>${esc(t.tag)}</small></button>`; }).join('');
     $('#menuTag').textContent = (WORLD_CARDS[th] || WORLD_CARDS.mamuli).pitch;
     $('#heroPick').innerHTML = heroKeys(th).map(h => `<button class="hero${h === mine ? ' on' : ''}" data-hero="${h}" aria-label="${esc(HEROES[h].n)}" aria-pressed="${h === mine}"><img src="${por(h)}" alt=""></button>`).join('');
-    $('#heroLbl').textContent = sea ? 'შენი მეკობრე' : 'შენი გმირი';
+    $('#heroLbl').textContent = 'შენი ' + setOf(th).lbl;
     $('#heroName').textContent = HEROES[mine].n;
-    const fig = $('#heroFig');
-    fig.src = sea ? por(mine) : ART(mine === 'david' ? 'h_davidride' : 'h_' + mine);        // (a pirate has only a portrait)
-    fig.classList.toggle('por', sea);
+    const fig = $('#heroFig'), figure = HEROES[mine].t === 'mamuli';        // (a pirate or a Tiflis man has only a portrait)
+    fig.src = figure ? ART(mine === 'david' ? 'h_davidride' : 'h_' + mine) : por(mine);
+    fig.classList.toggle('por', !figure);
     const nameIn = $('#nameIn');
     if (document.activeElement !== nameIn) nameIn.value = PROFILE.name;
     nameIn.placeholder = HEROES[mine].s;
@@ -50,7 +55,7 @@ const Menu = (() => {
     const w = ev.target.closest('[data-mworld]');
     if (w && THEMES[w.dataset.mworld]) { PROFILE.theme = w.dataset.mworld; saveProfile(); applyTheme({ theme: PROFILE.theme }); render(); return; }
     const h = ev.target.closest('[data-hero]');
-    if (h && HEROES[h.dataset.hero]) { if (HEROES[h.dataset.hero].t === 'archipelago') PROFILE.pirate = h.dataset.hero; else PROFILE.hero = h.dataset.hero; saveProfile(); render(); return; }
+    if (h && HEROES[h.dataset.hero]) { keepHero(h.dataset.hero); saveProfile(); render(); return; }
     const id = ev.target.closest('button') && ev.target.closest('button').id;
     if (id === 'bHost') { PROFILE.name = Engine.cleanName($('#nameIn').value); saveProfile(); hostRoom(); }
     else if (id === 'bJoin') { PROFILE.name = Engine.cleanName($('#nameIn').value); saveProfile(); joinRoom($('#codeIn').value); }
@@ -320,8 +325,8 @@ const Lobby = (() => {
       : `<li class="seat empty">${MAX_PLAYERS - st.players.length} ადგილი თავისუფალია</li>`);
     // the hero of the selected seat
     const me = st.players[sel];
-    const pirate = th === 'archipelago', mh = me && HEROES[me.hero];
-    $('#lobbyHeroes').innerHTML = me ? `<p class="lbl">${online ? (pirate ? 'შენი მეკობრე' : 'შენი გმირი') : esc(me.name) + (pirate ? ': მეკობრე' : ': გმირი')}</p><div class="hero-pick">${heroKeys(th).map(h => {
+    const lbl = setOf(th).lbl, mh = me && HEROES[me.hero];
+    $('#lobbyHeroes').innerHTML = me ? `<p class="lbl">${online ? 'შენი ' + lbl : esc(me.name) + ': ' + lbl}</p><div class="hero-pick">${heroKeys(th).map(h => {
       const taken = st.players.some((p, s) => s !== sel && p.hero === h);
       return `<button class="hero${me.hero === h ? ' on' : ''}" data-lhero="${h}" ${taken ? 'disabled' : ''} aria-label="${esc(HEROES[h].n)}"><img src="${por(h)}" alt=""></button>`;
     }).join('')}</div><p class="hint bio"><b>${esc(mh.n)}</b>${mh.b ? ' · ' + esc(mh.b) : ''}</p>` : '<p class="lbl">ამ თამაშს უყურებ</p>';
@@ -360,7 +365,7 @@ const Lobby = (() => {
     if (kick) { const s = +kick.dataset.kick; move(st.players[s].pid === ROOM.me && ROOM.role !== 'local' ? { t: 'leave' } : { t: 'kick', s }); return; }
     if (hero && !hero.disabled) {
       const h = hero.dataset.lhero;
-      if (ROOM.role !== 'local') { if (HEROES[h].t === 'archipelago') PROFILE.pirate = h; else PROFILE.hero = h; saveProfile(); }
+      if (ROOM.role !== 'local') { keepHero(h); saveProfile(); }
       move({ t: 'hero', h, seat: sel });
       return;
     }

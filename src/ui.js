@@ -8,8 +8,9 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 const ART = n => 'art/' + n + (/\.(?:jpe?g|png|webp)$/i.test(n) ? '' : '.webp');
 const fmt = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 const coin = n => `<b class="amt"><i class="ci"></i>${fmt(n)}</b>`;
-// a hero's portrait (a king or hero of მამული, or a pirate)
-const por = h => ART((HEROES[h] && HEROES[h].t === 'archipelago' ? 'por_p_' : 'por_h_') + h);
+// a hero's portrait (a king or hero of მამული, a pirate, or one of Old Tiflis's people)
+const POR = { archipelago: 'por_p_', tbilisi: 'por_t_' };
+const por = h => ART(((HEROES[h] && POR[HEROES[h].t]) || 'por_h_') + h);
 const pName = (st, s) => st && st.players[s] ? st.players[s].name : '?';
 const tName = i => BOARD[i].n.replace(/\u00ad/g, '');
 // The sea's four pirate cottages upgrade to a timber inn; the land keeps its towers/fortress.

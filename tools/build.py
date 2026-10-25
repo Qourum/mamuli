@@ -31,7 +31,9 @@ MODELS = ['m_heligoland_animated', 'm_cocos_animated', 'm_volcano_animated', 'm_
 TB_MODELS = ['m_tb_freedom', 'm_tb_bank', 'm_tb_sameba', 'm_tb_courtyard', 'm_tb_bench', 'm_tb_rustaveli', 'm_tb_mtatsminda', 'm_tb_baths',
              'm_tb_narikala', 'm_tb_kartlisdeda', 'm_tb_peace', 'm_tb_metekhi', 'm_tb_stonebridge']
 MODELS += TB_MODELS
-ART = ([f'por_h_{h}' for h in HEROES] + [f'h_{h}' for h in HEROES if h != 'david'] + ['h_davidride'] + SEA_ART +
+# Old Tiflis's people (ტფილისი's heroes): their portraits, as they are made (art/por_t_*.webp)
+TIFLIS_ART = sorted(n[:-5] for n in os.listdir(os.path.join(ROOT, 'art')) if n.startswith('por_t_') and n.endswith('.webp'))
+ART = TIFLIS_ART + ([f'por_h_{h}' for h in HEROES] + [f'h_{h}' for h in HEROES if h != 'david'] + ['h_davidride'] + SEA_ART +
        ['t_archer_2', 's_fort', 's_camp', 't_palisade', 'ui_page', 'ui_chest_wood', 'ui_chest_wood_o', 'ui_coin', 'ui_coinbag',
         'ui_book', 'ui_feather', 'g_svan', 'g_elbrus', 'g_pass', 'g_stone', 'g_tbilisi'])
 FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
@@ -39,7 +41,7 @@ FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="
          '&family=Noto+Serif+Georgian:wght@700;900&family=Lilita+One&display=swap">')
 # the website asks for the fonts with CORS, so that the offline helper can keep them (the preview does not need to)
 SITE_FONTS = FONTS.replace('<link rel="stylesheet" href=', '<link rel="stylesheet" crossorigin href=')
-DESC = 'ქართული სამაგიდო თამაში მეგობრებთან ონლაინ, ორ სამყაროში: საქართველოს ციხე-ქალაქები ან მეკობრეების განძის კუნძულები. იყიდე, ააშენე, ივაჭრე და გააკოტრე მეტოქეები.'
+DESC = 'ქართული სამაგიდო თამაში მეგობრებთან ონლაინ, სამ სამყაროში: საქართველოს ციხე-ქალაქები, მეკობრეების განძის კუნძულები ან ტფილისის უბნები. იყიდე, ააშენე, ივაჭრე და გააკოტრე მეტოქეები.'
 SITE_HEAD = f'''<!doctype html>
 <html lang="ka">
 <head>

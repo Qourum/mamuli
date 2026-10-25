@@ -459,6 +459,16 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
           float w2 = sin( vWP.z * 17.0 - uTime * 0.95 + sin( vWP.x * 6.5 - uTime * 0.4 ) * 1.4 );
           diffuseColor.rgb *= 0.9 + 0.12 * ( w1 * 0.5 + 0.5 );
           totalEmissiveRadiance += vec3( 0.16, 0.19, 0.2 ) * smoothstep( 0.55, 0.95, w1 * w2 );
+          // the city's rivers and lakes say how near their bank each point is (vWater 1 in the middle, 1.4 at the
+          // shore): foam along it, broken, lapping
+          float bank = clamp( ( vWater - 1.0 ) * 2.5, 0.0, 1.0 );
+          if ( bank > 0.001 ) {
+            float fn = texture2D( uDetail, vWP.xz * 2.2 + vec2( uTime * 0.021, -uTime * 0.016 ) ).r;
+            float lap = 0.5 + 0.5 * sin( uTime * 1.3 + ( vWP.x - vWP.z ) * 9.0 + fn * 6.0 );
+            float foam = smoothstep( 0.6 + 0.22 * fn - 0.06 * lap, 0.9, bank );
+            diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.94, 0.98, 0.97 ), foam * 0.88 );
+            totalEmissiveRadiance += vec3( 0.05, 0.06, 0.06 ) * foam;
+          }
         } else {
           float s = fract( vWP.y * 6.5 + uTime * 1.7 + sin( vWP.x * 37.0 + vWP.z * 31.0 ) * 0.35 );
           diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.8, 0.88, 0.93 ), 0.3 );
@@ -666,6 +676,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     Terrain.setWorld(MOD.world);
     scene.fog.color.set(MOD.world === 'sea' ? SEA_HAZE : HAZE);
     hemi.groundColor.set(MOD.world === 'sea' ? 0x4f8aa0 : 0x8a6a48);
+    hemi.intensity = MOD.world === 'city' ? 0.68 : 0.62; sun.intensity = MOD.world === 'city' ? 1.1 : 1.0;
+    mats.plinthTop.color.set(MOD.world === 'city' ? 0xa8642f : 0x4a2e1a); mats.plinthSide.color.set(MOD.world === 'city' ? 0x7f4a22 : 0x6b4528);
     root = new T.Group();
     scene.add(root);
     landG = new T.Group();                                  // all that grows out of the board when a game starts

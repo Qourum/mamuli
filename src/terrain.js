@@ -35,12 +35,12 @@ const Terrain = (() => {
 
   // ----- the shapes -----
   const feats = [], pads = [], waters = [], paths = [], tints = [];
-  let bins = null, sea = false, seaField = null;
+  let bins = null, sea = false, city = false, seaField = null;
   const BIN = 1, B0 = -7, NB = 14;
   const SEA_Y = 0.02, BED = -0.16, RIM_SEA = -0.06, OCEAN_Y = -0.3;     // the water, the sea floor, along the squares, the ocean
   const VORTEX = { x: 3.45, z: 3.0, radius: 0.55, depth: 0.82 };
   function reset() { feats.length = pads.length = waters.length = paths.length = tints.length = 0; bins = null; seaField = null; }
-  function setWorld(w) { sea = w === 'sea'; reset(); }
+  function setWorld(w) { sea = w === 'sea'; city = w === 'city'; reset(); }
   function put(f) { feats.push(f); bins = null; return f; }
   function rot(f, x, z) { const dx = x - f.x, dz = z - f.z, c = Math.cos(f.rot || 0), s = Math.sin(f.rot || 0); return [dx * c - dz * s, dx * s + dz * c]; }
   function segQ(f, x, z) {
@@ -140,10 +140,11 @@ const Terrain = (() => {
     fall: (x1, y1, z1, x2, y2, z2, w) => waters.push({ k: 'fall', a: [x1, y1, z1], b: [x2, y2, z2], w }),
     // a river at one level (a city's): a smooth line through the points, its bed dug w either side of it and d deep
     // (under the squares too), its water at height y, ww wide; colour its own
-    flow: (ctrl, w, d, y, ww, color = 0x4f8a8c) => {
+    // (color: its middle's; bank: its banks', with foam along them, when given)
+    flow: (ctrl, w, d, y, ww, color = 0x4f8a8c, bank = null) => {
       const pts = curve(ctrl, 8);
       for (let k = 1; k < pts.length; k++) put({ t: 'dig', x1: pts[k - 1][0], z1: pts[k - 1][1], x2: pts[k][0], z2: pts[k][1], w, d, late: true });
-      waters.push({ k: 'flow', pts, y, hw: ww / 2, c: new T.Color(color) });
+      waters.push({ k: 'flow', pts, y, hw: ww / 2, c: new T.Color(color), cb: bank == null ? null : new T.Color(bank) });
       return pts;
     },
     // level ground for a building: the land around it is brought to the height at its middle
@@ -169,7 +170,7 @@ const Terrain = (() => {
       ROCKC.r += rc.r * k; ROCKC.g += rc.g * k; ROCKC.b += rc.b * k; rw += k;
     }
     if (rw > 1e-6) { ROCKC.r /= rw; ROCKC.g /= rw; ROCKC.b /= rw; } else ROCKC.copy(ROCK);
-    if (w < 1e-6) { out.set(sea ? 0x5a9e46 : 0x8ea455); return 9; }
+    if (w < 1e-6) { out.set(sea ? 0x5a9e46 : city ? 0x8cb64e : 0x8ea455); return 9; }
     out.r /= w; out.g /= w; out.b /= w;
     return snow / w;
   }
@@ -177,14 +178,14 @@ const Terrain = (() => {
   function ground(x, z, y, ny, ao, edge, out) {
     const snowLine = regionAt(x, z, out), slope = 1 - ny, n1 = fbm(x * 2.4, z * 2.4), n2 = noise(x * 6.5 + 7, z * 6.5);
     out.multiplyScalar(0.84 + 0.28 * (n1 * 0.5 + 0.5));                                   // the green varies
-    out.lerp(DRY, smooth(0.25, 0.7, n2 * 0.5 + 0.5) * 0.32);                               // dry patches
+    out.lerp(DRY, smooth(0.25, 0.7, n2 * 0.5 + 0.5) * (city ? 0.12 : 0.32));               // dry patches (the city's lawns are watered)
     for (const p of paths) {                                                              // tracks and roads
       const [q] = segQ({ x1: p.x1, z1: p.z1, x2: p.x2, z2: p.z2, w: p.w }, x, z);
       if (q < 1) out.lerp(p.c, smooth(1, 0.55, q) * 0.85);
     }
     // rock where it is steep: in layers, darker in its clefts, paler on its edges
     const band = Math.sin(y * 23 + n1 * 3.2);
-    C3.copy(ROCKC).lerp(ROCK2, Math.max(0, Math.min(1, 0.22 + 0.4 * (n2 * 0.5 + 0.5) + 0.2 * band + ao * 2.5)) * (sea ? 0.55 : 1)).lerp(ROCK3, Math.min(0.65, edge * 3.5) * (sea ? 0.4 : 1));
+    C3.copy(ROCKC).lerp(ROCK2, Math.max(0, Math.min(1, 0.22 + 0.4 * (n2 * 0.5 + 0.5) + 0.2 * band + ao * 2.5)) * (sea || city ? 0.5 : 1)).lerp(ROCK3, Math.min(0.65, edge * 3.5) * (sea || city ? 0.4 : 1));
     out.lerp(C3, smooth(0.13, 0.33, slope));
     const snow = smooth(snowLine - 0.1, snowLine + 0.06, y + 0.2 * n1 + 0.08 * n2) * (1 - smooth(0.5, 0.74, slope));
     out.lerp(SNOW, snow);
@@ -250,9 +251,12 @@ const Terrain = (() => {
 
   // ----- water: rivers along their beds, lakes, a waterfall -----
   const WATER = 0x3d82a3, SEA = 0x2f7fb3, LAVA = 0xff7a22;
+  // the city's water: turquoise, deeper in the middle, lighter at the shore where the foam is (anim.y BANK there)
+  const CITY_DEEP = new T.Color(0x2a8a98), CITY_SHORE = new T.Color(0x6fc6c4), BANK = 1.4;
   function waterGeo() {
     const P = [], Cc = [], A = [];
     const tri = (a, b, c, color, kind) => { for (const v of [a, b, c]) { P.push(v[0], v[1], v[2]); Cc.push(color.r, color.g, color.b); A.push(0, kind); } };
+    const vert = (v, color, kind) => { P.push(v[0], v[1], v[2]); Cc.push(color.r, color.g, color.b); A.push(0, kind); };
     for (const w of waters) {
       if (w.k === 'river') {
         const f = w.f, len = Math.hypot(f.x2 - f.x1, f.z2 - f.z1), n = Math.max(2, Math.ceil(len / 0.07));
@@ -270,6 +274,7 @@ const Terrain = (() => {
         if (sea && !w.lava && y < SEA_Y + 0.01) continue;                       // under the sea: the sea's own water is there
         C1.set(w.lava ? LAVA : w.sea ? SEA : WATER);
         const at = k => { const a = k / n * Math.PI * 2, lx = Math.cos(a) * f.rx * 0.97, lz = Math.sin(a) * f.rz * 0.97; return [f.x + lx * c + lz * s, y, f.z - lx * s + lz * c]; };
+        if (city && !w.lava) { for (let k = 0; k < n; k++) { vert([f.x, y, f.z], CITY_DEEP, 1); vert(at(k + 1), CITY_SHORE, BANK); vert(at(k), CITY_SHORE, BANK); } continue; }
         for (let k = 0; k < n; k++) tri([f.x, y, f.z], at(k + 1), at(k), C1, w.lava ? 5 : 1);
       } else if (w.k === 'flow') {
         // a ribbon along the line at the river's level, its sides turned halfway between one piece and the next
@@ -278,10 +283,15 @@ const Terrain = (() => {
           const a = p[Math.max(0, k - 1)], b = p[Math.min(n - 1, k + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1;
           side.push([-dz / l * w.hw, dx / l * w.hw]);
         }
+        // (in three strips across: its middle deeper, its banks lighter, the shader's foam along them: anim.y 1.4 at the
+        // banks, 1 in the middle)
+        const mid = w.c, bank = w.cb || w.c, B = w.cb ? BANK : 1;
         for (let k = 1; k < n; k++) {
           const L0 = [p[k - 1][0] + side[k - 1][0], w.y, p[k - 1][1] + side[k - 1][1]], R0 = [p[k - 1][0] - side[k - 1][0], w.y, p[k - 1][1] - side[k - 1][1]];
           const L1 = [p[k][0] + side[k][0], w.y, p[k][1] + side[k][1]], R1 = [p[k][0] - side[k][0], w.y, p[k][1] - side[k][1]];
-          tri(L0, L1, R0, w.c, 1); tri(R0, L1, R1, w.c, 1);
+          const M0 = [p[k - 1][0], w.y, p[k - 1][1]], M1 = [p[k][0], w.y, p[k][1]];
+          vert(L0, bank, B); vert(L1, bank, B); vert(M0, mid, 1);  vert(M0, mid, 1); vert(L1, bank, B); vert(M1, mid, 1);
+          vert(M0, mid, 1); vert(M1, mid, 1); vert(R0, bank, B);   vert(R0, bank, B); vert(M1, mid, 1); vert(R1, bank, B);
         }
       } else if (w.k === 'fall') {
         // off the lip it arcs out, clear of the rock, and spreads as it falls
@@ -407,7 +417,7 @@ const Terrain = (() => {
     g.setAttribute('position', new T.Float32BufferAttribute(pos, 3));
     g.setIndex(idx);
     g.computeVertexNormals();
-    const nor = g.attributes.normal.array, MEADOW = new T.Color(0x86a34c), FOREST = new T.Color(0x4a6e36);
+    const nor = g.attributes.normal.array, MEADOW = new T.Color(city ? 0x86aa4a : 0x86a34c), FOREST = new T.Color(city ? 0x4f7d34 : 0x4a6e36);
     const FIELDS = [0xcdb862, 0x9aab48, 0xa5865a, 0xbfb46c, 0x7f9c45].map(c => new T.Color(c));
     for (let k = 0; k < pos.length / 3; k++) {
       const x = pos[k * 3], y = pos[k * 3 + 1], z = pos[k * 3 + 2], r = Math.sqrt(x * x + z * z), slope = 1 - nor[k * 3 + 1];

@@ -22,7 +22,7 @@ const CityModels = (() => {
     tile: 0xb35a3c, tile2: 0x9c4a35, tin: 0x8f959a, tin2: 0x70757a, rust: 0x9b4d35, roofGreen: 0x5f7f6a,
     panel: 0xcac4b7, panel2: 0xb2aa9a, panel3: 0xd9d2c3, glass: 0x5b7889, glass2: 0x8aabbd, win: 0x39444f,
     wood: 0x7d5234, wood2: 0x5b3a24, balcony: 0x6b8f88, iron: 0x3a3c40,
-    asphalt: 0x67696d, cobble: 0xb5a78f, paving: 0xcdbfa3, lawn: 0x7aa34b, dusty: 0xa8a487,
+    asphalt: 0x8e8a83, cobble: 0xb5a78f, paving: 0xcdbfa3, lawn: 0x86b74e, dusty: 0x9fb565,
     leaf: 0x57893d, leaf2: 0x467a36, autumn: 0xc98a33, cypress: 0x2f5536,
     bronze: 0x564838, gold: 0xe2b04a, red: 0xc23a2e, white: 0xf3efe6, blue: 0x2f62a8, yellow: 0xe9c449, stone: 0xcfc1a7, stone2: 0xb3a58c, brick: 0xae5c3d
   };
@@ -32,8 +32,8 @@ const CityModels = (() => {
   // a window or a band of windows: a thin dark pane just in front of a wall facing +z
   const pane = (w, h) => new T.PlaneGeometry(w, h).translate(0, h / 2, 0);
   // an old Tbilisi house: fl floors, a hipped roof, windows in rows, and (bal) a wooden balcony along the upper floor
-  function oldHouse(B, x, z, w, d, fl, wallC, roofC, ry = 0, bal = true) {
-    const put = B.at(x, z, ry), fh = 0.072, h = fh * fl;
+  function oldHouse(B, x, z, w, d, fl, wallC, roofC, ry = 0, bal = true, s = 1) {
+    const put = B.at(x, z, ry, s), fh = 0.072, h = fh * fl;
     put(box(w, h, d), wallC, 0, 0, 0, { vary: 0.04 });
     put(pyr(w * 1.1, 0.05 + 0.25 * Math.min(w, d), d * 1.12), roofC, 0, h, 0, { vary: 0.07 });
     const n = Math.max(1, Math.round(w / 0.055));
@@ -123,402 +123,160 @@ const CityModels = (() => {
   // Didube's or Metekhi's church: Models' church in the city's stone
   const chapel = (B, x, z, s, ry = 0) => church(B, x, z, s, 0xd7c6a2, 0x7c6e5c, ry);
 
-  // ===== the places: first their land (relief R), then what stands on it (B) =====
-  // (the lots by a corner share its square of land with the next side's: each keeps to its own triangle of it, z >=
-  // 0.15 + 1.05 x for the first lot after a corner, z >= 0.15 - 1.05 x for the last one before it)
-  const L = {};
-  const city = (R, c = C.dusty) => R.tint(c, 9, undefined, 0x9c917a);      // (where it is steep: the warm stone)
-  const green = (R, c = C.lawn) => R.tint(c, 9, undefined, 0x6f7c4e);       // (where it is steep: the wooded slope)
-  const street = (R, x1, z1, x2, z2, w = 0.08, c = C.asphalt) => R.path(x1, z1, x2, z2, w, c);
-  // ქვემო სანაპირო
-  L[1] = {   // Ortachala: gardens and a riverside tavern; the Mtkvari through its left end, its little dam
-    r: R => { green(R); R.pad(-0.12, 0.26, 0.12); },
-    b: B => {
-      oldHouse(B, -0.12, 0.26, 0.15, 0.1, 2, C.cream, C.tin, 0.2);
-      const put = B.at(0.02, 0.38, 0.2); put(box(0.12, 0.008, 0.04), C.wood, 0, 0.03, 0); put(box(0.13, 0.004, 0.05), C.white, 0, 0.034, 0);      // the feast table
-      for (const [x, z] of [[-0.3, 0.06], [-0.31, 0.26], [-0.22, -0.08]]) poplar(B, x, z, 1.1);
-      for (let k = 0; k < 3; k++) { const px = -0.02 + k * 0.05; B.add(box(0.004, 0.06, 0.004), C.wood2, px, 0, 0.18); }
-      B.add(box(0.14, 0.006, 0.05), C.leaf2, 0.03, 0.06, 0.18, { sway: 0.3 });                   // the vine over the pergola
-    }
-  };
-  L[3] = {   // Ponichala: small houses with tin roofs and fruit gardens on the river's bend, the road out of town
-    r: R => { green(R); street(R, -0.6, 0.3, 0.6, 0.26, 0.08); for (const [x, z] of [[-0.28, -0.05], [-0.02, -0.12], [0.24, -0.04]]) R.pad(x, z, 0.1); R.hill(0.1, -0.5, 0.6, 0.2, 0.12); },
-    b: B => {
-      oldHouse(B, -0.28, -0.05, 0.14, 0.11, 2, C.cream, C.tin, 0.1); oldHouse(B, -0.02, -0.12, 0.13, 0.1, 2, C.peach, C.rust, -0.1); oldHouse(B, 0.24, -0.04, 0.14, 0.11, 2, C.sand, C.tin2, 0.15);
-      for (const [x, z] of [[-0.12, 0.08], [0.1, 0.06], [0.36, 0.1], [-0.42, 0.1]]) tree(B, x, z, 0.75, C.leaf2);
-      for (const [x, z] of [[-0.45, -0.25], [0.42, -0.22]]) poplar(B, x, z, 1.1);
-    }
-  };
-  // აღმოსავლეთი
-  L[6] = {   // Varketili: panel blocks on the plateau, the metro's last station below
-    r: R => { city(R); R.mesa(0, -0.2, 0.5, 0.3, 0.1, 0.5); R.pad(0, -0.2, 0.3); street(R, -0.6, 0.28, 0.6, 0.28, 0.07); },
-    b: B => {
-      block(B, -0.2, -0.24, 0.32, 0.1, 9, C.panel, 0); block(B, 0.22, -0.18, 0.1, 0.32, 9, C.panel2, 0.08);
-      pavilion(B, -0.22, 0.2, 0.75);
-      for (const [x, z] of [[0.05, 0.1], [0.38, 0.22], [-0.42, 0.08]]) tree(B, x, z, 0.7);
-      bench(B, 0.08, 0.24); lamp(B, 0.2, 0.24);
-    }
-  };
-  L[8] = {   // Samgori: the wide avenue to the airport, a fruit market, big blocks
-    r: R => { city(R); street(R, -0.6, 0.12, 0.6, 0.16, 0.16); street(R, -0.6, 0.12, 0.6, 0.16, 0.012, 0xe9e4d4); R.pad(0, -0.3, 0.3); },
-    b: B => {
-      block(B, -0.28, -0.3, 0.26, 0.1, 6, C.panel3); block(B, 0.26, -0.32, 0.22, 0.1, 7, C.panel);
-      for (let k = 0; k < 4; k++) stall(B, -0.15 + k * 0.1, -0.12, 0, [C.red, C.yellow, 0x3f7fc2, 0x55ad5f][k]);
-      for (const [x, z] of [[-0.45, 0.36], [0.45, 0.38]]) tree(B, x, z, 0.7);
-    }
-  };
-  L[9] = {   // Isani: the round metro pavilion on its square, kiosks, plane trees, five-storey blocks (away from the corner)
-    r: R => { city(R); R.pad(0.1, 0.0, 0.3); street(R, -0.1, 0.32, 0.6, 0.3, 0.08); },
-    b: B => {
-      pavilion(B, 0.1, 0.06, 1);
-      block(B, 0.25, -0.3, 0.26, 0.09, 5, C.panel3); block(B, -0.06, -0.32, 0.14, 0.09, 5, C.sand);
-      for (const [x, z] of [[0.36, 0.1], [-0.08, 0.16], [0.3, -0.08]]) plane(B, x, z, 0.85);
-      stall(B, -0.02, 0.0, 0.3, C.yellow); umbrella(B, 0.32, 0.26, C.red);
-    }
-  };
-  // მარცხენა სანაპირო
-  L[11] = { r: R => { green(R); R.pad(-0.14, -0.04, 0.42); }, b: () => { } };    // Avlabari: Sameba (its model)
-  L[13] = { r: R => { city(R); R.pad(0, -0.02, 0.45); }, b: () => { } };                 // Chughureti: the old courtyard (its model)
-  L[14] = {  // Aghmashenebeli Avenue: the pedestrian street of pastel houses, cafés, the fountain
-    r: R => { city(R); street(R, -0.6, 0.04, 0.6, 0.04, 0.12, C.cobble); R.pad(0, -0.25, 0.3); R.pad(0, 0.3, 0.25); },
-    b: B => {
-      const cols = [C.peach, C.sky, C.cream, C.mint, C.lilac];
-      [-0.36, -0.12, 0.12, 0.36].forEach((x, k) => oldHouse(B, x, -0.22, 0.2, 0.13, 3, cols[k], k % 2 ? C.tile : C.tin, 0, true));
-      oldHouse(B, -0.26, 0.32, 0.22, 0.11, 2, cols[4], C.tile2, Math.PI); oldHouse(B, 0.28, 0.32, 0.2, 0.11, 2, cols[2], C.tin, Math.PI);
-      for (const x of [-0.24, 0.0, 0.22]) umbrella(B, x, 0.12, [C.white, C.red, C.white][Math.round(x * 5 + 1) % 3]);
-      B.add(cyl(0.03, 0.035, 0.02, 10), C.stone, 0.04, 0, -0.04); B.add(cyl(0.006, 0.006, 0.04, 6), C.stone, 0.04, 0.02, -0.04);
-    }
-  };
-  // ჩრდილოეთი
-  L[16] = {  // Gldani: tall blocks round a big courtyard, swings, a carousel
-    r: R => { city(R); R.pad(0, -0.05, 0.42); street(R, -0.6, 0.36, 0.6, 0.36, 0.07); },
-    b: B => {
-      block(B, -0.3, -0.18, 0.1, 0.4, 14, C.panel); block(B, 0.06, -0.34, 0.36, 0.1, 12, C.panel2, 0, 4); block(B, 0.38, -0.08, 0.1, 0.3, 14, C.panel3);
-      for (const x of [-0.08, 0.0]) { B.add(box(0.004, 0.06, 0.004), C.red, x - 0.02, 0, 0.08); B.add(box(0.004, 0.06, 0.004), C.red, x + 0.02, 0, 0.08); B.add(box(0.045, 0.004, 0.004), C.red, x, 0.06, 0.08); }
-      B.add(box(0.004, 0.11, 0.004), C.iron, 0.2, 0, 0.12); B.add(box(0.03, 0.022, 0.003), C.white, 0.2, 0.11, 0.115);
-      car(B, -0.38, 0.28, 0, C.white); car(B, -0.26, 0.28, 0, 0x3c3c3c); car(B, 0.3, 0.28, 0, C.red);
-      tree(B, -0.12, -0.08, 0.6); tree(B, 0.18, 0.16, 0.6);
-    }
-  };
-  L[18] = {  // Nadzaladevi: the railway and its old train, the covered market, the footbridge over the tracks
-    r: R => { city(R); street(R, -0.6, 0.05, 0.6, 0.05, 0.14, 0x6d6255); R.pad(0, -0.3, 0.28); R.pad(0, 0.32, 0.2); },
-    b: B => {
-      for (const z of [0.0, 0.1]) { B.add(box(1.2, 0.006, 0.006), 0x8a8a8a, 0, 0.003, z - 0.02); B.add(box(1.2, 0.006, 0.006), 0x8a8a8a, 0, 0.003, z + 0.02); }
-      const put = B.at(-0.1, -0.3); put(box(0.42, 0.07, 0.15), C.brick, 0, 0, 0, { vary: 0.06 }); put(roof(0.46, 0.06, 0.18), C.tin, 0, 0.07, 0, { vary: 0.06 });
-      for (let k = 0; k < 4; k++) stall(B, -0.25 + k * 0.1, -0.16, 0, [C.red, 0x55ad5f, C.yellow, 0x3f7fc2][k]);
-      const fb = B.at(0.3, 0.05, Math.PI / 2); fb(box(0.03, 0.006, 0.36), C.iron, 0, 0.12, 0); for (const z of [-0.16, 0.16]) fb(box(0.03, 0.12, 0.03), C.stone2, 0, 0, z);
-      oldHouse(B, 0.34, -0.3, 0.16, 0.12, 2, C.cream, C.tin2, 0, false);
-    }
-  };
-  L[19] = {  // Didube: the bus station full of minibuses, the market, the old church among cypresses (away from the river)
-    r: R => { city(R); R.pad(0.15, 0.0, 0.34); },
-    b: B => {
-      for (let k = 0; k < 3; k++) for (let j = 0; j < 2; j++) minibus(B, 0.0 + k * 0.11, 0.2 + j * 0.08, Math.PI / 2);
-      chapel(B, 0.3, -0.24, 0.55);
-      for (const [x, z] of [[0.12, -0.32], [0.45, -0.14], [0.44, -0.36]]) cypress(B, x, z, 0.9);
-      stall(B, 0.36, 0.14, -0.2, C.red); stall(B, 0.42, 0.28, -0.2, C.yellow);
-    }
-  };
-  // ჩრდილო-დასავლეთი
-  L[21] = {  // Dighomi: new coloured towers by the forest park (away from the river)
-    r: R => { green(R); R.pad(-0.18, -0.12, 0.32); },
-    b: B => {
-      tower(B, -0.3, -0.22, 0.12, 0.1, 0.48, C.panel3, C.peach); tower(B, -0.1, -0.3, 0.12, 0.1, 0.56, C.panel3, 0x8fb5d0); tower(B, -0.28, 0.02, 0.1, 0.1, 0.4, C.panel3, 0xb7d08f);
-      for (let k = 0; k < 7; k++) pine(B, -0.02 + (k % 3) * 0.1, 0.06 + Math.floor(k / 3) * 0.1 - 0.12, 0.7);
-      bench(B, -0.12, 0.3); lamp(B, -0.2, 0.3);
-    }
-  };
-  L[23] = {  // Vashlijvari: towers on the green hill above Lisi Lake, its pier
-    r: R => { green(R); R.hill(0, -0.35, 0.6, 0.28, 0.13); R.pad(0, -0.32, 0.25); R.lake(0.05, 0.2, 0.4, 0.18, 0.06); },
-    b: B => {
-      tower(B, -0.22, -0.34, 0.12, 0.1, 0.5, C.panel3, 0xd9a07a); tower(B, 0.02, -0.38, 0.12, 0.1, 0.62, C.panel3, 0xd9a07a); tower(B, 0.26, -0.32, 0.12, 0.1, 0.46, C.panel3, 0xd9a07a);
-      B.add(box(0.03, 0.008, 0.2), C.wood, 0.3, 0.02, 0.18, { free: false });
-      for (const [x, z] of [[-0.42, 0.0], [0.45, -0.05], [-0.4, 0.3]]) tree(B, x, z, 0.75);
-    }
-  };
-  L[24] = {  // Saburtalo: the stacked blocks of the old ministry over the trees, the university
-    r: R => { green(R); R.hill(-0.1, -0.2, 0.45, 0.35, 0.1); R.pad(-0.12, -0.18, 0.28); street(R, -0.6, 0.32, 0.6, 0.3, 0.08); },
-    b: B => {
-      const put = B.at(-0.12, -0.18);
-      put(box(0.05, 0.36, 0.05), C.panel3, 0, 0, 0);
-      put(box(0.34, 0.07, 0.08), C.panel, 0, 0.12, 0); put(box(0.08, 0.07, 0.3), C.panel, 0.02, 0.19, 0); put(box(0.3, 0.07, 0.08), C.panel, -0.02, 0.26, 0.04); put(box(0.08, 0.07, 0.26), C.panel, 0.06, 0.33, -0.02);
-      for (const y of [0.12, 0.26]) put(pane(0.3, 0.03), C.win, 0, y + 0.02, 0.042, { vary: 0 });
-      const u = B.at(0.3, -0.18); u(box(0.24, 0.12, 0.14), C.cream); for (let k = 0; k < 5; k++) u(cyl(0.008, 0.008, 0.12, 6), C.white, -0.09 + k * 0.045, 0, 0.075); u(roof(0.26, 0.04, 0.16), C.tin, 0, 0.12, 0);
-      for (const [x, z] of [[0.08, 0.14], [-0.3, 0.12], [0.42, 0.12], [-0.42, -0.36]]) tree(B, x, z, 0.65);
-    }
-  };
-  // ვაკე-ვერა
-  L[26] = {  // Vera: the steep cobbled street, houses with iron balconies, great plane trees in autumn, the ravine
-    r: R => { city(R); R.hill(0, -0.3, 0.6, 0.28, 0.14); R.dig(0.55, 0.15, 0.2, 0.55, 0.08, 0.06); street(R, -0.5, -0.1, 0.2, 0.3, 0.07, C.cobble); R.pad(-0.3, -0.25, 0.16); R.pad(0.05, -0.3, 0.14); R.pad(-0.28, 0.14, 0.12); },
-    b: B => {
-      oldHouse(B, -0.3, -0.25, 0.18, 0.12, 3, C.peach, C.tin, 0.2); oldHouse(B, 0.05, -0.3, 0.16, 0.12, 3, C.sky, C.tile, -0.1); oldHouse(B, -0.28, 0.14, 0.14, 0.1, 2, C.cream, C.rust, 0.5);
-      for (const [x, z] of [[0.22, -0.08], [-0.05, 0.02], [0.36, -0.3], [-0.45, -0.02]]) bigTree(B, x, z, 0.6, C.autumn);
-    }
-  };
-  L[27] = {  // Vake: the leafy avenue, the tall 1950s houses, cafés
-    r: R => { city(R); street(R, -0.6, 0.12, 0.6, 0.12, 0.12); R.pad(0, -0.25, 0.32); },
-    b: B => {
-      [-0.3, 0.0, 0.3].forEach((x, k) => { block(B, x, -0.26, 0.24, 0.14, 5, [C.ochre, C.cream, C.sand][k], 0, 4); B.at(x, -0.26)(roof(0.26, 0.05, 0.16), C.tile, 0, 0.25, 0, { vary: 0.06 }); });
-      for (let k = 0; k < 6; k++) tree(B, -0.45 + k * 0.18, 0.0, 0.65, C.leaf2);
-      for (let k = 0; k < 6; k++) tree(B, -0.45 + k * 0.18, 0.26, 0.6, C.leaf2);
-      umbrella(B, -0.15, -0.06, C.red); umbrella(B, 0.15, -0.06, C.white);
-    }
-  };
-  L[29] = {  // Vake Park: the great stair with its fountains up to the memorial (away from the corner)
-    r: R => { green(R); R.hill(0.12, -0.32, 0.45, 0.3, 0.15); R.pad(0.12, -0.36, 0.1); street(R, 0.12, 0.45, 0.12, -0.3, 0.1, C.paving); },
-    b: B => {
-      for (let k = 0; k < 6; k++) B.add(box(0.1, 0.012, 0.06), k % 2 ? C.stone : C.stone2, 0.12, -0.012 + k * 0.022, 0.24 - k * 0.09);
-      B.add(box(0.05, 0.03, 0.05), C.stone2, 0.12, 0, -0.36); B.add(taperFrame2(0.03, 0.012, 0.34), C.stone, 0.12, 0.03, -0.36);
-      for (const [x, z] of [[-0.05, 0.1], [0.3, 0.1], [-0.02, -0.22], [0.3, -0.2], [0.4, 0.35]]) tree(B, x, z, 0.75);
-    }
-  };
-  function taperFrame2(rb, rt, h) { return new T.CylinderGeometry(rt, rb, h, 4).rotateY(Math.PI / 4).translate(0, h / 2, 0); }
-  // მთაწმინდის კალთა
-  L[31] = {  // Turtle Lake: the little lake in the forest, its piers, the ethnographic museum's wooden houses (away from the corner)
-    r: R => { green(R, 0x6f9a46); R.hill(-0.1, -0.4, 0.6, 0.24, 0.12); R.lake(-0.14, -0.02, 0.24, 0.17, 0.06); R.pad(-0.38, 0.28, 0.1); },
-    b: B => {
-      for (let k = 0; k < 9; k++) { const a = k / 9 * Math.PI * 2; pine(B, -0.14 + Math.cos(a) * 0.36, -0.06 + Math.sin(a) * 0.27 - 0.05, 0.7 + (k % 3) * 0.1); }
-      B.add(box(0.12, 0.008, 0.03), C.wood, -0.14, 0.01, 0.17);
-      const h = B.at(-0.38, 0.28, 0.3); h(box(0.11, 0.06, 0.08), C.wood); h(roof(0.13, 0.04, 0.1), 0x6d5a45, 0, 0.06, 0, { vary: 0.08 });
-    }
-  };
-  L[32] = { r: R => { city(R); R.pad(0, 0.02, 0.45); }, b: B => { for (let k = 0; k < 5; k++) tree(B, -0.4 + k * 0.2, -0.44, 0.7, C.leaf2); } };      // Rustaveli (its model)
-  L[34] = {  // Mtatsminda Park (the mountain itself stands in the middle): the Ferris wheel over the city, the carousel, the kiosks
-    r: R => { green(R, 0x6f9a46); R.pad(0, -0.1, 0.45); street(R, -0.5, 0.06, 0.5, 0.02, 0.3, C.paving); },
-    b: B => {
-      // the wheel's two A-frames either side of it (the wheel itself turns: FX), the axle between them
-      const fw = B.at(FERRIS[0], FERRIS[1], FERRIS_RY);
-      for (const sx of [-0.04, 0.04]) for (const sz of [-1, 1]) fw(box(0.009, 0.27, 0.009), C.white, sx, 0, sz * 0.075, { rx: -sz * 0.28 });
-      fw(box(0.1, 0.012, 0.012), C.iron, 0, 0.245, 0);
-      fw(box(0.12, 0.012, 0.18), C.paving, 0, 0, 0);
-      // the carousel's round floor (it turns: FX), the kiosks with their awnings, lamps, benches, the trees at the back
-      B.add(cyl(0.085, 0.09, 0.012, 16), C.stone, 0.24, 0, -0.14);
-      stall(B, 0.3, 0.2, -0.4, C.red); stall(B, -0.36, 0.22, 0.3, 0x2f62a8);
-      for (const [x, z] of [[-0.44, 0.0], [0.44, 0.02], [0.05, 0.3]]) lamp(B, x, z, 1.2);
-      bench(B, -0.1, 0.24, 0); bench(B, 0.14, 0.26, 0);
-      for (const [x, z, sc] of [[-0.42, -0.38, 0.75], [0.44, -0.4, 0.7], [0.02, -0.44, 0.65]]) tree(B, x, z, sc, C.leaf2);
-      pine(B, -0.46, -0.16, 0.7);
-    }
-  };
-  const FERRIS = [-0.14, -0.16], FERRIS_RY = Math.PI / 4, FERRIS_H = 0.245;
-  // ძველი ქალაქი
-  L[37] = {  // Sololaki: the mansions with carved balconies and painted halls, the old walls on the ridge above
-    r: R => { city(R); R.ridge(-0.6, -0.42, 0.6, -0.4, 0.3, 0.16); street(R, -0.6, 0.12, 0.6, 0.1, 0.07, C.cobble); R.pad(-0.25, -0.08, 0.16); R.pad(0.12, -0.1, 0.16); R.pad(0.38, -0.05, 0.12); },
-    b: B => {
-      oldHouse(B, -0.25, -0.08, 0.22, 0.14, 3, C.ochre, C.tin, 0); oldHouse(B, 0.12, -0.1, 0.2, 0.14, 3, C.rose, C.tin2, 0); oldHouse(B, 0.38, -0.05, 0.14, 0.12, 2, C.cream, C.tile, 0);
-      Models.parts.wall(B, 0.0, -0.4, 0.9, 0.08, 0.0, 0xb3a184);
-      for (const [x, z] of [[-0.45, 0.2], [0.0, 0.26], [0.44, 0.26]]) tree(B, x, z, 0.6);
-    }
-  };
-  L[39] = { r: R => { city(R); R.pad(0.12, 0.06, 0.38); }, b: () => { } };          // Old Tbilisi: the baths (their model)
-  // the four stations
-  L[5] = {   // the central station: the glass vault over the platforms, the train, the square in front with buses
-    r: R => { city(R); R.pad(0, -0.2, 0.36); street(R, -0.6, 0.28, 0.6, 0.28, 0.12); for (const z of [-0.22, -0.12]) street(R, -0.6, z, 0.6, z, 0.02, 0x6d6255); },
-    b: B => {
-      vault(B, 0, -0.17, 0.8, 0.13);
-      for (const x of [-0.4, 0.4]) B.add(box(0.03, 0.06, 0.26), C.panel3, x, 0, -0.17);
-      bus(B, -0.3, 0.2, 0); bus(B, 0.0, 0.2, 0, 0xd9a03a); car(B, 0.25, 0.2, 0, C.yellow); car(B, 0.38, 0.2, 0, C.white);
-      lamp(B, -0.45, 0.1); lamp(B, 0.45, 0.1);
-    }
-  };
-  L[15] = {  // the metro: its round pavilion, the sign, the little square
-    r: R => { city(R); R.pad(0, -0.05, 0.35); },
-    b: B => {
-      pavilion(B, 0, -0.08, 1.4);
-      for (const [x, z] of [[-0.35, -0.3], [0.35, -0.3], [-0.38, 0.2], [0.38, 0.22]]) plane(B, x, z, 0.8);
-      bench(B, -0.2, 0.25); bench(B, 0.2, 0.25); lamp(B, 0, 0.3);
-    }
-  };
-  L[25] = {  // the cable car: its glass station below, the line up to the hill at the back
-    r: R => { green(R); R.hill(0, -0.5, 0.65, 0.35, 0.28); R.pad(0, 0.2, 0.16); },
-    b: B => {
-      const put = B.at(0, 0.2); put(box(0.2, 0.08, 0.12), C.glass2); put(box(0.22, 0.01, 0.14), C.white, 0, 0.08, 0);
-      for (const [x, h, z] of CAB25) { B.add(box(0.014, h, 0.014), 0x5b5f66, x, 0, z); B.add(box(0.05, 0.01, 0.02), 0x5b5f66, x, h, z); }
-      const top = CAB25.map(([x, h, z]) => [x, B.ground(x, z) + h, z]), [a, b] = top, len = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
-      const up = Math.atan2(b[1] - a[1], Math.hypot(b[0] - a[0], b[2] - a[2])), ry = Math.atan2(-(b[2] - a[2]), b[0] - a[0]);
-      B.add(box(len, 0.004, 0.004), 0x2b2d31, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2, { ry, rz: up, free: true });
-      for (const [x, z] of [[-0.35, 0.1], [0.35, 0.12], [-0.3, -0.3], [0.32, -0.32]]) tree(B, x, z, 0.75);
-    }
-  };
-  const CAB25 = [[0.0, 0.14, 0.18], [0.0, 0.16, -0.4]];
-  L[35] = {  // the funicular: its old stone station below, the track straight up the wooded slope
-    r: R => { green(R, 0x6f9a46); R.hill(0, -0.5, 0.75, 0.55, 0.34); R.pad(0, 0.3, 0.12); },
-    b: B => {
-      const put = B.at(0, 0.3); put(box(0.22, 0.1, 0.1), C.stone); for (let k = 0; k < 3; k++) put(pane(0.04, 0.06), C.win, -0.06 + k * 0.06, 0, 0.051, { vary: 0 }); put(roof(0.24, 0.05, 0.12), C.tile, 0, 0.1, 0);
-      for (let k = 0; k < 12; k++) { const z = 0.2 - k * 0.06; B.add(box(0.05, 0.008, 0.012), C.wood2, 0, 0.004, z); }
-      for (const x of [-0.016, 0.016]) for (let k = 0; k < 6; k++) { const z0 = 0.22 - k * 0.12; B.add(box(0.004, 0.006, 0.12), 0x8a8a8a, x, 0.008, z0 - 0.06); }
-      for (let k = 0; k < 12; k++) { const r = rng(35 + k); pine(B, (k % 2 ? 1 : -1) * (0.12 + r() * 0.3), 0.15 - Math.floor(k / 2) * 0.12, 0.6 + r() * 0.3); }
-    }
-  };
-  // the water and the power
-  L[12] = {  // the Tbilisi Sea: the reservoir, its beach and pier, the Chronicle's bronze pillars on the hill
-    r: R => { R.tint(0xb5a87a, 9, undefined, 0x9c917a); R.lake(0.0, 0.12, 0.55, 0.28, 0.08); R.hill(0.0, -0.4, 0.5, 0.22, 0.14); R.pad(0, -0.4, 0.16); },
-    b: B => {
-      for (let k = 0; k < 7; k++) B.add(box(0.035, 0.22 + (k % 3) * 0.05, 0.05), C.bronze, -0.18 + k * 0.06, 0, -0.42, { vary: 0.1 });
-      for (const x of [-0.3, -0.18, 0.2, 0.32]) umbrella(B, x, -0.16, [C.red, C.yellow, C.white, C.red][Math.round((x + 0.3) * 6) % 4]);
-      B.add(box(0.03, 0.008, 0.18), C.wood, 0.38, 0.015, 0.12);
-    }
-  };
-  L[28] = {  // ZAHES: the stone dam across the river, the classical power station, the pylons
-    r: R => { green(R); R.dig(-0.65, 0.05, 0.65, 0.05, 0.14, 0.07); R.pad(0.25, -0.3, 0.15); },
-    b: B => {
-      const d = B.at(-0.12, 0.05, Math.PI / 2); d(box(0.3, 0.08, 0.05), C.stone2, 0, -0.03, 0, { vary: 0.06 }); for (let k = 0; k < 3; k++) d(box(0.04, 0.05, 0.052), 0x2c3a3e, -0.08 + k * 0.08, -0.02, 0);
-      const p = B.at(0.25, -0.3); p(box(0.22, 0.12, 0.13), C.cream); for (let k = 0; k < 4; k++) p(cyl(0.008, 0.008, 0.12, 6), C.white, -0.075 + k * 0.05, 0, 0.07); p(roof(0.24, 0.045, 0.15), C.tile, 0, 0.12, 0); p(box(0.06, 0.02, 0.005), 0x8a2a2a, 0, 0.13, 0.075);
-      pylon(B, -0.35, -0.3, 0.42); pylon(B, 0.42, 0.3, 0.38);
-      for (const [x, z] of [[-0.4, 0.32], [0.05, -0.38], [0.45, -0.12]]) tree(B, x, z, 0.7);
-    }
-  };
-  // the cards and the taxes
-  const kintoLot = {   // Kinto's question: a kinto's fruit stall in the street
-    r: R => { city(R); R.pad(-0.1, -0.05, 0.22); },
-    b: B => {
-      stall(B, -0.12, -0.06, 0, C.red); stall(B, 0.02, -0.08, -0.2, C.yellow);
-      const put = B.at(-0.12, 0.14); put(cyl(0.05, 0.04, 0.012, 12), C.wood, 0, 0.05, 0); for (let k = 0; k < 6; k++) put(ball(0.012), [0xd94a2e, 0xf0a530, 0x7cae3a][k % 3], Math.cos(k) * 0.025, 0.065, Math.sin(k) * 0.025, { vary: 0 });
-      put(cyl(0.006, 0.006, 0.05, 5), C.wood2, 0, 0, 0);
-      plane(B, -0.36, -0.28, 0.8); lamp(B, 0.08, 0.22); bench(B, -0.3, 0.2);
-    }
-  };
-  const storyLot = {   // the old Tiflis story: a poster column, a newspaper kiosk, a bench under a plane tree
-    r: R => { city(R); R.pad(0, -0.05, 0.22); },
-    b: B => {
-      B.add(cyl(0.035, 0.035, 0.16, 12), (y, k) => [0xe9ddc3, 0xc23a2e, 0xe9c449, 0x3f7fc2][Math.floor(y / 0.04) % 4], -0.08, 0, -0.06);
-      B.add(dome(0.04, 10), 0x3a5a46, -0.08, 0.16, -0.06, { smooth: true, vary: 0 });
-      const k = B.at(0.12, -0.08); k(box(0.1, 0.08, 0.07), 0x4f7f6a); k(box(0.11, 0.008, 0.08), C.white, 0, 0.08, 0); k(pane(0.06, 0.03), C.white, 0, 0.03, 0.036, { vary: 0 });
-      plane(B, -0.34, -0.3, 0.85); bench(B, -0.22, 0.2); lamp(B, 0.1, 0.22);
-    }
-  };
-  L[2] = kintoLot; L[17] = kintoLot; L[33] = kintoLot;
-  L[7] = storyLot; L[22] = storyLot; L[36] = storyLot;
-  L[4] = { r: R => { city(R); R.pad(0, -0.04, 0.42); }, b: () => { } };   // the bank (its model)
-  L[38] = {  // the Dry Bridge: its stone arches over a dry garden, the painters' market under them
-    r: R => { city(R); R.pad(0, -0.1, 0.4); },
-    b: B => {
-      const put = B.at(0, -0.22); put(box(0.7, 0.03, 0.12), C.stone2, 0, 0.12, 0, { vary: 0.06 });
-      for (const x of [-0.3, -0.1, 0.1, 0.3]) put(box(0.05, 0.12, 0.12), C.stone, x, 0, 0, { vary: 0.06 });
-      for (let k = 0; k < 7; k++) { const x = -0.3 + k * 0.1, e = B.at(x, 0.08, 0.1 * Math.sin(k)); e(box(0.004, 0.06, 0.004), C.wood2, 0, 0, -0.01); e(box(0.05, 0.04, 0.004), [0x3f7fc2, 0xe9c449, 0xc23a2e, 0x55ad5f, 0xd99d8c][k % 5], 0, 0.035, 0, { rx: -0.2 }); }
-      lamp(B, -0.42, 0.25); lamp(B, 0.42, 0.25);
-    }
-  };
-
-  // ===== the inside corners of the ring: the river goes through two of them (0, 2) =====
-  const RING = [
-    { r: R => green(R), b: () => { } },
-    { r: R => R.tint(C.dusty, 9), b: B => { tree(B, -0.3, -0.3, 0.9); bush(B, 0.2, 0.2, 0.8); car(B, 0.0, -0.1, 0.3, C.white); } },
-    { r: R => green(R), b: () => { } },
-    { r: R => green(R, 0x6f9a46), b: B => { pine(B, -0.3, -0.35, 1); pine(B, -0.1, -0.4, 0.9); tree(B, 0.25, 0.2, 0.8); } }
-  ];
-
-  // ===== the middle: Mtatsminda's great mountain with its tower (like the archipelago's island), the Mtkvari round its
-  // foot with its bridges, Narikala on its rock in the river's bend, Kartlis Deda on the bank =====
-  // (board coordinates; the river from the back left corner (the embankment) round the mountain to the front, out
-  // between the squares 1 and 2 (Ortachala))
-  const MT = [0.4, -0.45], MT_W = 4.6, MT_R = MT_W / 2;               // the mountain's middle and how wide it is
-  const RIVER = [[-5.2, -5.2], [-3.4, -3.35], [-2.65, -2.2], [-2.5, -0.9], [-2.48, 0.55], [-2.38, 1.75], [-1.65, 2.42], [-0.2, 2.52], [1.2, 2.48], [2.35, 2.62], [3.15, 3.25], [3.45, 5.2]];
-  const WATER_Y = -0.05, RIVER_W = 0.62;            // the water's level, how wide it is (the bed is dug a little narrower)
-  let riverPts = RIVER;
-  // which way the river flows at a point near it (a unit vector along it)
-  function along(x, z) {
+  // ===== the land inside the squares: one map of the old city (the concept the user chose, from the board's
+  // skeleton), the river through its middle from the back to the front =====
+  // (board coordinates, x to the right and z to the front seen from the front; the squares' own lots have no scenes of
+  // their own: the players' houses and hotels stand on the squares, at their inner edge)
+  // the Mtkvari: in under the back's squares (24), out under the front's (5); its branch round Metekhi's cliff, out
+  // under the left side's (14)
+  const RIVER = [[-1.35, -5.4], [-1.25, -4.6], [-1.0, -3.2], [-0.55, -1.9], [0.0, -0.7], [0.15, 0.5], [0.0, 1.7], [-0.2, 2.9], [0.0, 4.6], [0.05, 5.4]];
+  const BRANCH = [[0.0, 1.0], [-1.4, 1.55], [-2.8, 1.5], [-4.45, 1.2], [-5.4, 1.1]];
+  const WATER_Y = -0.05;
+  let riverPts = RIVER, branchPts = BRANCH;
+  // how far a point is from a line of points, and which way the line runs there
+  function near(pts, x, z) {
     let best = Infinity, dir = [1, 0];
-    for (let k = 1; k < riverPts.length; k++) {
-      const [ax, az] = riverPts[k - 1], [bx, bz] = riverPts[k], dx = bx - ax, dz = bz - az, l = Math.hypot(dx, dz) || 1e-9;
+    for (let k = 1; k < pts.length; k++) {
+      const [ax, az] = pts[k - 1], [bx, bz] = pts[k], dx = bx - ax, dz = bz - az, l = Math.hypot(dx, dz) || 1e-9;
       const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (l * l))), d = Math.hypot(ax + dx * t - x, az + dz * t - z);
       if (d < best) { best = d; dir = [dx / l, dz / l]; }
     }
-    return dir;
+    return [best, dir];
   }
-  // the tower's foot on the model (a model 1 wide: its tower stands a little behind its middle), turned with it
-  const MT_RY = 0.35, TOWER = [MT[0] + Math.sin(MT_RY) * -0.09 * MT_W, MT[1] + Math.cos(MT_RY) * -0.09 * MT_W];
-  const CENTER = { peak: TOWER, mountain: MT, narikala: [-1.4, 1.35], deda: [2.25, 1.72], peace: [-0.4, 2.52], metekhiBridge: [1.25, 2.48], stone: [-2.5, -1.3] };
+  const along = (x, z) => near(riverPts, x, z)[1];
+  // the landmarks' places: Mtatsminda's hill (its tower a little behind its middle, turned with it), Narikala on the
+  // right, Kartlis Deda behind it, the Old Town below it, the baths at the front; Sameba at the back left, Metekhi's
+  // cliff on the left, Rike Park at the front left; the two bridges
+  const MT = [1.2, -3.05], MT_W = 2.9, MT_RY = 1.1;
+  const TOWER = [MT[0] + Math.sin(MT_RY) * -0.09 * MT_W, MT[1] + Math.cos(MT_RY) * -0.09 * MT_W];
+  const CENTER = { peak: TOWER, mountain: MT, narikala: [3.05, -1.25], deda: [3.95, -3.25], sameba: [-2.95, -3.2], baths: [1.25, 3.65],
+    bank: [1.6, 1.05], courtyard: [3.55, 2.45], cliff: [-2.3, -0.25], church: [-2.45, -0.45], rider: [-1.3, 0.3], rike: [-2.75, 3.1],
+    peace: [0.0, -0.7], stone: [-0.12, 3.3] };
+  const PATHS = [[[0.45, -0.5], [1.2, 0.2], [2.0, 0.5]], [[-0.5, -0.85], [-1.5, -0.95], [-2.0, -0.6]], [[-2.9, -2.25], [-2.6, -1.35]],
+    [[0.45, 3.3], [0.75, 3.15]], [[-0.7, 3.35], [-1.6, 3.3], [-2.2, 2.9]], [[0.15, -1.75], [0.6, -1.95]], [[0.75, 0.6], [0.8, 1.9], [0.55, 3.0]]];
+  const SAND = 0xd8ac66;
   function centerRelief(R) {
-    R.tint(0, 0, 0x7fa04e, 9, 2.8, 0x7d7a5a);                                   // the park round the mountain
-    R.tint(MT[0], MT[1], 0x6f9846, 9, 1.6, 0x6f7c4e);
-    R.pad(MT[0], MT[1], MT_R + 0.08);                                           // level under the mountain and the fortress
-    R.pad(CENTER.narikala[0], CENTER.narikala[1], 0.62);
-    R.pad(CENTER.deda[0], CENTER.deda[1], 0.3);
-    riverPts = R.flow(RIVER, 0.5, 0.19, WATER_Y, RIVER_W);
-    // the stone embankments: where the banks are steep, their stone shows
-    for (let k = 0; k < riverPts.length; k += 5) R.tint(riverPts[k][0], riverPts[k][1], 0x9fa57e, 9, 0.42, 0xc9bfa9);
+    R.tint(0, 0, 0x86b94e, 9, 5.5, 0xc8b088);                                    // the lawns all over (sandstone where it is steep)
+    R.tint(MT[0], MT[1], 0x6fa046, 9, 1.4, 0x7f8f52);
+    R.pad(MT[0], MT[1], MT_W / 2 + 0.05);                                         // level under the hill's model
+    R.pad(CENTER.narikala[0], CENTER.narikala[1], 1.25);
+    R.pad(CENTER.deda[0], CENTER.deda[1], 0.4); R.pad(CENTER.sameba[0], CENTER.sameba[1], 1.25);
+    R.tint(CENTER.sameba[0], CENTER.sameba[1], 0xbdb6a6, 9, 0.75);               // Sameba's paved square
+    R.pad(CENTER.baths[0], CENTER.baths[1], 0.85); R.pad(CENTER.bank[0], CENTER.bank[1], 0.6); R.pad(CENTER.courtyard[0], CENTER.courtyard[1], 0.65);
+    R.tint(2.5, 1.8, 0xa9b16c, 9, 1.0, 0xa89878);                                 // the Old Town's dusty lanes
+    // Metekhi's cliff: sheer sandstone, grass on its top
+    R.mesa(CENTER.cliff[0], CENTER.cliff[1], 1.6, 1.15, 0.6, 0.22);
+    for (const [dx, dz] of [[0, 0], [-1.1, -0.6], [1.0, -0.6], [-1.1, 0.7], [1.0, 0.7], [0, 1.0], [0, -1.0]]) R.tint(CENTER.cliff[0] + dx, CENTER.cliff[1] + dz, 0x86b94e, 9, 0.55, 0xd6bc8c);
+    R.tint(CENTER.rike[0], CENTER.rike[1], 0x7fbf4a, 9, 0.8);                    // Rike Park's lawns
+    // the river and its branch: turquoise, foam along their banks; sandstone where the banks are steep
+    riverPts = R.flow(RIVER, 0.62, 0.2, WATER_Y, 0.9, 0x2a8a98, 0x6fc6c4);
+    branchPts = R.flow(BRANCH, 0.4, 0.16, WATER_Y - 0.002, 0.55, 0x2a8a98, 0x6fc6c4);
+    for (const pts of [riverPts, branchPts]) for (let k = 0; k < pts.length; k += 5) R.tint(pts[k][0], pts[k][1], 0x9fb46a, 9, 0.5, 0xd4c6a2);
+    for (const pts of PATHS) for (let k = 1; k < pts.length; k++) R.path(pts[k - 1][0], pts[k - 1][1], pts[k][0], pts[k][1], 0.18, SAND);
   }
   function centerWater() { return null; }
-  // the cable car from the front bank over the river up to Narikala: its two masts (x, z) and their heights
-  const CABLE = [[-0.75, 3.04], [-1.12, 1.78]], CABLE_H = [0.3, 0.72];
+  // the Old Town's houses: tall, close together, carved balconies, tile and tin roofs; none where a model stands
+  function oldTown(B) {
+    const r = rng(1801), keep = [[CENTER.bank, 0.62], [CENTER.courtyard, 0.68]];
+    for (let gx = 0; gx < 7; gx++) for (let gz = 0; gz < 5; gz++) {
+      const x = 1.05 + gx * 0.47 + (r() - 0.5) * 0.14, z = 0.8 + gz * 0.47 + (r() - 0.5) * 0.14;
+      if (x > 4.15 || (x < 1.55 && z > 2.6) || keep.some(([[cx, cz], rr]) => Math.hypot(x - cx, z - cz) < rr)) continue;
+      if (r() < 0.12) { tree(B, x, z, 1.5, C.leaf2); continue; }                       // a little yard with its tree
+      if (near(PATHS[6], x, z)[0] < 0.25) continue;
+      const wall = WALLS[Math.floor(r() * WALLS.length)], roofC = [C.tile, C.tile2, C.rust, C.tile, 0x6f8fb0, C.tile2, 0x8a6f5a][Math.floor(r() * 7)];
+      oldHouse(B, x, z, 0.14 + r() * 0.06, 0.12 + r() * 0.03, 2 + Math.floor(r() * 2.6), wall, roofC, (r() - 0.5) * 0.5, true, 2.3);
+    }
+  }
+  // Rike Park's two great tubes, silver, open at their ends, lying on the lawn
+  function tubes(B, x, z, ry) {
+    const put = B.at(x, z, ry), silver = 0xb9c1c9;
+    put(cyl(0.2, 0.2, 1.0, 18), silver, 0, 0.2, 0, { rz: Math.PI / 2, smooth: true, vary: 0 });
+    put(cyl(0.17, 0.17, 0.62, 18), silver, 0, 0.17, 0.32, { rx: Math.PI / 2, smooth: true, vary: 0 });
+    for (const sx of [-1, 1]) put(cyl(0.16, 0.16, 0.012, 18), 0x3d4247, sx * 0.502, 0.2, 0, { rz: Math.PI / 2, vary: 0 });
+    put(cyl(0.135, 0.135, 0.012, 18), 0x3d4247, 0, 0.17, 0.63, { rx: Math.PI / 2, vary: 0 });
+  }
+  // Gorgasali on his horse, on a stone pedestal, in bronze
+  function rider(B, x, z, ry, s) {
+    const put = B.at(x, z, ry, s), bronze = 0x5d5046;
+    put(box(0.2, 0.14, 0.12), C.stone2); put(box(0.22, 0.02, 0.14), C.stone, 0, 0.14, 0);
+    put(box(0.13, 0.05, 0.04), bronze, 0, 0.21, 0); put(box(0.05, 0.06, 0.03), bronze, 0.07, 0.24, 0, { rz: -0.5 });
+    for (const lx of [-0.05, 0.05]) for (const lz of [-0.012, 0.012]) put(box(0.012, 0.06, 0.012), bronze, lx, 0.16, lz);
+    put(box(0.025, 0.06, 0.03), bronze, 0, 0.26, 0); put(ball(0.014), bronze, 0, 0.33, 0); put(box(0.006, 0.08, 0.006), bronze, 0.02, 0.29, 0.02, { rz: -0.3 });
+  }
+  // the trees: in the corners and along the edges, wherever the map leaves its lawns free
+  function trees(B, ground) {
+    const r = rng(2468), placed = [];
+    const away = (x, z) =>
+      near(riverPts, x, z)[0] > 0.8 && near(branchPts, x, z)[0] > 0.55 && PATHS.every(p => near(p, x, z)[0] > 0.24) &&
+      Math.hypot(x - MT[0], z - MT[1]) > MT_W / 2 + 0.15 && Math.hypot(x - CENTER.narikala[0], z - CENTER.narikala[1]) > 1.4 &&
+      Math.hypot(x - CENTER.deda[0], z - CENTER.deda[1]) > 0.55 && Math.hypot(x - CENTER.sameba[0], z - CENTER.sameba[1]) > 1.3 &&
+      Math.hypot(x - CENTER.baths[0], z - CENTER.baths[1]) > 0.95 && !(x > 0.75 && x < 4.35 && z > 0.5 && z < 3.15) &&
+      Math.hypot(x - CENTER.church[0], z - CENTER.church[1]) > 0.75 && Math.hypot(x - CENTER.rider[0], z - CENTER.rider[1]) > 0.4 &&
+      Math.hypot(x - (-3.05), z - 2.85) > 0.75 && Math.hypot(x - (-2.2), z - 3.45) > 0.7 &&
+      Math.hypot(x - CENTER.peace[0], z - CENTER.peace[1]) > 0.9 && Math.hypot(x - CENTER.stone[0], z - CENTER.stone[1]) > 0.85;
+    for (let k = 0; k < 900 && placed.length < 95; k++) {
+      // more of them near the edges and in the corners
+      const edge = r() < 0.65, x = edge ? (r() < 0.5 ? -1 : 1) * (3.55 + r() * 0.8) : (r() - 0.5) * 8.4, z = edge ? (r() - 0.5) * 8.4 : (r() - 0.5) * 8.4;
+      const [px, pz] = edge && r() < 0.5 ? [z, x] : [x, z];
+      if (Math.max(Math.abs(px), Math.abs(pz)) > 4.3 || !away(px, pz) || placed.some(([qx, qz]) => Math.hypot(px - qx, pz - qz) < 0.3)) continue;
+      placed.push([px, pz]);
+      const sc = 1.5 + r() * 0.6;
+      if (r() < 0.3) pine(B, px, pz, sc * 1.1); else tree(B, px, pz, sc, [C.leaf, C.leaf2, 0x6a9a3a][Math.floor(r() * 3)]);
+    }
+  }
   function center(ground) {
     const B = new Builder();
     B.ground = ground;
     const steps = [
-      () => { for (const [k, [x, z]] of CABLE.entries()) { const h = CABLE_H[k]; B.add(box(0.018, h, 0.018), 0x5b5f66, x, 0, z); B.add(box(0.06, 0.012, 0.024), 0x5b5f66, x, h, z); } }
+      () => oldTown(B),
+      () => {
+        chapel(B, CENTER.church[0], CENTER.church[1], 2.3, 0.25);                // Metekhi on its cliff
+        rider(B, CENTER.rider[0], CENTER.rider[1], -0.6, 1.5);
+        tubes(B, -3.05, 2.85, 0.15); tubes(B, -2.2, 3.45, -0.35);
+        for (const [x, z] of [[0.55, -0.35], [-0.6, -1.1], [0.5, 3.0], [-0.65, 3.6]]) lamp(B, x, z, 1.5);
+      },
+      () => trees(B, ground)
     ];
     return { B, steps };
   }
 
   // ===== the landmarks from files (art/m_tb_*.glb; a computer's or ultra's, a phone's from art/mobile) =====
-  // a lot's: s its size (a lot is 1 wide), x and z where it stands in the lot, ry how it is turned, on its own ground
-  const MODELS = {
-    4: { url: 'art/m_tb_bank.glb', s: 1.12, z: -0.04, ground: true, y: -0.006 },
-    11: { url: 'art/m_tb_sameba.glb', s: 1.15, x: -0.06, z: -0.04, ground: true, y: -0.006 },
-    13: { url: 'art/m_tb_courtyard.glb', s: 1.15, z: -0.02, ground: true, y: -0.004 },
-    32: { url: 'art/m_tb_rustaveli.glb', s: 1.2, z: 0.04, ground: true, y: -0.004 },
-    39: { url: 'art/m_tb_baths.glb', s: 1.12, x: 0.04, z: 0.02, ground: true, y: -0.006 }
-  };
+  const MODELS = {};                                    // (no lot has a model of its own: they stand on the map)
   // a corner's: at the back of its square, its name written in front of it (z: towards the square's outer edge)
   const CORNER_MODELS = {
     0: { url: 'art/m_tb_freedom.glb', fitWidth: 1.25, z: -0.22 },
     20: { url: 'art/m_tb_bench.glb', fitWidth: 1.05, z: -0.3, ry: 0 }
   };
-  // the middle's: board coordinates; on: what they stand on (the ground there, or the river's water)
+  // the map's: board coordinates; on: what they stand on (the ground there, or the river's water)
   const FREE_MODELS = [
-    { url: 'art/m_tb_mtatsminda.glb', x: MT[0], z: MT[1], s: MT_W, ry: MT_RY, on: 'ground', y: -0.07, top: true, topY: 1.049 * MT_W - 0.07 },
-    { url: 'art/m_tb_narikala.glb', x: CENTER.narikala[0], z: CENTER.narikala[1], s: 1.55, ry: 0.35, on: 'ground', y: -0.05 },
-    { url: 'art/m_tb_kartlisdeda.glb', x: CENTER.deda[0], z: CENTER.deda[1], s: 1.05, ry: 0.25, on: 'ground', y: -0.02 },
-    { url: 'art/m_tb_peace.glb', x: CENTER.peace[0], z: CENTER.peace[1], s: 1.3, bridge: true, on: 'water', y: 0.07 },
-    { url: 'art/m_tb_metekhi.glb', x: CENTER.metekhiBridge[0], z: CENTER.metekhiBridge[1], s: 1.3, bridge: true, on: 'water', y: 0 },
-    { url: 'art/m_tb_stonebridge.glb', x: CENTER.stone[0], z: CENTER.stone[1], s: 1.3, bridge: true, on: 'water', y: 0 }
+    { url: 'art/m_tb_mtatsminda.glb', x: MT[0], z: MT[1], s: MT_W, ry: MT_RY, on: 'ground', y: -0.05, top: true, topY: 1.049 * MT_W - 0.05 },
+    { url: 'art/m_tb_narikala.glb', x: CENTER.narikala[0], z: CENTER.narikala[1], s: 2.4, ry: 0, on: 'ground', y: -0.05 },
+    { url: 'art/m_tb_kartlisdeda.glb', x: CENTER.deda[0], z: CENTER.deda[1], s: 1.1, ry: 0.4, on: 'ground', y: -0.02 },
+    { url: 'art/m_tb_sameba.glb', x: CENTER.sameba[0], z: CENTER.sameba[1], s: 2.0, ry: 0.15, on: 'ground', y: -0.01 },
+    { url: 'art/m_tb_baths.glb', x: CENTER.baths[0], z: CENTER.baths[1], s: 1.45, ry: -0.1, on: 'ground', y: -0.01 },
+    { url: 'art/m_tb_bank.glb', x: CENTER.bank[0], z: CENTER.bank[1], s: 1.0, ry: -0.35, on: 'ground', y: -0.01 },
+    { url: 'art/m_tb_courtyard.glb', x: CENTER.courtyard[0], z: CENTER.courtyard[1], s: 1.15, ry: 0, on: 'ground', y: -0.01 },
+    { url: 'art/m_tb_peace.glb', x: CENTER.peace[0], z: CENTER.peace[1], s: 1.45, bridge: true, on: 'water', y: 0.07 },
+    { url: 'art/m_tb_stonebridge.glb', x: CENTER.stone[0], z: CENTER.stone[1], s: 1.45, bridge: true, on: 'water', y: 0 }
   ];
   for (const d of FREE_MODELS) if (d.bridge) { const [dx, dz] = along(d.x, d.z); d.ry = Math.atan2(dx, dz); }      // its length across the river
 
-  // ===== what moves (in the place's frame; heights above its land) =====
+  // ===== what moves (on a corner: in its square's frame; on the map: board coordinates) =====
   const FX = {
-    1: { sparkle: [[-0.45, 0.0, 0.03, 2]] },
-    3: { actors: [{ k: 'minibus', a: [-0.55, 0.3], b: [0.55, 0.26], speed: 0.06 }] },
-    5: { actors: [{ k: 'train', a: [-0.5, -0.17], b: [0.5, -0.17], speed: 0.07, h: 0.005 }] },
-    6: { smoke: [[-0.2, -0.24, 0.48]] },
-    8: { actors: [{ k: 'car', a: [-0.55, 0.1], b: [0.55, 0.12], speed: 0.09 }, { k: 'bus', a: [0.55, 0.19], b: [-0.55, 0.17], speed: 0.06 }, { k: 'plane', a: [-0.6, -0.1], b: [0.6, 0.0], h: 0.95, speed: 0.12, s: 1 }] },
-    9: { actors: [{ k: 'bus', a: [0.0, 0.32], b: [0.55, 0.3], speed: 0.05 }] },
-    12: { actors: [{ k: 'sail', a: [-0.35, 0.1], b: [0.3, 0.16], speed: 0.03 }], sparkle: [[0.0, 0.15, 0.02, 2]] },
-    14: { sparkle: [[0.04, -0.04, 0.05, 2], [-0.2, 0.04, 0.2, 1], [0.2, 0.04, 0.2, 1]] },
-    16: { actors: [{ k: 'carousel', spin: 0.9, at: [-0.08, 0.2] }] },
-    18: { actors: [{ k: 'train', a: [-0.5, 0.0], b: [0.5, 0.0], speed: 0.05, h: 0.005 }] },
-    19: { actors: [{ k: 'minibus', a: [0.0, 0.42], b: [0.5, 0.42], speed: 0.05 }] },
-    21: { actors: [{ k: 'cyclist', a: [-0.1, 0.36], b: [0.0, 0.0], speed: 0.04 }] },
-    23: { actors: [{ k: 'boat', a: [-0.25, 0.22], b: [0.3, 0.16], speed: 0.025 }] },
-    25: { actors: [{ k: 'gondola', cable: CAB25 }] },
-    26: { leaves: [[0.22, -0.08, 0.3], [-0.05, 0.02, 0.28]] },
-    27: { actors: [{ k: 'car', a: [-0.55, 0.12], b: [0.55, 0.12], speed: 0.08 }, { k: 'car2', a: [0.55, 0.14], b: [-0.55, 0.14], speed: 0.07 }] },
-    28: { sparkle: [[-0.12, 0.05, 0.02, 2], [-0.12, 0.1, 0.0, 2]] },
-    29: { sparkle: [[0.12, 0.2, 0.03, 2], [0.12, 0.02, 0.06, 2]] },
-    31: { actors: [{ k: 'boat', a: [-0.3, -0.05], b: [0.0, 0.02], speed: 0.02 }] },
-    32: { actors: [{ k: 'car', a: [-0.55, 0.2], b: [0.55, 0.2], speed: 0.07 }, { k: 'bus', a: [0.55, 0.15], b: [-0.55, 0.15], speed: 0.05 }] },
-    34: { actors: [{ k: 'ferris', spin: 0.22, axis: 'x', at: FERRIS, h: FERRIS_H, ry: FERRIS_RY }, { k: 'carousel', spin: 0.8, at: [0.24, -0.14], h: 0.012 }] },
-    35: { actors: [{ k: 'funicular', a: [0.0, 0.22], b: [0.0, -0.45], speed: 0.05, h: 0.012 }] },
-    37: { smoke: [[0.12, -0.1, 0.3]] },
-    39: { smoke: [[0.0, 0.0, 0.3], [0.2, 0.1, 0.28]] },
-    38: { sparkle: [[-0.42, 0.25, 0.14, 1], [0.42, 0.25, 0.14, 1]] },
-    2: { sparkle: [[-0.12, 0.14, 0.08, 1]] }, 17: { sparkle: [[-0.12, 0.14, 0.08, 1]] }, 33: { sparkle: [[-0.12, 0.14, 0.08, 1]] },
-    7: { sparkle: [[-0.08, -0.06, 0.2, 2]] }, 22: { sparkle: [[-0.08, -0.06, 0.2, 2]] }, 36: { sparkle: [[-0.08, -0.06, 0.2, 2]] },
-    // the corners (on the square itself)
     0: { sparkle: [[0.0, -0.3, 0.75, 1]] },
     10: { sparkle: [[0.52, -0.42, 0.25, 1]] },
     30: { actors: [{ k: 'police', a: [-0.5, -0.12], b: [0.5, -0.12], speed: 0.12 }], sparkle: [[0.0, -0.45, 0.06, 1]] }
   };
   const CENTER_FX = {
-    smoke: [], mist: [], sheep: [],
+    smoke: [[1.25, 3.65, 0.5], [1.45, 3.5, 0.45]], mist: [], sheep: [],                // the baths' steam
     actors: [
-      { k: 'gondola', cable: [[CABLE[0][0], CABLE_H[0], CABLE[0][1]], [CABLE[1][0], CABLE_H[1], CABLE[1][1]]] },
-      { k: 'boat', a: [-1.6, 2.38], b: [1.9, 2.5], speed: 0.05 },
-      { k: 'boat', a: [-2.5, -2.3], b: [-2.47, 0.1], speed: 0.04, phase: 0.4 }
+      { k: 'boat', a: [-0.9, -2.9], b: [0.1, -0.15], speed: 0.04 },
+      { k: 'boat', a: [0.05, 1.3], b: [-0.12, 4.1], speed: 0.035, phase: 0.4 },
+      { k: 'cart', a: [0.45, -0.5], b: [2.0, 0.5], speed: 0.05 },
+      { k: 'cart', a: [-0.7, 3.35], b: [-2.2, 2.9], speed: 0.04, phase: 0.6 }
     ],
     // eagles round the tower, one higher, one wider
-    birds: [{ at: TOWER, h: 3.05, r: 1.25, w: 0.3 }, { at: TOWER, h: 2.45, r: 2.15, w: -0.22 }]
+    birds: [{ at: TOWER, h: 2.75, r: 1.05, w: 0.3 }, { at: TOWER, h: 2.2, r: 1.8, w: -0.22 }]
   };
 
   // ----- the moving things' own shapes (around their own origin, facing +x) -----
@@ -548,6 +306,11 @@ const CityModels = (() => {
         B.add(box(0.003, 0.2, 0.003), C.white, 0, 0, 0, { rx: a, free: true });
         B.add(ball(0.02, 1), cols[j], 0, Math.cos(a) * 0.205, Math.sin(a) * 0.205, { vary: 0, free: true });
       }
+    } else if (k === 'cart') {
+      B.add(box(0.08, 0.03, 0.05), C.wood, -0.02, 0.022, 0); B.add(box(0.084, 0.012, 0.054), C.red, -0.02, 0.05, 0);
+      for (const lz of [-0.028, 0.028]) B.add(cyl(0.018, 0.018, 0.006, 10), C.wood2, -0.03, 0.018, lz, { rx: Math.PI / 2 });
+      B.add(box(0.05, 0.022, 0.018), 0x8a5a36, 0.06, 0.035, 0); B.add(box(0.016, 0.026, 0.014), 0x8a5a36, 0.088, 0.05, 0, { rz: -0.4 });
+      for (const lx of [0.042, 0.078]) for (const lz of [-0.006, 0.006]) B.add(box(0.006, 0.035, 0.006), 0x6a4428, lx, 0, lz);
     } else if (k === 'cyclist') {
       B.add(box(0.03, 0.004, 0.004), C.iron, 0, 0.01, 0); for (const x of [-0.014, 0.014]) B.add(cyl(0.009, 0.009, 0.003, 8), 0x222222, x, 0.009, 0, { rx: Math.PI / 2 });
       B.add(box(0.008, 0.026, 0.01), 0x2f62a8, 0, 0.014, 0); B.add(ball(0.007), 0xe8bf98, 0, 0.044, 0, { vary: 0 });
@@ -579,8 +342,8 @@ const CityModels = (() => {
   }
 
   // ===== public =====
-  function relief(i, R) { if (L[i] && L[i].r) L[i].r(R); else city(R); }
-  function lot(i, ground) { const B = new Builder(); B.ground = ground; if (L[i] && L[i].b) L[i].b(B); return B.parts.length ? B.build() : null; }
+  function relief() { }                               // (the map draws all the land inside the squares)
+  function lot() { return null; }
   // the corners: the traffic jam (10) and the patrol at Heroes Square (30) made here, the others from their files
   function corner(i) {
     const B = new Builder();
@@ -598,8 +361,8 @@ const CityModels = (() => {
     }
     return B.parts.length ? B.build() : null;
   }
-  function ringRelief(k, R) { RING[k].r(R); }
-  function inner(k, ground) { const B = new Builder(); B.ground = ground; RING[k].b(B); return B.build(); }
+  function ringRelief() { }
+  function inner() { return new Builder().build(); }
   let houseCache = null, hotelCache = null;
   return {
     world: 'city', PAL, relief, lot, corner, ringRelief, inner, centerRelief, centerWater, center, CENTER, CENTER_FX, actor,
@@ -607,7 +370,7 @@ const CityModels = (() => {
     fx: i => FX[i] || null,
     tower: () => houseCache || (houseCache = houseParts()),
     castle: () => hotelCache || (hotelCache = hotelParts()),
-    LIFE: ['car', 'car2', 'police', 'bus', 'minibus', 'train', 'funicular', 'plane', 'carousel', 'ferris', 'cyclist', 'boat', 'sail', 'gondola', 'eagle', 'wing'],
+    LIFE: ['police', 'cart', 'boat', 'eagle', 'wing'],
     BIRD: ['eagle', 'wing']
   };
 })();

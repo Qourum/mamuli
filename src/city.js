@@ -177,8 +177,8 @@ const CityModels = (() => {
     }
   };
   // მარცხენა სანაპირო
-  L[11] = { r: R => { green(R); R.pad(-0.14, -0.04, 0.42); }, b: B => { cypress(B, 0.2, 0.36, 0.9); bush(B, -0.45, 0.4, 0.8); } };    // Avlabari: Sameba (its model)
-  L[13] = { r: R => { city(R); R.pad(0, -0.02, 0.45); }, b: B => { tree(B, 0.44, 0.38, 0.7); tree(B, -0.44, 0.38, 0.7); } };                 // Chughureti: the old courtyard (its model)
+  L[11] = { r: R => { green(R); R.pad(-0.14, -0.04, 0.42); }, b: () => { } };    // Avlabari: Sameba (its model)
+  L[13] = { r: R => { city(R); R.pad(0, -0.02, 0.45); }, b: () => { } };                 // Chughureti: the old courtyard (its model)
   L[14] = {  // Aghmashenebeli Avenue: the pedestrian street of pastel houses, cafés, the fountain
     r: R => { city(R); street(R, -0.6, 0.04, 0.6, 0.04, 0.12, C.cobble); R.pad(0, -0.25, 0.3); R.pad(0, 0.3, 0.25); },
     b: B => {
@@ -282,7 +282,7 @@ const CityModels = (() => {
       const h = B.at(-0.38, 0.28, 0.3); h(box(0.11, 0.06, 0.08), C.wood); h(roof(0.13, 0.04, 0.1), 0x6d5a45, 0, 0.06, 0, { vary: 0.08 });
     }
   };
-  L[32] = { r: R => { city(R); R.pad(0, 0.02, 0.45); }, b: B => { for (let k = 0; k < 5; k++) tree(B, -0.4 + k * 0.2, -0.38, 0.7, C.leaf2); } };      // Rustaveli (its model)
+  L[32] = { r: R => { city(R); R.pad(0, 0.02, 0.45); }, b: B => { for (let k = 0; k < 5; k++) tree(B, -0.4 + k * 0.2, -0.44, 0.7, C.leaf2); } };      // Rustaveli (its model)
   L[34] = {  // Mtatsminda Park (the mountain itself stands in the middle): the Ferris wheel over the city, the carousel, the kiosks
     r: R => { green(R, 0x6f9a46); R.pad(0, -0.1, 0.45); street(R, -0.5, 0.06, 0.5, 0.02, 0.3, C.paving); },
     b: B => {
@@ -310,7 +310,7 @@ const CityModels = (() => {
       for (const [x, z] of [[-0.45, 0.2], [0.0, 0.26], [0.44, 0.26]]) tree(B, x, z, 0.6);
     }
   };
-  L[39] = { r: R => { city(R); R.pad(0.12, 0.06, 0.38); }, b: B => { cypress(B, 0.42, -0.28, 0.9); } };          // Old Tbilisi: the baths (their model)
+  L[39] = { r: R => { city(R); R.pad(0.12, 0.06, 0.38); }, b: () => { } };          // Old Tbilisi: the baths (their model)
   // the four stations
   L[5] = {   // the central station: the glass vault over the platforms, the train, the square in front with buses
     r: R => { city(R); R.pad(0, -0.2, 0.36); street(R, -0.6, 0.28, 0.6, 0.28, 0.12); for (const z of [-0.22, -0.12]) street(R, -0.6, z, 0.6, z, 0.02, 0x6d6255); },
@@ -389,7 +389,7 @@ const CityModels = (() => {
   };
   L[2] = kintoLot; L[17] = kintoLot; L[33] = kintoLot;
   L[7] = storyLot; L[22] = storyLot; L[36] = storyLot;
-  L[4] = { r: R => { city(R); R.pad(0, -0.04, 0.42); }, b: B => { tree(B, -0.44, 0.36, 0.6); tree(B, 0.44, 0.36, 0.6); } };   // the bank (its model)
+  L[4] = { r: R => { city(R); R.pad(0, -0.04, 0.42); }, b: () => { } };   // the bank (its model)
   L[38] = {  // the Dry Bridge: its stone arches over a dry garden, the painters' market under them
     r: R => { city(R); R.pad(0, -0.1, 0.4); },
     b: B => {
@@ -454,25 +454,25 @@ const CityModels = (() => {
   // ===== the landmarks from files (art/m_tb_*.glb; a computer's or ultra's, a phone's from art/mobile) =====
   // a lot's: s its size (a lot is 1 wide), x and z where it stands in the lot, ry how it is turned, on its own ground
   const MODELS = {
-    4: { url: 'art/m_tb_bank.glb', s: 0.8, z: -0.04, ground: true, y: -0.006 },
-    11: { url: 'art/m_tb_sameba.glb', s: 0.92, x: -0.14, z: -0.04, ground: true, y: -0.006 },
-    13: { url: 'art/m_tb_courtyard.glb', s: 0.95, z: -0.02, ground: true, y: -0.004 },
-    32: { url: 'art/m_tb_rustaveli.glb', s: 1.08, z: 0.06, ground: true, y: -0.004 },
-    39: { url: 'art/m_tb_baths.glb', s: 0.86, x: 0.12, z: 0.06, ground: true, y: -0.006 }
+    4: { url: 'art/m_tb_bank.glb', s: 1.12, z: -0.04, ground: true, y: -0.006 },
+    11: { url: 'art/m_tb_sameba.glb', s: 1.15, x: -0.06, z: -0.04, ground: true, y: -0.006 },
+    13: { url: 'art/m_tb_courtyard.glb', s: 1.15, z: -0.02, ground: true, y: -0.004 },
+    32: { url: 'art/m_tb_rustaveli.glb', s: 1.2, z: 0.04, ground: true, y: -0.004 },
+    39: { url: 'art/m_tb_baths.glb', s: 1.12, x: 0.04, z: 0.02, ground: true, y: -0.006 }
   };
   // a corner's: at the back of its square, its name written in front of it (z: towards the square's outer edge)
   const CORNER_MODELS = {
-    0: { url: 'art/m_tb_freedom.glb', fitWidth: 1.0, z: -0.3 },
-    20: { url: 'art/m_tb_bench.glb', fitWidth: 0.78, z: -0.34, ry: 0 }
+    0: { url: 'art/m_tb_freedom.glb', fitWidth: 1.25, z: -0.22 },
+    20: { url: 'art/m_tb_bench.glb', fitWidth: 1.05, z: -0.3, ry: 0 }
   };
   // the middle's: board coordinates; on: what they stand on (the ground there, or the river's water)
   const FREE_MODELS = [
     { url: 'art/m_tb_mtatsminda.glb', x: MT[0], z: MT[1], s: MT_W, ry: MT_RY, on: 'ground', y: -0.07, top: true, topY: 1.049 * MT_W - 0.07 },
-    { url: 'art/m_tb_narikala.glb', x: CENTER.narikala[0], z: CENTER.narikala[1], s: 1.35, ry: 0.35, on: 'ground', y: -0.05 },
-    { url: 'art/m_tb_kartlisdeda.glb', x: CENTER.deda[0], z: CENTER.deda[1], s: 0.9, ry: 0.25, on: 'ground', y: -0.02 },
-    { url: 'art/m_tb_peace.glb', x: CENTER.peace[0], z: CENTER.peace[1], s: 1.05, bridge: true, on: 'water', y: 0.07 },
-    { url: 'art/m_tb_metekhi.glb', x: CENTER.metekhiBridge[0], z: CENTER.metekhiBridge[1], s: 1.02, bridge: true, on: 'water', y: 0 },
-    { url: 'art/m_tb_stonebridge.glb', x: CENTER.stone[0], z: CENTER.stone[1], s: 1.02, bridge: true, on: 'water', y: 0 }
+    { url: 'art/m_tb_narikala.glb', x: CENTER.narikala[0], z: CENTER.narikala[1], s: 1.55, ry: 0.35, on: 'ground', y: -0.05 },
+    { url: 'art/m_tb_kartlisdeda.glb', x: CENTER.deda[0], z: CENTER.deda[1], s: 1.05, ry: 0.25, on: 'ground', y: -0.02 },
+    { url: 'art/m_tb_peace.glb', x: CENTER.peace[0], z: CENTER.peace[1], s: 1.3, bridge: true, on: 'water', y: 0.07 },
+    { url: 'art/m_tb_metekhi.glb', x: CENTER.metekhiBridge[0], z: CENTER.metekhiBridge[1], s: 1.3, bridge: true, on: 'water', y: 0 },
+    { url: 'art/m_tb_stonebridge.glb', x: CENTER.stone[0], z: CENTER.stone[1], s: 1.3, bridge: true, on: 'water', y: 0 }
   ];
   for (const d of FREE_MODELS) if (d.bridge) { const [dx, dz] = along(d.x, d.z); d.ry = Math.atan2(dx, dz); }      // its length across the river
 

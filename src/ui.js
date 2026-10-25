@@ -15,15 +15,19 @@ const tName = i => BOARD[i].n.replace(/\u00ad/g, '');
 // The sea's four pirate cottages upgrade to a timber inn; the land keeps its towers/fortress.
 const PIRATE_INN_SVG = '<svg viewBox="0 0 34 32" aria-hidden="true"><path d="M5 30V12h24v18z" fill="#c79656" stroke="#493421" stroke-width="1.4"/><path d="M2 13 17 3l15 10z" fill="currentColor" stroke="#493421" stroke-width="1.4" stroke-linejoin="round"/><path d="M7 21h20M7 23h20M7 24v6M27 24v6" stroke="#493421" stroke-width="1.4"/><path d="M10 14h4v5h-4zM20 14h4v5h-4z" fill="#ffdf8d" stroke="#493421"/><path d="M14 30v-7h6v7" fill="#473326"/><path d="M26 9V1m0 0h6l-1.5 2L32 5h-6" stroke="#493421" fill="currentColor" stroke-width="1.2"/></svg>';
 const sea = () => THEME.world === 'sea';
-const towerIcon = () => sea() ? HUT_SVG : TOWER_SVG;
-const lvIcons = lv => lv >= 5 ? (sea() ? `<span class="tws fort-i">${PIRATE_INN_SVG}</span>` : `<img class="fort" src="${ART('s_fort')}" alt="">`) : `<span class="tws">${towerIcon().repeat(lv)}</span>`;
+const city = () => THEME.world === 'city';
+const towerIcon = () => sea() ? HUT_SVG : city() ? HOUSE_SVG : TOWER_SVG;
+const fortIcon = () => sea() ? PIRATE_INN_SVG : city() ? HOTEL_SVG : '';
+const lvIcons = lv => lv >= 5 ? (fortIcon() ? `<span class="tws fort-i">${fortIcon()}</span>` : `<img class="fort" src="${ART('s_fort')}" alt="">`) : `<span class="tws">${towerIcon().repeat(lv)}</span>`;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const REDUCED = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } })();
 
 const SCENES = ['g_pass', 'g_svan', 'g_elbrus', 'g_elbrus', 'g_stone', 'g_stone', 'g_svan', 'g_tbilisi'];
 const SCENE_POS = ['50% 70%', '50% 35%', '30% 60%', '70% 40%', '40% 30%', '75% 55%', '20% 70%', '50% 50%'];
-// the picture behind a square's name on its card: a Georgian landscape, or in the archipelago its sea and island
+// the picture behind a square's name on its card: a Georgian landscape, in the archipelago its sea and island, in the
+// city its district's card
 function sceneBg(t, fade) {
+  if (city()) return `background-image:${fade},url(${ART(cityPicture(t))});background-position:50% 55%`;
   if (sea()) { const sc = seaScene(t); return sc ? `background-image:${fade},url(${ART(sc)});background-position:right center` : `background-image:${fade},url('${seaArt(t)}');background-position:50% 62%`; }
   const scene = t.k === 'p' ? SCENES[t.g] : t.k === 'road' ? 'g_pass' : 'g_elbrus', at = t.k === 'p' ? SCENE_POS[t.g] : '50% 50%';
   return `background-image:${fade},url(${ART(scene)});background-position:${at}`;
@@ -62,7 +66,7 @@ function seaCaptain(st, seat) {
 }
 const ERR = {
   turn: 'ახლა ამის გაკეთება არ შეიძლება', cash: 'ფული არ გყოფნის', get group() { return W.errGroup; },
-  get even() { return W.errEven; }, get mort() { return W.errMort; }, get max() { return sea() ? 'აქ უკვე მეკობრის სასტუმროა' : 'აქ უკვე ციხეა'; }, answered: 'უკვე უპასუხე',
+  get even() { return W.errEven; }, get mort() { return W.errMort; }, get max() { return sea() ? 'აქ უკვე მეკობრის სასტუმროა' : W.full || 'აქ უკვე ციხეა'; }, answered: 'უკვე უპასუხე',
   own: 'ეს შენი არ არის', bad: 'ასე არ შეიძლება', empty: 'შეთავაზება ცარიელია', stale: 'შეთავაზება აღარ მოქმედებს',
   host: 'ამას მხოლოდ მასპინძელი აკეთებს', few: 'საჭიროა მინიმუმ ორი მოთამაშე', taken: 'ეს გმირი უკვე დაკავებულია',
   full: 'ოთახი სავსეა', watch: 'ამ თამაშს მხოლოდ უყურებ', started: 'თამაში უკვე დაიწყო', out: 'შენ გაკოტრდი', over: 'თამაში დასრულდა',
@@ -133,7 +137,7 @@ function applyTheme(st) {
   const app = $('#app');
   if (app) app.dataset.world = THEME.key;
   const est = $('#dockEstate');
-  if (est) { est.querySelector('img').src = ART(sea() ? 'ui_chest_wood' : 's_fort'); est.querySelector('span:last-child').textContent = W.estate; }
+  if (est) { est.querySelector('img').src = city() ? CITY_ESTATE : ART(sea() ? 'ui_chest_wood' : 's_fort'); est.querySelector('span:last-child').textContent = W.estate; }
   if (typeof Board3D !== 'undefined' && Board3D.retheme) Board3D.retheme();
   Diag.note('theme', THEME.key);
 }
@@ -560,7 +564,7 @@ const View = (() => {
       pinsKey = key;
       box.innerHTML = list.map(i => {
         const lv = st.own[i].lv + 1, price = GROUPS[BOARD[i].g].b;
-        const icon = lv >= 5 ? (sea() ? PIRATE_INN_SVG : `<img src="${ART('s_fort')}" alt="">`) : towerIcon();
+        const icon = lv >= 5 ? (fortIcon() || `<img src="${ART('s_fort')}" alt="">`) : towerIcon();
         return `<div class="pin" data-pin="${i}" data-lv="${lv}" hidden><button class="pin-b${lv >= 5 ? ' fort' : ''}" data-build="${i}" aria-label="${esc(`${LEVEL_NAMES[lv]}: ${tName(i)} · ${price}`)}"><span class="pin-f"><span class="pin-m">${icon}<b aria-hidden="true">+</b></span><span class="pin-p">${coin(price)}</span></span></button></div>`;
       }).join('');
     }
@@ -573,8 +577,8 @@ const View = (() => {
     const html = st.players.map((p, s) => {
       const me = controls(s) && ROOM && ROOM.role !== 'local';
       const tag = me ? '<span class="tag me">შენ</span>' : p.away && !p.bot ? '<span class="tag warn">არ არის</span>' : p.bot ? '<span class="tag">ბოტი</span>' : '';
-      const icons = (p.jail ? (sea() ? `<i class="ic" title="${esc(W.inJail)}">${ISLE_SVG}</i>` : `<img src="${ART('t_palisade')}" alt="${esc(W.inJail)}" title="${esc(W.inJail)}">`) : '')
-        + p.fe.map(() => sea() ? `<i class="ic" title="${esc(W.featherFull)}">${BOAT_SVG}</i>` : `<img src="${ART('ui_feather')}" alt="${esc(W.feather)}" title="${esc(W.featherFull)}">`).join('');
+      const icons = (p.jail ? (sea() || city() ? `<i class="ic" title="${esc(W.inJail)}">${sea() ? ISLE_SVG : JAM_SVG}</i>` : `<img src="${ART('t_palisade')}" alt="${esc(W.inJail)}" title="${esc(W.inJail)}">`) : '')
+        + p.fe.map(() => sea() || city() ? `<i class="ic" title="${esc(W.featherFull)}">${sea() ? BOAT_SVG : GREEN_SVG}</i>` : `<img src="${ART('ui_feather')}" alt="${esc(W.feather)}" title="${esc(W.featherFull)}">`).join('');
       return `<button class="pl${st.turn === s && st.phase !== 'over' ? ' now' : ''}${p.out ? ' out' : ''}" data-s="${s}" style="--c:${SEAT_COLORS[s]}">
         <img class="pp" src="${por(p.hero)}" alt=""><span class="pn">${esc(p.name)}</span><span class="pc">${p.out ? '<b class="amt">გაკოტრდა</b>' : coin(cash[s] != null ? cash[s] : p.cash)}${icons ? `<span class="pi">${icons}</span>` : ''}</span>${tag ? `<span class="pf">${tag}</span>` : ''}</button>`;
     }).join('');
@@ -743,7 +747,10 @@ const View = (() => {
   const LETTERS = ['ა', 'ბ', 'გ'];
   const quizItem = (st, q) => { const Q = themeOf(st).quiz; return Q && Q[q]; };
   function quizHead(st, s) {
-    return `<div class="qz-h${sea() ? ' treasure-head' : ''}" style="background-image:linear-gradient(90deg,rgba(44,27,16,.96) 30%,rgba(44,27,16,.55) 62%,rgba(44,27,16,.15)),url(${ART('sc_chest')})">${sea() ? `<div class="card3d quiz-model" aria-hidden="true"><img class="card3d-fallback" src="${ART('ui_chest_wood_o')}" alt=""></div>` : `<img src="${ART('ui_chest_wood_o')}" alt="">`}<div class="quiz-heading"><b>${esc(W.chest)}</b><small>გახსნა ${esc(pName(st, s))} · სწორ პასუხზე მას ${coin(QUIZ_WIN)}, სხვებს ${coin(QUIZ_SHARE)}</small></div></div>`;
+    // (in the city: Kinto's tray of fruit before the old town's picture; whoever drew the card, not opened a chest)
+    const back = city() ? ART('card_tb_39_old_tbilisi.jpg') : ART('sc_chest');
+    const pic = sea() ? `<div class="card3d quiz-model" aria-hidden="true"><img class="card3d-fallback" src="${ART('ui_chest_wood_o')}" alt=""></div>` : city() ? `<span class="kinto-i">${KINTO_SVG}</span>` : `<img src="${ART('ui_chest_wood_o')}" alt="">`;
+    return `<div class="qz-h${sea() ? ' treasure-head' : ''}" style="background-image:linear-gradient(90deg,rgba(44,27,16,.96) 30%,rgba(44,27,16,.55) 62%,rgba(44,27,16,.15)),url(${back})">${pic}<div class="quiz-heading"><b>${esc(W.chest)}</b><small>${city() ? 'ბარათი აიღო' : 'გახსნა'} ${esc(pName(st, s))} · სწორ პასუხზე მას ${coin(QUIZ_WIN)}, სხვებს ${coin(QUIZ_SHARE)}</small></div></div>`;
   }
   function keepQuizModel(box, key) {
     const old = box.querySelector('.quiz-model');
@@ -927,7 +934,7 @@ const Sheet = (() => {
         <p class="facts"><span>ფასი ${coin(t.p)}</span><span>${esc(W.tower)} ${coin(g.b)}</span><span>დაგირავება ${coin(t.p / 2)}</span></p>`;
     } else if (t.k === 'road') {
       head = `<div class="deed-h road" style="${sceneBg(t, 'linear-gradient(180deg,rgba(13,16,22,.1),rgba(13,16,22,.85))')}"><span class="chip">${esc(W.road)}</span><h2>${esc(t.n)}</h2></div>`;
-      const n = o ? Engine.countOf(st, o.o, ROADS) : 0, icon = sea() ? `<span class="ph ship-i">${SHIP_SVG}</span>` : `<img src="${ART('s_camp')}" alt="">`;
+      const n = o ? Engine.countOf(st, o.o, ROADS) : 0, icon = sea() ? `<span class="ph ship-i">${SHIP_SVG}</span>` : city() ? `<span class="ph ship-i">${TRAIN_SVG}</span>` : `<img src="${ART('s_camp')}" alt="">`;
       rows = `<ul class="rents">${[1, 2, 3, 4].map(k => `<li class="${n === k ? 'on' : ''}">${icon}<span>${k} ${esc(W.road)}</span>${coin(ROAD_RENT[k])}</li>`).join('')}</ul><p class="facts"><span>ფასი ${coin(t.p)}</span><span>დაგირავება ${coin(t.p / 2)}</span></p>`;
     } else if (t.k === 'util') {
       head = `<div class="deed-h util" style="${sceneBg(t, 'linear-gradient(180deg,rgba(13,16,22,.1),rgba(13,16,22,.85))')}"><span class="chip">${esc(W.util)}</span><h2>${esc(t.n)}</h2></div>`;
@@ -964,7 +971,7 @@ const Sheet = (() => {
       const why = Engine.buildBlock(st, seat, i);
       if (o.lv < 5) b.push(`<button class="btn small gold" data-a="build" data-i="${i}" ${why ? 'disabled' : ''} title="${esc(ERR[why] || '')}">+ ${esc(LEVEL_NAMES[o.lv + 1])} ${coin(GROUPS[t.g].b)}</button>`);
     }
-    if (t.k === 'p' && o.lv > 0) b.push(`<button class="btn small" data-a="sell" data-i="${i}" ${Engine.canSell(st, seat, i) ? '' : 'disabled'}>${sea() && o.lv === 5 ? 'სასტუმრო → 4 ქოხი' : '− ' + esc(W.tower)} ${coin(GROUPS[t.g].b / 2)}</button>`);
+    if (t.k === 'p' && o.lv > 0) b.push(`<button class="btn small" data-a="sell" data-i="${i}" ${Engine.canSell(st, seat, i) ? '' : 'disabled'}>${sea() && o.lv === 5 ? 'სასტუმრო → 4 ქოხი' : city() && o.lv === 5 ? 'სასტუმრო → 4 სახლი' : '− ' + esc(W.tower)} ${coin(GROUPS[t.g].b / 2)}</button>`);
     if (!o.m) b.push(`<button class="btn small" data-a="mort" data-i="${i}" ${Engine.canMort(st, seat, i) ? '' : 'disabled'}>დაგირავება ${coin(t.p / 2)}</button>`);
     else if (L.build) b.push(`<button class="btn small" data-a="unmort" data-i="${i}" ${st.players[seat].cash >= Engine.unmortCost(i) ? '' : 'disabled'}>გამოსყიდვა ${coin(Engine.unmortCost(i))}</button>`);
     const why = t.k === 'p' && o.lv < 5 ? Engine.buildBlock(st, seat, i) : '';
@@ -978,13 +985,14 @@ const Sheet = (() => {
       if (picture && picture.crop) return `<svg class="asset-picture" viewBox="${picture.crop.join(' ')}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><image href="${esc(ART(picture.name))}" width="1000" height="400"/></svg>`;
       return `<img class="asset-picture" src="${picture ? esc(ART(picture.name)) : seaArt(t)}" alt="" decoding="async" loading="lazy">`;
     }
+    if (city()) return `<img class="asset-picture" src="${ART(cityPicture(t))}" alt="" decoding="async" loading="lazy">`;
     return `<img class="asset-picture" src="${ART(t.k === 'p' ? SCENES[t.g] : t.k === 'road' ? 'g_pass' : 'g_elbrus')}" alt="" decoding="async" loading="lazy">`;
   }
   function assetCard(st, i, options = {}) {
     const t = BOARD[i], o = st.own[i], owner = o && st.players[o.o], lv = o ? o.lv : 0;
     const color = t.k === 'p' ? GROUPS[t.g].c : t.k === 'road' ? '#a57843' : '#4b929b';
     const type = sea() ? seaLotType(t) : t.k === 'p' ? W.town : t.k === 'road' ? W.road : W.util;
-    const state = t.k === 'p' ? lv === 5 ? `1 ${W.fort}` : lv ? `${lv} ${W.tower}` : sea() ? 'გაუშენებელი კუნძული' : 'გაუშენებელი მიწა' : t.k === 'road' ? W.roads : W.util;
+    const state = t.k === 'p' ? lv === 5 ? `1 ${W.fort}` : lv ? `${lv} ${W.tower}` : sea() ? 'გაუშენებელი კუნძული' : W.bare || 'გაუშენებელი მიწა' : t.k === 'road' ? W.roads : W.util;
     const rent = t.k === 'util' && o && !o.m ? `<b>კამათელი ×${UTIL_MULT[Engine.countOf(st, o.o, UTILS)]}</b>` : coin(Engine.rentAt(st, i, 7));
     const pick = options.pick, button = pick ? `data-pick="${pick}" data-i="${i}" aria-pressed="${!!options.selected}"` : `data-deed="${i}"`;
     return `<article class="asset-card${options.selected ? ' is-selected' : ''}${o && o.m ? ' is-mortgaged' : ''}" data-property="${i}" style="--g:${color};--owner:${o ? SEAT_COLORS[o.o] : '#a9874c'}">
@@ -1077,13 +1085,13 @@ const Sheet = (() => {
       const title = g.completed ? 'ასრულებ ჯგუფს' : g.broken ? 'კარგავ სრულ ჯგუფს' : g.after > g.before ? 'უახლოვდები სრულ ჯგუფს' : g.after < g.before ? 'ჯგუფში ნაკლები ქონება გრჩება' : 'ჯგუფის რაოდენობა უცვლელია';
       let detail = '';
       if (g.after === g.total) {
-        detail = `ჯგუფი შენია. ${sea() ? 'ქოხები' : 'კოშკები'} უნდა აშენდეს თანაბრად; თითო მშენებლობა ${fmt(g.buildCost)} ღირს.`;
+        detail = `ჯგუფი შენია. ${sea() ? 'ქოხები' : city() ? 'სახლები' : 'კოშკები'} უნდა აშენდეს თანაბრად; თითო მშენებლობა ${fmt(g.buildCost)} ღირს.`;
         if (g.mortgaged.length) detail += ` ჯერ გამოისყიდე დაგირავებული ქონება: ${fmt(g.redemptionCost)}.`;
         if (!g.firstBuildAffordable) detail += ' გარიგების შემდეგ დარჩენილი თანხა გამოსყიდვასა და პირველ მშენებლობას ერთად არ ჰყოფნის.';
         else detail += g.buildTurnReady ? ' თანხა პირველ მშენებლობასაც ჰყოფნის.' : ' მშენებლობას შენს სვლაზე შეძლებ.';
       } else if (g.broken) detail = 'ამ ჯგუფში ვეღარ ააშენებ, სანამ სრულად არ დაიბრუნებ. გაუშენებელი ქონების ქირაც მცირდება.';
       else detail = g.after ? `მშენებლობისთვის საჭიროა ${g.total}-ვე ${W.town}.` : 'ამ ჯგუფში ქონება აღარ გრჩება.';
-      return `<article class="trade-impact ${g.completed ? 'positive' : g.broken || g.after < g.before ? 'caution' : 'neutral'}" style="--g:${group.c}"><h4>${esc(title)} · ${esc(group.n)}</h4><div class="trade-count">${g.before} / ${g.total} <span aria-label="გაცვლის შემდეგ">→</span> <b>${g.after} / ${g.total}</b></div><p class="trade-detail">${esc(detail)}</p>${g.missing.length && g.after ? `<p class="trade-missing">კიდევ აკლია: ${g.missing.map(i=>esc(tName(i))).join(', ')}</p>` : ''}${g.after === g.total ? `<p class="trade-steps">${sea() ? '4 ქოხი თითო კუნძულზე → შემდეგ სასტუმრო' : '4 კოშკი თითო ქალაქში → შემდეგ ციხე-სიმაგრე'}. ყოველი საფეხური ცალკე ფასიანია.</p>` : ''}</article>`;
+      return `<article class="trade-impact ${g.completed ? 'positive' : g.broken || g.after < g.before ? 'caution' : 'neutral'}" style="--g:${group.c}"><h4>${esc(title)} · ${esc(group.n)}</h4><div class="trade-count">${g.before} / ${g.total} <span aria-label="გაცვლის შემდეგ">→</span> <b>${g.after} / ${g.total}</b></div><p class="trade-detail">${esc(detail)}</p>${g.missing.length && g.after ? `<p class="trade-missing">კიდევ აკლია: ${g.missing.map(i=>esc(tName(i))).join(', ')}</p>` : ''}${g.after === g.total ? `<p class="trade-steps">${sea() ? '4 ქოხი თითო კუნძულზე → შემდეგ სასტუმრო' : W.steps || '4 კოშკი თითო ქალაქში → შემდეგ ციხე-სიმაგრე'}. ყოველი საფეხური ცალკე ფასიანია.</p>` : ''}</article>`;
     });
     for (const [key,label] of [['roads',W.roads],['utilities',W.util]]) {
       const value = result[key];

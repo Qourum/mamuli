@@ -45,7 +45,7 @@ const Engine = (() => {
   function cleanPrefs(x) {
     const out = {};
     if (typeof x === 'string') { if (HEROES[x]) out[HEROES[x].t] = x; return out; }
-    if (x && typeof x === 'object') for (const k in THEMES) if (typeof x[k] === 'string' && HEROES[x[k]] && HEROES[x[k]].t === k) out[k] = x[k];
+    if (x && typeof x === 'object') for (const k in THEMES) if (typeof x[k] === 'string' && HEROES[x[k]] && HEROES[x[k]].t === heroSet(k)) out[k] = x[k];
     return out;
   }
   function newPlayer(pid, name, hero, bot, pref) {
@@ -72,7 +72,7 @@ const Engine = (() => {
     const s = seatOf(st, pid), host = pid === st.host;
     switch (a && a.t) {
       case 'hero': {
-        if (s < 0 || !HEROES[a.h] || HEROES[a.h].t !== themeKey(st)) return 'bad';
+        if (s < 0 || !HEROES[a.h] || HEROES[a.h].t !== heroSet(themeKey(st))) return 'bad';
         if (st.players.some((p, i) => i !== s && p.hero === a.h)) return 'taken';
         const p = st.players[s];
         setHero(p, a.h);

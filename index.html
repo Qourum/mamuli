@@ -87,8 +87,9 @@ img { max-width: 100%; }
 .tagline { margin: 6px 0 0; text-align: center; color: var(--cream); font-size: 14.5px; text-wrap: balance; text-shadow: 0 1px 6px rgba(0, 0, 0, .8); }
 .menu-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 20px; border: 1px solid var(--line);
   background: linear-gradient(180deg, rgba(44, 27, 16, .92), rgba(23, 29, 42, .95)); box-shadow: 0 10px 40px rgba(0, 0, 0, .5); }
-/* the two worlds, first on the menu: a picture each, the chosen one in gold */
+/* the worlds, first on the menu: a picture each, the chosen one in gold (a third one across the whole width below) */
 .world-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.world-pick > .wcard:nth-child(3):last-child { grid-column: 1 / -1; min-height: 92px; }
 .wcard { position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: 3px; min-height: 112px; min-width: 0;
   padding: 10px 11px; border-radius: 16px; border: 2px solid rgba(255, 244, 218, .14); background-color: var(--ink-2); background-size: cover; color: var(--cream);
   text-align: left; box-shadow: 0 4px 12px rgba(0, 0, 0, .45); transition: border-color .15s, box-shadow .15s, opacity .15s; }
@@ -99,6 +100,7 @@ img { max-width: 100%; }
 .wcard.on::after { content: ''; position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; border-radius: 50%; box-shadow: 0 0 0 2px var(--wood-2);
   background: var(--gold) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5' fill='none' stroke='%232c1b10' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 15px no-repeat; }
 .wcard:active { transform: translateY(1px); }
+#app[data-world="tbilisi"] .menu-bg { background: linear-gradient(180deg, rgba(13, 16, 22, .45), rgba(13, 16, 22, .8) 50%, var(--ink) 92%), url(art/g_tbilisi.webp) center 22% / cover; }
 #app[data-world="archipelago"] .menu-bg { background: linear-gradient(180deg, rgba(13, 16, 22, .45), rgba(13, 16, 22, .8) 50%, var(--ink) 92%), url(art/bg_sea.webp) center 20% / cover; }
 .me-hero { display: flex; align-items: center; gap: 12px; }
 .me-hero img { width: 64px; height: 76px; object-fit: contain; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .5)); }
@@ -380,6 +382,8 @@ img { max-width: 100%; }
 .qz-h { display: flex; align-items: center; gap: 10px; padding: 10px 14px 9px; border-radius: 15px 15px 0 0; color: var(--cream);
   background: linear-gradient(180deg, #6b4527, #3b2412); border-bottom: 3px solid var(--gold-lo); }
 .qz-h img { width: 46px; height: 46px; object-fit: contain; flex: none; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, .5)); }
+.qz-h .kinto-i { width: 50px; height: 50px; flex: none; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, .5)); }
+.qz-h .kinto-i svg { width: 100%; height: 100%; display: block; }
 .qz-h > div { min-width: 0; }
 .qz-h > div > b { display: block; font: 900 19px/1.15 var(--f-display); color: var(--gold-hi); }
 .qz-h small { display: block; font-size: 11.5px; line-height: 1.3; color: #e3d6b8; }
@@ -462,6 +466,7 @@ button.qz-b:disabled { cursor: default; opacity: .7; }
 .rents .ship-i svg { width: 28px; height: 28px; }
 /* the lobby: the two worlds, and who the chosen hero was */
 .seg.worlds { grid-template-columns: 1fr 1fr; }
+.seg.worlds > button:nth-child(3):last-child { grid-column: 1 / -1; }
 .seg.worlds button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 7px 8px; line-height: 1.2; }
 .seg.worlds b { font: 900 15px var(--f-display); }
 .seg.worlds small { font-size: 10.5px; font-weight: 600; opacity: .85; text-wrap: balance; }
@@ -1051,7 +1056,7 @@ svg.asset-picture { width: auto; max-width: 100%; aspect-ratio: 1; margin: 0 aut
 <script src="vendor/three.min.js"></script>
 <script src="vendor/GLTFLoader.min.js"></script>
 <script>
-const BUILD = "627d4d83ba";
+const BUILD = "8c3c6c9d40";
 const SITE = true;
 // ===== the technical log: what this phone went through, to copy and send when something goes wrong =====
 // Errors, the 3D board losing or getting back its graphics, slow frames (and what was on the screen then), shaders made
@@ -1566,7 +1571,165 @@ const QUIZ_WIN = 100, QUIZ_SHARE = 20;   // for the one who opened the chest, fo
     }
   };
 
-  // ----- the heroes: Metekhi's for მამული, real pirates for the archipelago (b: who they were) -----
+  // ----- ტფილისი: the districts of Tbilisi, from Freedom Square round the city and back to the old town; the same
+  // board and rules, its own words (houses and hotels, the traffic jam), true stories of the places, Kinto's questions
+  // about the city, and the heroes of მამული -----
+  const TB = {   // (a soft hyphen where a long name may break on its square; s: the name on a station's square)
+    0: 'თავისუფლების მოედანი', 1: 'ორ­თა­ჭა­ლა', 2: 'კინტოს კითხვა', 3: 'ფო­ნი­ჭა­ლა', 4: 'ბანკი',
+    5: ['ცენტრალური სადგური', 'ცენ­ტრა­ლუ­რი სად­გუ­რი'], 6: 'ვარ­კე­თი­ლი', 7: 'ძველი ტფილისის ამბავი', 8: 'სამ­გო­რი', 9: 'ისანი',
+    10: 'საცობი', 11: 'ავ­ლა­ბა­რი', 12: 'თბილისის ზღვა', 13: 'ჩუ­ღუ­რე­თი', 14: 'აღ­მა­შე­ნებ­ლის გამ­ზი­რი',
+    15: ['მეტრო', 'მეტ­რო'], 16: 'გლდანი', 17: 'კინტოს კითხვა', 18: 'ნა­ძა­ლა­დე­ვი', 19: 'დიდუბე',
+    20: 'მტკვრის სანაპირო', 21: 'დიღომი', 22: 'ძველი ტფილისის ამბავი', 23: 'ვაშ­ლიჯ­ვა­რი', 24: 'სა­ბურ­თა­ლო',
+    25: ['საბაგირო', 'სა­ბა­გი­რო'], 26: 'ვერა', 27: 'ვაკე', 28: 'ზაჰესი', 29: 'ვაკის პარკი',
+    30: 'გმირთა მოედანი', 31: 'კუს ტბა', 32: 'რუს­თა­ვე­ლის გამ­ზი­რი', 33: 'კინტოს კითხვა', 34: 'მთა­წმინ­და',
+    35: ['ფუნიკულიორი', 'ფუ­ნი­კუ­ლი­ო­რი'], 36: 'ძველი ტფილისის ამბავი', 37: 'სო­ლო­ლა­კი', 38: 'მშრალი ხიდი', 39: 'ძველი თბილისი'
+  };
+  // the true story of each place (shown on its card; Kinto's questions come from them)
+  const TB_STORY = {
+    0: 'ძველად ერევნის მოედანი ერქვა, საბჭოთა დროს ლენინის. 1991 წლიდან თავისუფლების მოედანია; 2006 წელს შუაში წმინდა გიორგის სვეტი აღიმართა.',
+    1: 'ორთაჭალა ბაღებით და მტკვრისპირა დუქნებით იყო ცნობილი: ძველი თბილისელები აქ ქეიფობდნენ. ნიკო ფიროსმანმა დახატა „ორთაჭალელი ლამაზმანი“.',
+    3: 'ქალაქის სამხრეთი კიდე, მტკვრის მოსახვევთან. სახელში ორი სიტყვაა: ფონი, ანუ მდინარის გადასასვლელი, და ჭალა, ანუ მდინარისპირა ტყე.',
+    5: '1872 წელს ფოთიდან ტფილისამდე რკინიგზა გაიყვანეს: ეს საქართველოს პირველი რკინიგზა იყო. ვაგზალი მას შემდეგ ქალაქის კარიბჭეა.',
+    6: 'ბორცვზე გაშენებული საცხოვრებელი მასივი. მეტროს პირველი ხაზი, „ახმეტელის თეატრი – ვარკეთილი“, აქ მთავრდება.',
+    8: 'თბილისის აღმოსავლეთის დიდი უბანი, აეროპორტისკენ მიმავალ გზაზე. სახელი სამგორის ველიდან მოდის.',
+    9: 'სახელი ძველი ისნის ციხიდან მოდის: შუა საუკუნეებში მტკვრის მარცხენა ნაპირზე, მეტეხის კლდეზე, ციხე-სასახლე იდგა.',
+    10: 'ქალაქის ცენტრში საცობი ჩვეულებრივი ამბავია: ამიტომაა „მწვანე ტალღა“ ყველა მძღოლის ოცნება.',
+    11: 'ელიას ბორცვზე წმინდა სამების საკათედრო ტაძარი დგას. 1995–2004 წლებში აშენდა და საქართველოს უდიდესი ეკლესიაა.',
+    12: 'წყალსაცავი 1950-იან წლებში შეავსეს და ქალაქს წყლით ამარაგებს. ზემოთ ზურაბ წერეთლის „საქართველოს მატიანე“ დგას: ისტორიის სცენებით მოჭედილი უზარმაზარი სვეტები.',
+    13: 'მტკვრის მარცხენა ნაპირის ძველი უბანი, ეზოებით, ხის აივნებით და ვაზით. აქ დგას კოტე მარჯანიშვილის სახელობის თეატრი.',
+    14: '1818 წელს აქ გერმანელი კოლონისტები დასახლდნენ. ქუჩას მიხეილის პროსპექტი ერქვა, საბჭოთა დროს პლეხანოვის; დღეს დავით აღმაშენებლის სახელს ატარებს.',
+    15: 'თბილისის მეტრო 1966 წელს გაიხსნა, საბჭოთა კავშირში მეოთხე: მოსკოვის, ლენინგრადის და კიევის შემდეგ.',
+    16: '1970-იან წლებში მიკრორაიონებად აშენებული მასივი ქალაქის ჩრდილოეთ კიდეზე, თბილისის ყველაზე მჭიდროდ დასახლებული უბნებიდან.',
+    18: 'სახელი „ძალით აღებულს“ ნიშნავს: XX საუკუნის დასაწყისში მუშებმა აქ მიწა ნებართვის გარეშე დაიკავეს და სახლები ააშენეს.',
+    19: 'დიდუბის ეკლესიის ეზოში პანთეონია, სადაც ცნობილი მწერლები, მსახიობები და მეცნიერები განისვენებენ. აქედან მარშრუტკები მთელ საქართველოში მიდიან.',
+    20: 'მტკვრის ნაპირზე სასეირნო ბილიკია: აქ ჩამოჯდები და მდინარეს და ხიდებს უყურებ.',
+    21: 'ოდესღაც სოფელი იყო, დღეს თბილისის ახალი უბანია. დიღმის ტყე-პარკი და მტკვრის სანაპირო ქალაქის მწვანე კუთხეა.',
+    23: 'ბორცვებზე გაშენებული უბანი. აქვეა ლისის ტბა, სადაც ზაფხულში სასეირნოდ და საბანაოდ დადიან.',
+    24: 'აქ დგას ყოფილი საავტომობილო გზების სამინისტრო (1975): ერთმანეთზე გადაჯვარედინებული ბლოკები ხეებს ზემოთ კიდია. დღეს მასში ბანკია.',
+    25: '2012 წლიდან რიყის პარკიდან ნარიყალამდე მინის კაბინები დადის, მტკვრის თავზე.',
+    26: 'ძველი უბანი ვერეს ხევის პირას: XIX საუკუნის სახლები, რკინის აივნები და ციცაბო ქუჩები.',
+    27: 'სახელი „ვაკეს“, ანუ სწორ ადგილს ნიშნავს. ჭავჭავაძის გამზირზე 1930–50-იანი წლების სახლები და კაფეები დგას.',
+    28: 'ზემო ავჭალის ჰესი 1927 წელს ამუშავდა და საბჭოთა კავშირის პირველ დიდ ჰიდროსადგურებს შორის იყო. ქალაქს დენით ამარაგებდა.',
+    29: 'ფართო კიბე შადრევნებით ბორცვზე ადის, უცნობი ჯარისკაცის მემორიალამდე. პარკიდან კუს ტბამდე საბაგირო ადის.',
+    30: 'გმირთა მოედანი, მემორიალით შუაში, ქალაქის ერთ-ერთი უდიდესი გზაჯვარედინია: აქ ხიდები, გვირაბები და გამზირები ერთმანეთს კვეთს.',
+    31: 'პატარა ტბა მთაწმინდის კალთაზე, ტყეში. აქვეა ეთნოგრაფიული მუზეუმი: საქართველოს ყველა კუთხის ძველი სახლები ღია ცის ქვეშ.',
+    32: 'ძველად გოლოვინის პროსპექტი ერქვა, 1918 წლიდან შოთა რუსთაველის სახელს ატარებს. აქ დგას ოპერის თეატრი, პარლამენტის შენობა და ეროვნული მუზეუმი.',
+    34: '„წმინდა მთა“. კალთაზე, მამადავითის ეკლესიასთან, პანთეონია: აქ განისვენებენ ილია ჭავჭავაძე, აკაკი წერეთელი და ვაჟა-ფშაველა. მწვერვალზე ანძა და გასართობი პარკია.',
+    35: '1905 წლიდან მუშაობს: ბელგიური კომპანიის აშენებული ვაგონი ციცაბო ლიანდაგით მთაწმინდაზე ადის.',
+    37: 'XIX საუკუნის მდიდრული სახლების უბანი, მოხატული სადარბაზოებით, ხის აივნებით და მაღალი კარებით. თავზე ნარიყალას კედლები ჩანს.',
+    38: 'ხიდი მტკვრის ტოტზე აშენდა; ტოტი მერე ამოავსეს და ხიდი „მშრალი“ დარჩა. დღეს აქ ძველი ნახატების და ნივთების ბაზრობაა.',
+    39: 'ლეგენდის მიხედვით, ვახტანგ გორგასლის შევარდენი ხოხობთან ერთად ცხელ წყაროში ჩავარდა. მეფემ აქ ქალაქი დააარსა და თბილი წყაროების გამო „ტფილისი“ უწოდა. აბანოები დღესაც ამ წყაროებზე დგას.'
+  };
+  // ძველი ტფილისის ამბავი: the cards that send you about the city; Kinto's question only asks
+  const TB_CARDS = [
+    { k: 'move', to: 0, t: 'მწვანე შუქი მთელ გზაზე! თავისუფლების მოედანზე დაბრუნდი და აიღე 200.' },
+    { k: 'move', to: 39, t: 'აბანოთუბანში გელოდებიან: გოგირდის აბანო და ქისა. გადადი ძველ თბილისზე; თავისუფლების მოედანს თუ გაივლი, აიღე 200.' },
+    { k: 'move', to: 24, t: 'უნივერსიტეტში ლექციაზე გაგვიანდება! გადადი საბურთალოზე; თავისუფლების მოედანს თუ გაივლი, აიღე 200.' },
+    { k: 'move', to: 11, t: 'სამების ზარები რეკავს. გადადი ავლაბარზე; თავისუფლების მოედანს თუ გაივლი, აიღე 200.' },
+    { k: 'move', to: 25, t: 'ნარიყალადან ქალაქი ხელისგულივით ჩანს. გადადი საბაგიროზე; თავისუფლების მოედანს თუ გაივლი, აიღე 200.' },
+    { k: 'near', w: 'road', t: 'მარშრუტკამ უახლოეს სადგურამდე მიგიყვანა. თუ ის ვინმესია, ორმაგ ქირას გადაუხდი.' },
+    { k: 'near', w: 'road', t: 'ავტობუსი გამოგრჩა: უახლოეს სადგურამდე ფეხით წადი. თუ ის ვინმესია, ორმაგ ქირას გადაუხდი.' },
+    { k: 'near', w: 'util', t: 'შუქი ჩაქრა! გადადი უახლოეს თბილისის ზღვაზე ან ზაჰესზე; თუ ის ვინმესია, კამათლის ათმაგს გადაუხდი.' },
+    { k: 'back', n: 3, t: 'ცალმხრივ ქუჩაში შეუხვიე. სამი უჯრით უკან დაიხიე.' },
+    { k: 'jail', t: 'გმირთა მოედანზე გაიჭედე. პირდაპირ საცობში; თავისუფლების მოედანს ვერ გაივლი.' },
+    { k: 'feather', t: 'მწვანე ტალღა! ერთხელ საცობიდან უცებ გაგიყვანს: შეინახე.' },
+    { k: 'cash', n: 150, t: 'თბილისობაზე შენმა ღვინომ პირველი ადგილი აიღო. აიღე 150.' },
+    { k: 'cash', n: 50, t: 'მშრალ ხიდზე ბებიის ძველი სამოვარი გაყიდე. აიღე 50.' },
+    { k: 'cash', n: 100, t: 'ფიროსმანი დუქნების აბრებს პურსა და ღვინოზე ხატავდა. სხვენში მისი აბრა იპოვე: აიღე 100.' },
+    { k: 'cash', n: -15, t: 'მეტროს ბარათი შეავსე: 15.' },
+    { k: 'repair', a: 25, b: 100, t: 'ძველი უბნის აივნები შესაკეთებელია: თითო სახლზე 25, თითო სასტუმროზე 100.' }
+  ];
+  // Kinto's questions: q, three answers (a), the right one (c) and why (x)
+  const TB_QUIZ = [
+    { q: 'ვინ დააარსა თბილისი ლეგენდის მიხედვით?', a: ['დავით აღმაშენებელმა', 'ვახტანგ გორგასალმა', 'თამარ მეფემ'], c: 1, x: 'მისი შევარდენი ხოხობთან ერთად ცხელ წყაროში ჩავარდა; მეფემ აქ ქალაქი დააარსა.' },
+    { q: 'რას ნიშნავს სახელი „ტფილისი“?', a: ['თბილს', 'ქვიანს', 'მდინარისპირას'], c: 0, x: 'ძველ ქართულში „ტფილი“ თბილია: ქალაქს გოგირდის ცხელი წყაროების გამო დაერქვა.' },
+    { q: 'ვინ გადმოიტანა დედაქალაქი მცხეთიდან თბილისში?', a: ['დაჩი უჯარმელმა', 'ერეკლე მეორემ', 'დავით აღმაშენებელმა'], c: 0, x: 'ვახტანგ გორგასლის ძემ, VI საუკუნის დასაწყისში.' },
+    { q: 'რომელ წელს გაათავისუფლა დავით აღმაშენებელმა თბილისი?', a: ['1089 წელს', '1122 წელს', '1204 წელს'], c: 1, x: 'დიდგორის ბრძოლის მეორე წელს; თბილისი კვლავ საქართველოს დედაქალაქი გახდა.' },
+    { q: 'რომელი მდინარე მიედინება თბილისში?', a: ['რიონი', 'მტკვარი', 'ალაზანი'], c: 1, x: 'მტკვარი ქალაქს ჩრდილო-დასავლეთიდან სამხრეთ-აღმოსავლეთისკენ კვეთს.' },
+    { q: 'ვინ იყო კინტო?', a: ['ქუჩის მოვაჭრე და ხუმარა', 'მეფის მცველი', 'მეთევზე'], c: 0, x: 'ძველ ტფილისში კინტოები თავზე ხონჩით ხილს და ბოსტნეულს ყიდდნენ; მახვილი სიტყვით და ცეკვით იყვნენ ცნობილი.' },
+    { q: 'ვის ეძახდნენ ყარაჩოხელს?', a: ['ხელოსანს შავ ჩოხაში', 'ეტლის მეეტლეს', 'ბაზრის ვაჭარს'], c: 0, x: '„ყარა“ თურქულად შავს ნიშნავს: ყარაჩოხელები ხელოსნები იყვნენ, ვაჟკაცობით და ქეიფით ცნობილი.' },
+    { q: 'ვინ დახატა „ორთაჭალელი ლამაზმანი“?', a: ['ლადო გუდიაშვილმა', 'ნიკო ფიროსმანმა', 'ელენე ახვლედიანმა'], c: 1, x: 'ფიროსმანი დუქნების აბრებს და კედლებს ხატავდა, ხშირად პურსა და ღვინოზე.' },
+    { q: 'რომელ წელს გაიხსნა მშვიდობის ხიდი?', a: ['1966 წელს', '1991 წელს', '2010 წელს'], c: 2, x: 'მინისა და ფოლადის ხიდი იტალიელმა არქიტექტორმა მიკელე დე ლუკიმ დააპროექტა; ღამით ათასობით ნათურა ანთია.' },
+    { q: 'რომელ წელს გაიხსნა თბილისის მეტრო?', a: ['1956 წელს', '1966 წელს', '1981 წელს'], c: 1, x: 'საბჭოთა კავშირში მეოთხე იყო, მოსკოვის, ლენინგრადის და კიევის შემდეგ.' },
+    { q: 'რა უჭირავს ხელში ქართლის დედას?', a: ['ხმალი და ღვინის თასი', 'ჯვარი და წიგნი', 'ფარი და შუბი'], c: 0, x: 'ღვინის თასი სტუმრისთვისაა, ხმალი მტრისთვის. 1958 წელს, ქალაქის 1500 წლისთავზე დადგეს.' },
+    { q: 'სად განისვენებენ ილია ჭავჭავაძე და აკაკი წერეთელი?', a: ['დიდუბის პანთეონში', 'მთაწმინდის პანთეონში', 'სვეტიცხოველში'], c: 1, x: 'პანთეონი მამადავითის ეკლესიასთანაა, მთაწმინდის კალთაზე.' },
+    { q: 'რომელი წლიდან ადის ფუნიკულიორი მთაწმინდაზე?', a: ['1905 წლიდან', '1938 წლიდან', '1972 წლიდან'], c: 0, x: 'ფუნიკულიორი ბელგიურმა კომპანიამ ააშენა და საუკუნეზე მეტია მუშაობს.' },
+    { q: 'რა ერქვა რუსთაველის გამზირს ძველად?', a: ['მიხეილის პროსპექტი', 'გოლოვინის პროსპექტი', 'ერევნის ქუჩა'], c: 1, x: 'კავკასიის მთავარმართებლის, ევგენი გოლოვინის სახელს ატარებდა; 1918 წლიდან შოთა რუსთაველისაა.' },
+    { q: 'რა ერქვა თავისუფლების მოედანს XIX საუკუნეში?', a: ['ერევნის მოედანი', 'მეფის მოედანი', 'ბაზრის მოედანი'], c: 0, x: 'საბჭოთა დროს ლენინის მოედანი ერქვა; თავისუფლების მოედანი 1991 წლიდანაა.' },
+    { q: 'ვინ დგას თავისუფლების მოედანზე სვეტის თავზე?', a: ['დავით აღმაშენებელი', 'წმინდა გიორგი', 'ვახტანგ გორგასალი'], c: 1, x: 'ოქროსფერი წმინდა გიორგი გველეშაპს კლავს; ზურაბ წერეთლის ქანდაკება 2006 წელს დადგეს.' },
+    { q: 'რას ნიშნავს „აბანოთუბანი“?', a: ['აბანოების უბანს', 'ბაღების უბანს', 'ხელოსნების უბანს'], c: 0, x: 'აგურის გუმბათების ქვეშ გოგირდის ცხელი წყალი მიწიდან ამოდის.' },
+    { q: 'რომელი პოეტი ბანაობდა ტფილისის აბანოში 1829 წელს და წერდა, რომ ასეთი ფუფუნება არ ენახა?', a: ['ალექსანდრე პუშკინი', 'ლორდ ბაირონი', 'ვაჟა-ფშაველა'], c: 0, x: 'ეს „მოგზაურობა არზრუმში“ დაწერა.' },
+    { q: 'რომელ წელს დასრულდა სამების ტაძრის მშენებლობა?', a: ['1904 წელს', '1954 წელს', '2004 წელს'], c: 2, x: 'ავლაბარში, ელიას ბორცვზე, 1995 წლიდან აშენებდნენ; საქართველოს უდიდესი ეკლესიაა.' },
+    { q: 'რა იყიდება მშრალ ხიდთან?', a: ['ძველი ნახატები და ნივთები', 'ცოცხალი თევზი', 'ახალი მანქანები'], c: 0, x: 'ხიდი მტკვრის ტოტზე აშენდა, რომელიც მერე ამოავსეს: ასე დარჩა „მშრალი“.' },
+    { q: 'რომელ წელს ამუშავდა ზაჰესი?', a: ['1927 წელს', '1957 წელს', '1987 წელს'], c: 0, x: 'ზემო ავჭალის ჰესი საბჭოთა კავშირის პირველ დიდ ჰიდროსადგურებს შორის იყო.' },
+    { q: 'სად არის ღია ცის ქვეშ ეთნოგრაფიული მუზეუმი?', a: ['კუს ტბასთან', 'ორთაჭალაში', 'გლდანში'], c: 0, x: 'საქართველოს სხვადასხვა კუთხის ძველი სახლები მთაწმინდის კალთაზე, ტყეში დგას.' },
+    { q: 'საიდან იწყება საბაგირო, რომელიც ნარიყალაზე ადის?', a: ['რიყის პარკიდან', 'ვაკის პარკიდან', 'დიდუბიდან'], c: 0, x: '2012 წლიდან მინის კაბინები მტკვარს თავზე გადაუფრენს.' },
+    { q: 'რომელი ციხე დგას ძველი თბილისის თავზე?', a: ['ნარიყალა', 'ანანური', 'გონიო'], c: 0, x: 'IV საუკუნიდან იცავს ქალაქს; ძველად შურისციხე ერქვა.' },
+    { q: 'რომელია თბილისის უძველესი შემორჩენილი ეკლესია?', a: ['ანჩისხატი', 'სამება', 'ქაშვეთი'], c: 0, x: 'VI საუკუნის ბაზილიკაა ძველ თბილისში.' },
+    { q: 'რომელ ქუჩაზე დგას ოპერისა და ბალეტის თეატრი?', a: ['რუსთაველის გამზირზე', 'აღმაშენებლის გამზირზე', 'ჭავჭავაძის გამზირზე'], c: 0, x: 'მავრიტანული სტილის შენობა XIX საუკუნის ბოლოსაა აშენებული.' },
+    { q: 'რომელი უბნის სახელი ნიშნავს „ძალით აღებულს“?', a: ['ნაძალადევის', 'დიდუბის', 'ვაკის'], c: 0, x: 'XX საუკუნის დასაწყისში მუშებმა აქ მიწა ნებართვის გარეშე დაიკავეს.' },
+    { q: 'რა არის „თბილისობა“?', a: ['ქალაქის დღესასწაული', 'ძველი აბანო', 'მთაწმინდის ეკლესია'], c: 0, x: '1979 წლიდან ყოველ ოქტომბერს იმართება, ღვინით, სიმღერით და რთველის ბაზრობით.' },
+    { q: 'სად დგას „საქართველოს მატიანე“?', a: ['თბილისის ზღვასთან', 'ვაკის პარკში', 'რიყეზე'], c: 0, x: 'ზურაბ წერეთლის უზარმაზარ ბრინჯაოს სვეტებზე ისტორიის და ბიბლიის სცენებია.' },
+    { q: 'სად დასახლდნენ 1818 წელს გერმანელი კოლონისტები?', a: ['ვაკეში', 'დღევანდელ აღმაშენებლის გამზირზე', 'სოლოლაკში'], c: 1, x: 'შვაბიელი კოლონისტები მტკვრის მარცხენა ნაპირზე დასახლდნენ; მათ სახლებს დღესაც ნახავ.' }
+  ];
+  THEMES.tbilisi = {
+    key: 'tbilisi', name: 'ტფილისი', tag: 'თბილისის უბნები, ნამდვილი ამბებით', world: 'city', heroes: 'mamuli',
+    names: BOARD.map((t, i) => { const v = TB[i]; return Array.isArray(v) ? { n: v[0], s: v[1] } : { n: v }; }),
+    groups: [
+      { n: 'ქვემო სანაპირო', c: '#9a7452' }, { n: 'აღმოსავლეთი', c: '#72bde6' }, { n: 'მარცხენა სანაპირო', c: '#55ad5f' }, { n: 'ჩრდილოეთი', c: '#ee8f3e' },
+      { n: 'ჩრდილო-დასავლეთი', c: '#2fa39d' }, { n: 'ვაკე-ვერა', c: '#e4bc3c' }, { n: 'მთაწმინდის კალთა', c: '#a8365f' }, { n: 'ძველი ქალაქი', c: '#4064c8' }
+    ],
+    deck: { s: TB_CARDS, c: Array.from({ length: 16 }, () => ({ k: 'quiz', t: 'კითხვა' })) },
+    quiz: TB_QUIZ, stories: TB_STORY,
+    levels: ['ცარიელი', '1 სახლი', '2 სახლი', '3 სახლი', '4 სახლი', 'სასტუმრო'],
+    w: {
+      town: 'უბანი', tower: 'სახლი', towers: 'სახლები', towersWith: 'სახლებით ან სასტუმროთი', fort: 'სასტუმრო',
+      road: 'სადგური', roads: 'სადგურები', util: 'კომუნალური', estate: 'ქონება',
+      start: 'თავისუფლების მოედანი', startTile: 'ყოველ წრეზე', jail: 'საცობი', jailTile: 'აქ უბრალოდ გაივლი', feast: 'მტკვრის სანაპირო', feastTile: 'დაისვენე',
+      gojail: 'გმირთა მოედანი', gojailTile: 'პირდაპირ საცობში!',
+      scroll: 'ძველი ტფილისის ამბავი', chest: 'კინტოს კითხვა', scrollTile: 'აიღე ბარათი', chestTile: 'უპასუხე კითხვას',
+      toJail: 'საცობში!', freed: 'საცობიდან გამოვიდა', stays: 'საცობში რჩება', fine: 'სკუტერის ქირა', fineLog: 'სკუტერის ქირა',
+      inJail: 'საცობში', feather: 'მწვანე ტალღა', featherFull: 'მწვანე ტალღა', featherUse: 'მწვანე ტალღით', soldTower: 'გაყიდა სახლი',
+      full: 'აქ უკვე სასტუმროა', steps: '4 სახლი თითო უბანში → შემდეგ სასტუმრო', bare: 'ცარიელი უბანი',
+      errGroup: 'სახლისთვის ერთი ფერის ყველა უბანი უნდა გქონდეს', errEven: 'სახლები ერთი ფერის უბნებში თანაბრად შენდება და თანაბრად იყიდება', errMort: 'ჯერ ამ ფერის უბნების სახლები უნდა გაყიდო',
+      jailHint: n => `საცობში ხარ. გასასვლელად დუბლი გააგორე (${n} ცდა დარჩა), ან სკუტერი იქირავე ${JAIL_FINE}-ად.`,
+      wholeYou: g => `მთელი ${g} შენია! ახლა სახლებს ააშენებ.`,
+      canBuild: 'ერთი ფერის ყველა უბანი გაქვს: ააშენე სახლები და ქირა გაიზრდება.',
+      debtHint: 'თამაში გაყიდის სახლებს და დააგირავებს უბნებს, რომლებიც ნაკლებად გჭირდება.',
+      buyLast: g => `ეს ბოლოა: იყიდე და მთელი ${g} შენი იქნება!`,
+      buyMore: (g, n) => `${g}: ${n} უბანი. ყველა თუ შეაგროვე, ქირა გაორმაგდება და სახლებს ააშენებ.`,
+      roadHint: 'რაც მეტი სადგური გაქვს, მით მეტ ქირას იღებ.',
+      manageLater: 'სახლებს და დაგირავებას შენს სვლაზე მართავ.', buildLater: 'სახლების აშენება და დაგირავება შენს სვლაზეა.',
+      nothingYet: 'ჯერ არაფერი გაქვს. იყიდე უბანი, რომელზეც დადგები.', buildOne: 'სახლის აშენება', sellOne: 'სახლის გაყიდვა',
+      needRegion: 'სახლების ასაშენებლად ერთი ფერის ყველა უბანი უნდა გქონდეს.', noTownYet: 'ჯერ უბანი არ გაქვს.',
+      unmortFirst: 'ჯერ დაგირავებული უბანი გამოისყიდე', allForts: 'ყველგან სასტუმროა',
+      evenHint: 'სახლები ერთი ფერის უბნებში თანაბრად დგება. ოთხი სახლის შემდეგ სასტუმრო შენდება.',
+      tradeTowers: 'სახლებიან უბნებს ვერ გაცვლი: ჯერ სახლები გაყიდე.', freeAgain: 'შენი უბნები ისევ თავისუფალი გახდება.',
+      about: {
+        start: `თავისუფლების მოედანი, ქალაქის გული. ყოველ გავლაზე ${SALARY}-ს იღებ.`,
+        jail: `საცობი. აქ თუ უბრალოდ გაივლი, არაფერი ხდება. ვინც გაიჭედა, სამ ცდაში დუბლით გამოდის, ან ${JAIL_FINE}-ად სკუტერს იქირავებს, ან „მწვანე ტალღას“ იყენებს.`,
+        feast: 'მტკვრის სანაპირო. აქ სკამზე ჩამოჯდები და დაისვენებ, არაფერი ხდება.',
+        gojail: 'გმირთა მოედანი, ქალაქის ყველაზე ჩახლართული გზაჯვარედინი. პატრული პირდაპირ საცობში გაგზავნის; თავისუფლების მოედანს ვერ გაივლი.',
+        tax: t => t.a > 150 ? `${t.n}: სესხის პროცენტს, ${t.a}-ს, უხდი.` : `${t.n}: ბაზრობაზე ძველ ნახატს ყიდულობ, ${t.a}.`,
+        scroll: 'ძველი ტფილისის ამბავი: ბარათი, რომელიც ხშირად ქალაქში გაგზავნის.',
+        chest: `კინტოს კითხვა: კითხვა თბილისზე. ყველა პასუხობს; ვინც ბარათი აიღო, სწორ პასუხზე ${QUIZ_WIN}-ს იღებს, დანარჩენებიდან ვინც სწორად უპასუხა, ${QUIZ_SHARE}-ს.`
+      },
+      rules: () => `<ol class="steps">
+        <li><b>გააგორე კამათელი</b> და ფიგურა თავისით წავა. თავისუფლების მოედნის გავლაზე ${SALARY} გეძლევა.</li>
+        <li><b>იყიდე უბანი,</b> რომელზეც დადექი. სხვის უბანზე ქირას იხდი, თამაში თვითონ გადაიხდის. ყოველ უბანს თავისი ნამდვილი ამბავი აქვს: ნახე მის ბარათზე.</li>
+        <li><b>არ იყიდი? აუქციონია.</b> ფასს ყველა ასახელებს, წინაზე ${BID_STEP_RULE}-ით მაინც მეტს; ვისაც აღარ უნდა, გადის. ბოლო ფასის მერე რამდენიმე წამში უბანი ყველაზე მაღალი ფასით იყიდება.</li>
+        <li><b>შეაგროვე ერთი ფერის ყველა უბანი:</b> ქირა გაორმაგდება და შეგიძლია <b>სახლები</b> ააშენო. ოთხი სახლის შემდეგ სასტუმრო დგება, ქირა ყველაზე დიდია.</li>
+        <li><b>ვინც გაკოტრდება,</b> თამაშიდან გადის. იგებს ბოლო დარჩენილი ან, რაუნდების ლიმიტზე, ყველაზე მდიდარი.</li>
+      </ol>
+      <p><b>კინტოს კითხვა:</b> კითხვა სამი პასუხით, ${QUIZ_TIME / 1000} წამი. ყველა პასუხობს თავის ტელეფონზე; ვინც ბარათი აიღო, სწორ პასუხზე ${QUIZ_WIN}-ს იღებს, სხვები, ვინც სწორად უპასუხა, ${QUIZ_SHARE}-ს. არასწორი პასუხი არაფერს გართმევს. კითხვები თბილისის უბნების და ისტორიის ამბებიდანაა.</p>
+      <p><b>ძველი ტფილისის ამბავი:</b> ბარათი, რომელიც ფულს გაძლევს ან გართმევს, ან ქალაქში გაგზავნის. <b>მწვანე ტალღა</b> საცობიდან გაგიყვანს.</p>
+      <p><b>საცობი:</b> გმირთა მოედანი, ბარათი ან სამი დუბლი ზედიზედ. გამოსვლა: დუბლი სამ ცდაში, ${JAIL_FINE}-ად სკუტერის ქირაობა ან მწვანე ტალღა.</p>
+      <p><b>სადგურები</b> (ვაგზალი, მეტრო, საბაგირო, ფუნიკულიორი) ქირას იღებენ იმის მიხედვით, რამდენი გაქვს (25, 50, 100, 200). <b>თბილისის ზღვა და ზაჰესი:</b> კამათლის ჯამი ×4, ორივე თუ გაქვს ×10.</p>
+      <p><b>ვალი:</b> ფული თუ არ გყოფნის, „ვალის დაფარვა“ სახლებს გაყიდის და უბნებს დააგირავებს. <b>ვაჭრობა:</b> შენს სვლაზე შესთავაზე ნებისმიერ მოთამაშეს უბნების და ფულის გაცვლა.</p>`
+    }
+  };
+
+  // ----- the heroes: Metekhi's for მამული (ტფილისი borrows them), real pirates for the archipelago (b: who they were) -----
   for (const k in HEROES) HEROES[k].t = 'mamuli';
   const PIRATES = {
     blackbeard: { n: 'შავწვერა', s: 'შავწვერა', b: 'ედვარდ ტიჩი, დაახლ. 1680–1718. კარიბებს და ამერიკის სანაპიროს აშინებდა.', c: '#2b2a33' },
@@ -1586,7 +1749,9 @@ const QUIZ_WIN = 100, QUIZ_SHARE = 20;   // for the one who opened the chest, fo
 })();
 
 const BID_STEP_RULE = 10;          // (the auction's step, for the rules' text; the engine has its own)
-const heroKeys = theme => Object.keys(HEROES).filter(h => HEROES[h].t === (THEMES[theme] ? theme : 'mamuli'));
+// whose heroes a theme plays with: its own, or (ტფილისი) another theme's
+const heroSet = theme => { const th = THEMES[theme] || THEMES.mamuli; return th.heroes || th.key; };
+const heroKeys = theme => Object.keys(HEROES).filter(h => HEROES[h].t === heroSet(theme));
 const themeOf = st => THEMES[st && st.theme] || THEMES.mamuli;
 let THEME = THEMES.mamuli;
 const W = Object.assign({}, THEME.w);       // the words of the theme on screen
@@ -1606,7 +1771,7 @@ function useTheme(key) {
   return true;
 }
 
-if (typeof module !== 'undefined') module.exports = { THEMES, QUIZ_TIME, QUIZ_WIN, QUIZ_SHARE, heroKeys, themeOf, useTheme };
+if (typeof module !== 'undefined') module.exports = { THEMES, QUIZ_TIME, QUIZ_WIN, QUIZ_SHARE, heroSet, heroKeys, themeOf, useTheme };
 
 // ===== the rules =====
 // The whole game is one plain object (the state). act() checks that a move is allowed, changes the state and adds
@@ -1655,7 +1820,7 @@ const Engine = (() => {
   function cleanPrefs(x) {
     const out = {};
     if (typeof x === 'string') { if (HEROES[x]) out[HEROES[x].t] = x; return out; }
-    if (x && typeof x === 'object') for (const k in THEMES) if (typeof x[k] === 'string' && HEROES[x[k]] && HEROES[x[k]].t === k) out[k] = x[k];
+    if (x && typeof x === 'object') for (const k in THEMES) if (typeof x[k] === 'string' && HEROES[x[k]] && HEROES[x[k]].t === heroSet(k)) out[k] = x[k];
     return out;
   }
   function newPlayer(pid, name, hero, bot, pref) {
@@ -1682,7 +1847,7 @@ const Engine = (() => {
     const s = seatOf(st, pid), host = pid === st.host;
     switch (a && a.t) {
       case 'hero': {
-        if (s < 0 || !HEROES[a.h] || HEROES[a.h].t !== themeKey(st)) return 'bad';
+        if (s < 0 || !HEROES[a.h] || HEROES[a.h].t !== heroSet(themeKey(st))) return 'bad';
         if (st.players.some((p, i) => i !== s && p.hero === a.h)) return 'taken';
         const p = st.players[s];
         setHero(p, a.h);
@@ -2550,7 +2715,7 @@ if (typeof module !== 'undefined') module.exports = TradeInsights;
 // is in the room. If the host disappears, the next player in seat order takes over with their copy of the state.
 // "local" is a game on this device only (people taking turns and computer players), without any network.
 
-const PROTO = 4;                 // 4: themes and the chest's questions (3: auctions, the dice's throw from the game's seed)
+const PROTO = 5;                 // 5: ტფილისი, a third world (4: themes and the chest's questions; 3: auctions, the dice's throw from the game's seed)
 const ONLINE = {
   ws: 'wss://wnpqmcucnqcpcceqwega.supabase.co/realtime/v1',
   key: 'sb_publishable_DEGb_dkdj1s3QEJFrxc-Aw_apfCzfNx',
@@ -3532,12 +3697,13 @@ const Terrain = (() => {
   // the height of the land inside the board, before the flat places
   function raw(x, z) {
     if (!bins) binIt();
-    let h = sea ? BED + 0.035 * fbm(x * 0.9 + 3, z * 0.9 - 2) : 0.03 + 0.028 * fbm(x * 1.15 + 3, z * 1.15 - 2);
+    let h = sea ? BED + 0.035 * fbm(x * 0.9 + 3, z * 0.9 - 2) : 0.03 + 0.028 * fbm(x * 1.15 + 3, z * 1.15 - 2), late = 0;
     const i = Math.floor((x - B0) / BIN), j = Math.floor((z - B0) / BIN);
-    if (i >= 0 && j >= 0 && i < NB && j < NB) for (const f of bins[j * NB + i]) h += value(f, x, z);
-    // along the ring of squares the land comes down to meet them (the sea's floor comes up to a shallow lagoon there)
+    if (i >= 0 && j >= 0 && i < NB && j < NB) for (const f of bins[j * NB + i]) { const v = value(f, x, z); if (f.late) late = Math.min(late, v); else h += v; }
+    // along the ring of squares the land comes down to meet them (the sea's floor comes up to a shallow lagoon there);
+    // a river's bed (late) goes on under them
     const m = Math.max(Math.abs(x), Math.abs(z)), rim = sea ? RIM_SEA : RIM_Y;
-    return rim + (h - rim) * smooth(RIM, RIM - 0.34, m);
+    return rim + (h - rim) * smooth(RIM, RIM - 0.34, m) + late;
   }
   function height(x, z) {
     let h = raw(x, z);
@@ -3556,6 +3722,15 @@ const Terrain = (() => {
     return h;
   }
 
+  function curve(ctrl, n) {
+    const out = [], P = k => ctrl[Math.max(0, Math.min(ctrl.length - 1, k))];
+    for (let k = 0; k < ctrl.length - 1; k++) for (let j = 0; j < n; j++) {
+      const t = j / n, t2 = t * t, t3 = t2 * t, a = P(k - 1), b = P(k), c = P(k + 1), e = P(k + 2);
+      out.push([0, 1].map(q => 0.5 * (2 * b[q] + (c[q] - a[q]) * t + (2 * a[q] - 5 * b[q] + 4 * c[q] - e[q]) * t2 + (3 * b[q] - a[q] - 3 * c[q] + e[q]) * t3)));
+    }
+    out.push(ctrl[ctrl.length - 1].slice());
+    return out;
+  }
   // ----- what the regions call (board coordinates) -----
   const api = {
     peak: (x, z, reach, h, seed = 1) => put({ t: 'peak', x, z, reach, h, seed }),
@@ -3567,6 +3742,14 @@ const Terrain = (() => {
     // a lake (its water: true for the sea's colour, 'lava' for a volcano's crater)
     lake: (x, z, rx, rz, d, rotation = 0, kind = false) => { const f = put({ t: 'lake', x, z, rx, rz, d, rot: rotation }); waters.push({ k: 'lake', f, sea: kind === true || kind === 'sea', lava: kind === 'lava' }); return f; },
     fall: (x1, y1, z1, x2, y2, z2, w) => waters.push({ k: 'fall', a: [x1, y1, z1], b: [x2, y2, z2], w }),
+    // a river at one level (a city's): a smooth line through the points, its bed dug w either side of it and d deep
+    // (under the squares too), its water at height y, ww wide; colour its own
+    flow: (ctrl, w, d, y, ww, color = 0x4f8a8c) => {
+      const pts = curve(ctrl, 8);
+      for (let k = 1; k < pts.length; k++) put({ t: 'dig', x1: pts[k - 1][0], z1: pts[k - 1][1], x2: pts[k][0], z2: pts[k][1], w, d, late: true });
+      waters.push({ k: 'flow', pts, y, hw: ww / 2, c: new T.Color(color) });
+      return pts;
+    },
     // level ground for a building: the land around it is brought to the height at its middle
     pad: (x, z, r) => { pads.push({ x, z, r, y: null }); },
     path: (x1, z1, x2, z2, w, color = 0xa48c64) => paths.push({ x1, z1, x2, z2, w, c: new T.Color(color) }),
@@ -3692,6 +3875,18 @@ const Terrain = (() => {
         C1.set(w.lava ? LAVA : w.sea ? SEA : WATER);
         const at = k => { const a = k / n * Math.PI * 2, lx = Math.cos(a) * f.rx * 0.97, lz = Math.sin(a) * f.rz * 0.97; return [f.x + lx * c + lz * s, y, f.z - lx * s + lz * c]; };
         for (let k = 0; k < n; k++) tri([f.x, y, f.z], at(k + 1), at(k), C1, w.lava ? 5 : 1);
+      } else if (w.k === 'flow') {
+        // a ribbon along the line at the river's level, its sides turned halfway between one piece and the next
+        const p = w.pts, n = p.length, side = [];
+        for (let k = 0; k < n; k++) {
+          const a = p[Math.max(0, k - 1)], b = p[Math.min(n - 1, k + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1;
+          side.push([-dz / l * w.hw, dx / l * w.hw]);
+        }
+        for (let k = 1; k < n; k++) {
+          const L0 = [p[k - 1][0] + side[k - 1][0], w.y, p[k - 1][1] + side[k - 1][1]], R0 = [p[k - 1][0] - side[k - 1][0], w.y, p[k - 1][1] - side[k - 1][1]];
+          const L1 = [p[k][0] + side[k][0], w.y, p[k][1] + side[k][1]], R1 = [p[k][0] - side[k][0], w.y, p[k][1] - side[k][1]];
+          tri(L0, L1, R0, w.c, 1); tri(R0, L1, R1, w.c, 1);
+        }
       } else if (w.k === 'fall') {
         // off the lip it arcs out, clear of the rock, and spreads as it falls
         const [a, b] = [w.a, w.b], dx = b[0] - a[0], dz = b[2] - a[2], l = Math.hypot(dx, dz) || 1, ux = dx / l, uz = dz / l, px = -uz * w.w / 2, pz = ux * w.w / 2;
@@ -3856,6 +4051,11 @@ const Terrain = (() => {
   // the water's surface where (x, z) lies in a lake (or the sea), or null
   function waterAt(x, z) {
     for (const w of waters) {
+      if (w.k === 'flow') {
+        const p = w.pts;
+        for (let k = 1; k < p.length; k++) if (segQ({ x1: p[k - 1][0], z1: p[k - 1][1], x2: p[k][0], z2: p[k][1], w: w.hw }, x, z)[0] < 1) return w.y;
+        continue;
+      }
       if (w.k !== 'lake' || w.lava) continue;
       const f = w.f, [lx, lz] = rot(f, x, z);
       if ((lx / f.rx) ** 2 + (lz / f.rz) ** 2 < 1) { const y = height(f.x, f.z) + f.d * 0.55; if (!sea || y > SEA_Y + 0.01) return y; }
@@ -5663,6 +5863,620 @@ const SeaModels = (() => {
   };
 })();
 
+// ===== ტფილისი in 3D: Tbilisi, made in code like the land (models.js), with its landmarks from files =====
+// The Mtkvari runs through the middle of the board from corner to corner: in at the back left, between Didube and Dighomi,
+// out at the front right, between Ortachala and the quiz's market. On its right bank Narikala stands on its ridge with
+// Kartlis Deda beside it; three bridges cross it (the stone bridge, the Peace Bridge, Metekhi's); the cable car goes up
+// from Rike Park over the water to the fortress. Around them the city: old houses with wooden balconies by the river,
+// Soviet blocks and new towers further off, green hills at the back. Every district on the ring has its own scene
+// (its card's), and nine have their own model (art/m_tb_*.glb: the bank, Sameba, the old courtyard, Rustaveli,
+// Mtatsminda, the baths; Freedom Square and the embankment's bench on their corners). Cars, buses and trains go about,
+// boats on the river and the lakes, the funicular and the cable cars up and down, falcons over Narikala.
+// A place's frame is the land's: x along the board's side (to the right seen from its side), +z towards its square
+// (and the camera), y up.
+
+const CityModels = (() => {
+  const T = window.THREE;
+  if (!T || typeof Models === 'undefined' || !Models || typeof Terrain === 'undefined' || !Terrain) return null;
+  const { Builder, rng, tone, PAL } = Models;
+  const { box, cyl, cone, pyr, ball, roof, dome, jitter } = Models.shapes;
+  const { tree, bigTree, pine, bush, rock, church, coins, moneyBag } = Models.parts;
+
+  const C = {
+    cream: 0xe9ddc3, sand: 0xdcc8a2, ochre: 0xd8b17a, peach: 0xe4b69e, rose: 0xd99d8c, sky: 0xbfd4d8, mint: 0xc7dac2, lilac: 0xd3c3da,
+    tile: 0xb35a3c, tile2: 0x9c4a35, tin: 0x8f959a, tin2: 0x70757a, rust: 0x9b4d35, roofGreen: 0x5f7f6a,
+    panel: 0xcac4b7, panel2: 0xb2aa9a, panel3: 0xd9d2c3, glass: 0x5b7889, glass2: 0x8aabbd, win: 0x39444f,
+    wood: 0x7d5234, wood2: 0x5b3a24, balcony: 0x6b8f88, iron: 0x3a3c40,
+    asphalt: 0x67696d, cobble: 0xb5a78f, paving: 0xcdbfa3, lawn: 0x7aa34b, dusty: 0xa8a487,
+    leaf: 0x57893d, leaf2: 0x467a36, autumn: 0xc98a33, cypress: 0x2f5536,
+    bronze: 0x564838, gold: 0xe2b04a, red: 0xc23a2e, white: 0xf3efe6, blue: 0x2f62a8, yellow: 0xe9c449, stone: 0xcfc1a7, stone2: 0xb3a58c, brick: 0xae5c3d
+  };
+  const WALLS = [C.cream, C.sand, C.ochre, C.peach, C.rose, C.sky, C.mint, C.lilac, 0xe2d2b0, 0xd7c3a5];
+
+  // ===== pieces =====
+  // a window or a band of windows: a thin dark pane just in front of a wall facing +z
+  const pane = (w, h) => new T.PlaneGeometry(w, h).translate(0, h / 2, 0);
+  // an old Tbilisi house: fl floors, a hipped roof, windows in rows, and (bal) a wooden balcony along the upper floor
+  function oldHouse(B, x, z, w, d, fl, wallC, roofC, ry = 0, bal = true) {
+    const put = B.at(x, z, ry), fh = 0.072, h = fh * fl;
+    put(box(w, h, d), wallC, 0, 0, 0, { vary: 0.04 });
+    put(pyr(w * 1.1, 0.05 + 0.25 * Math.min(w, d), d * 1.12), roofC, 0, h, 0, { vary: 0.07 });
+    const n = Math.max(1, Math.round(w / 0.055));
+    for (let f = 0; f < fl; f++) for (let k = 0; k < n; k++) {
+      const wx = -w / 2 + (k + 0.5) * w / n;
+      if (bal && f === fl - 1 && fl > 1) continue;                     // (behind the balcony)
+      put(pane(w / n * 0.42, fh * 0.48), f === 0 && k === Math.floor(n / 2) ? C.wood2 : C.win, wx, f * fh + (f ? fh * 0.28 : 0), d / 2 + 0.002, { vary: 0 });
+    }
+    if (bal && fl > 1) {
+      const by = (fl - 1) * fh;
+      put(box(w * 0.9, 0.01, 0.045), C.wood, 0, by, d / 2 + 0.022);                          // its floor
+      put(box(w * 0.9, fh * 0.62, 0.006), C.balcony, 0, by + 0.01, d / 2 + 0.044, { vary: 0.05 });   // carved and glazed
+      put(box(w * 0.9, fh * 0.2, 0.008), C.wood2, 0, by + 0.01, d / 2 + 0.046);              // the carved rail
+      put(box(w * 0.92, 0.008, 0.05), C.wood2, 0, by + fh * 0.7, d / 2 + 0.024);               // its little roof
+    }
+  }
+  // a Soviet block: fl floors of panels, a band of windows on each, balconies in a few columns, a flat roof
+  function block(B, x, z, w, d, fl, c = C.panel, ry = 0, balc = 3) {
+    const put = B.at(x, z, ry), fh = 0.05, h = fh * fl;
+    put(box(w, h, d), c, 0, 0, 0, { vary: 0.03 });
+    put(box(w * 1.02, 0.012, d * 1.04), tone(c, 0.8), 0, h, 0);
+    for (let f = 0; f < fl; f++) {
+      for (const s of [1, -1]) put(pane(w * 0.9, fh * 0.34), C.win, 0, f * fh + fh * 0.36, s * (d / 2 + 0.002), { ry: s > 0 ? 0 : Math.PI, vary: 0 });
+      for (let k = 0; k < balc; k++) put(box(w / balc * 0.5, fh * 0.42, 0.02), tone(c, 1.08), -w / 2 + (k + 0.5) * w / balc, f * fh + fh * 0.12, d / 2 + 0.01);
+    }
+  }
+  // a new tower: glass in strips, a colour of its own on its corners
+  function tower(B, x, z, w, d, h, c = C.panel3, accent = C.peach, ry = 0) {
+    const put = B.at(x, z, ry), n = Math.max(2, Math.round(h / 0.05));
+    put(box(w, h, d), c, 0, 0, 0, { vary: 0.03 });
+    for (let f = 0; f < n; f++) for (const s of [1, -1]) put(pane(w * 0.84, h / n * 0.5), f % 2 ? C.glass : C.glass2, 0, f * h / n + h / n * 0.25, s * (d / 2 + 0.002), { ry: s > 0 ? 0 : Math.PI, vary: 0 });
+    put(box(w * 0.18, h * 1.02, d * 1.02), accent, w * 0.41, 0, 0);
+    put(box(w * 1.04, 0.015, d * 1.04), tone(c, 0.75), 0, h, 0);
+  }
+  const cypress = (B, x, z, s = 1) => { B.add(cyl(0.005 * s, 0.007 * s, 0.03 * s, 5), PAL.trunk, x, 0, z); B.add(jitter(cone(0.032 * s, 0.24 * s, 7), 0.1, x * 13 + z), C.cypress, x, 0.02 * s, z, { smooth: true, vary: 0, sway: 0.5 }); };
+  const poplar = (B, x, z, s = 1) => { B.add(cyl(0.008 * s, 0.012 * s, 0.06 * s, 5), PAL.trunk, x, 0, z); B.add(jitter(ball(0.045 * s, 1), 0.14, x * 7 + z), C.leaf, x, 0.17 * s, z, { sy: 3, round: true, sway: 1.1 }); };
+  const plane = (B, x, z, s = 1, leaf = C.leaf) => tree(B, x, z, s * 0.9, leaf);
+  const lamp = (B, x, z, s = 1) => { B.add(cyl(0.004 * s, 0.005 * s, 0.13 * s, 5), C.iron, x, 0, z); B.add(box(0.016 * s, 0.022 * s, 0.016 * s), 0xffe9b0, x, 0.13 * s, z); };
+  const bench = (B, x, z, ry = 0) => { const put = B.at(x, z, ry); put(box(0.07, 0.008, 0.024), C.wood, 0, 0.022, 0); put(box(0.07, 0.022, 0.005), C.wood, 0, 0.03, -0.011); for (const k of [-0.03, 0.03]) put(box(0.004, 0.022, 0.02), C.iron, k, 0, 0); };
+  function car(B, x, z, ry = 0, c = C.red, s = 1) {
+    const put = B.at(x, z, ry, s);
+    put(box(0.075, 0.022, 0.036), c, 0, 0.008, 0); put(box(0.042, 0.018, 0.032), C.glass, -0.004, 0.03, 0);
+    for (const [wx, wz] of [[-0.024, -0.018], [0.024, -0.018], [-0.024, 0.018], [0.024, 0.018]]) put(box(0.016, 0.016, 0.006), 0x222222, wx, 0, wz);
+  }
+  function bus(B, x, z, ry = 0, c = 0x3f7fc2, len = 0.17, s = 1) {
+    const put = B.at(x, z, ry, s);
+    put(box(len, 0.05, 0.045), c, 0, 0.008, 0); put(box(len * 0.92, 0.016, 0.047), C.glass, 0, 0.032, 0); put(box(len * 1.01, 0.008, 0.046), C.white, 0, 0.058, 0);
+    for (const wx of [-len * 0.32, len * 0.32]) for (const wz of [-0.02, 0.02]) put(box(0.02, 0.016, 0.006), 0x222222, wx, 0, wz);
+  }
+  const minibus = (B, x, z, ry = 0) => { bus(B, x, z, ry, 0xf2f0ea, 0.085); B.at(x, z, ry)(box(0.086, 0.006, 0.047), C.yellow, 0, 0.024, 0); };
+  function stall(B, x, z, ry = 0, awn = C.red) {
+    const put = B.at(x, z, ry);
+    put(box(0.09, 0.03, 0.05), C.wood, 0, 0, 0);
+    for (let k = 0; k < 5; k++) put(ball(0.008), [0xd94a2e, 0xf0a530, 0x7cae3a, 0x8a3a6a, 0xe8c547][k], -0.032 + k * 0.016, 0.034, 0.008 * (k % 2), { vary: 0 });
+    for (const k of [-0.042, 0.042]) put(box(0.004, 0.08, 0.004), C.wood2, k, 0, -0.022);
+    put(box(0.1, 0.006, 0.06), awn, 0, 0.08, -0.004, { rx: 0.18 });
+  }
+  const umbrella = (B, x, z, c = C.white) => { B.add(cyl(0.003, 0.003, 0.06, 4), C.iron, x, 0, z); B.add(cone(0.035, 0.02, 8), c, x, 0.06, z); B.add(cyl(0.018, 0.018, 0.004, 8), C.white, x, 0.022, z); };
+  function pylon(B, x, z, h = 0.42) {          // a power line's tower: a tall frame narrowing upward, with arms
+    B.add(taperFrame(h), C.iron, x, 0, z);
+    for (const y of [h * 0.72, h * 0.9]) B.add(box(0.11, 0.006, 0.006), C.iron, x, y, z);
+  }
+  function taperFrame(h) { const g = new T.CylinderGeometry(0.008, 0.04, h, 4, 1, true); g.rotateY(Math.PI / 4); g.translate(0, h / 2, 0); return g; }
+  // the cars stuck in the traffic jam, one lane after another
+  function jam(B, x, z, n, ry = 0, gap = 0.1, seed = 1) {
+    const r = rng(seed), cs = [C.red, C.white, 0x2f62a8, 0x3c3c3c, 0xd9d4c8, C.yellow, 0x6a8a3a, 0x8a2a2a];
+    for (let k = 0; k < n; k++) { const p = -(n - 1) * gap / 2 + k * gap; if (r() < 0.18) minibus(B, x + Math.cos(ry) * p, z - Math.sin(ry) * p, ry); else car(B, x + Math.cos(ry) * p, z - Math.sin(ry) * p, ry, cs[Math.floor(r() * cs.length)]); }
+  }
+  function trafficLight(B, x, z, ry = 0) {
+    const put = B.at(x, z, ry);
+    put(cyl(0.005, 0.006, 0.2, 6), C.iron, 0, 0, 0); put(box(0.024, 0.06, 0.02), 0x2a2a2a, 0, 0.2, 0.01);
+    put(box(0.014, 0.014, 0.004), 0xff3b2b, 0, 0.243, 0.021, { vary: 0 }); put(box(0.014, 0.014, 0.004), 0x5a3a1a, 0, 0.226, 0.021, { vary: 0 }); put(box(0.014, 0.014, 0.004), 0x1a3a1a, 0, 0.209, 0.021, { vary: 0 });
+  }
+  // a vault of glass over the platforms (along x)
+  function vault(B, x, z, len, r, c = C.glass2, ry = 0) {
+    const g = new T.CylinderGeometry(r, r, len, 10, 1, true, -Math.PI / 2, Math.PI);
+    g.rotateZ(Math.PI / 2); B.at(x, z, ry)(g, c, 0, 0, 0, { vary: 0.04 });
+  }
+  // the metro's round pavilion of the 1960s, its red sign
+  function pavilion(B, x, z, s = 1) {
+    const put = B.at(x, z, 0, s);
+    put(cyl(0.11, 0.11, 0.07, 14), C.panel3); put(cyl(0.135, 0.135, 0.012, 16), C.white, 0, 0.07, 0);
+    put(dome(0.09, 12), C.panel, 0, 0.08, 0, { smooth: true, vary: 0 });
+    put(pane(0.06, 0.05), C.glass, 0, 0.005, 0.111, { vary: 0 });
+    put(cyl(0.004, 0.004, 0.12, 5), C.iron, 0.16, 0, 0.06); put(box(0.04, 0.04, 0.01), C.red, 0.16, 0.12, 0.06);
+  }
+  // Didube's or Metekhi's church: Models' church in the city's stone
+  const chapel = (B, x, z, s, ry = 0) => church(B, x, z, s, 0xd7c6a2, 0x7c6e5c, ry);
+
+  // ===== the places: first their land (relief R), then what stands on it (B) =====
+  // (the lots by a corner share its square of land with the next side's: each keeps to its own triangle of it, z >=
+  // 0.15 + 1.05 x for the first lot after a corner, z >= 0.15 - 1.05 x for the last one before it)
+  const L = {};
+  const city = (R, c = C.dusty) => R.tint(c, 9, undefined, 0x9c917a);      // (where it is steep: the warm stone)
+  const green = (R, c = C.lawn) => R.tint(c, 9, undefined, 0x6f7c4e);       // (where it is steep: the wooded slope)
+  const street = (R, x1, z1, x2, z2, w = 0.08, c = C.asphalt) => R.path(x1, z1, x2, z2, w, c);
+  // ქვემო სანაპირო
+  L[1] = {   // Ortachala: gardens and a riverside tavern; the Mtkvari through its left end, its little dam
+    r: R => { green(R); R.pad(-0.12, 0.26, 0.12); },
+    b: B => {
+      oldHouse(B, -0.12, 0.26, 0.15, 0.1, 2, C.cream, C.tin, 0.2);
+      const put = B.at(0.02, 0.38, 0.2); put(box(0.12, 0.008, 0.04), C.wood, 0, 0.03, 0); put(box(0.13, 0.004, 0.05), C.white, 0, 0.034, 0);      // the feast table
+      for (const [x, z] of [[-0.3, 0.06], [-0.31, 0.26], [-0.22, -0.08]]) poplar(B, x, z, 1.1);
+      for (let k = 0; k < 3; k++) { const px = -0.02 + k * 0.05; B.add(box(0.004, 0.06, 0.004), C.wood2, px, 0, 0.18); }
+      B.add(box(0.14, 0.006, 0.05), C.leaf2, 0.03, 0.06, 0.18, { sway: 0.3 });                   // the vine over the pergola
+    }
+  };
+  L[3] = {   // Ponichala: small houses with tin roofs and fruit gardens on the river's bend, the road out of town
+    r: R => { green(R); street(R, -0.6, 0.3, 0.6, 0.26, 0.08); for (const [x, z] of [[-0.28, -0.05], [-0.02, -0.12], [0.24, -0.04]]) R.pad(x, z, 0.1); R.hill(0.1, -0.5, 0.6, 0.2, 0.12); },
+    b: B => {
+      oldHouse(B, -0.28, -0.05, 0.14, 0.11, 2, C.cream, C.tin, 0.1); oldHouse(B, -0.02, -0.12, 0.13, 0.1, 2, C.peach, C.rust, -0.1); oldHouse(B, 0.24, -0.04, 0.14, 0.11, 2, C.sand, C.tin2, 0.15);
+      for (const [x, z] of [[-0.12, 0.08], [0.1, 0.06], [0.36, 0.1], [-0.42, 0.1]]) tree(B, x, z, 0.75, C.leaf2);
+      for (const [x, z] of [[-0.45, -0.25], [0.42, -0.22]]) poplar(B, x, z, 1.1);
+    }
+  };
+  // აღმოსავლეთი
+  L[6] = {   // Varketili: panel blocks on the plateau, the metro's last station below
+    r: R => { city(R); R.mesa(0, -0.2, 0.5, 0.3, 0.1, 0.5); R.pad(0, -0.2, 0.3); street(R, -0.6, 0.28, 0.6, 0.28, 0.07); },
+    b: B => {
+      block(B, -0.2, -0.24, 0.32, 0.1, 9, C.panel, 0); block(B, 0.22, -0.18, 0.1, 0.32, 9, C.panel2, 0.08);
+      pavilion(B, -0.22, 0.2, 0.75);
+      for (const [x, z] of [[0.05, 0.1], [0.38, 0.22], [-0.42, 0.08]]) tree(B, x, z, 0.7);
+      bench(B, 0.08, 0.24); lamp(B, 0.2, 0.24);
+    }
+  };
+  L[8] = {   // Samgori: the wide avenue to the airport, a fruit market, big blocks
+    r: R => { city(R); street(R, -0.6, 0.12, 0.6, 0.16, 0.16); street(R, -0.6, 0.12, 0.6, 0.16, 0.012, 0xe9e4d4); R.pad(0, -0.3, 0.3); },
+    b: B => {
+      block(B, -0.28, -0.3, 0.26, 0.1, 6, C.panel3); block(B, 0.26, -0.32, 0.22, 0.1, 7, C.panel);
+      for (let k = 0; k < 4; k++) stall(B, -0.15 + k * 0.1, -0.12, 0, [C.red, C.yellow, 0x3f7fc2, 0x55ad5f][k]);
+      for (const [x, z] of [[-0.45, 0.36], [0.45, 0.38]]) tree(B, x, z, 0.7);
+    }
+  };
+  L[9] = {   // Isani: the round metro pavilion on its square, kiosks, plane trees, five-storey blocks (away from the corner)
+    r: R => { city(R); R.pad(0.1, 0.0, 0.3); street(R, -0.1, 0.32, 0.6, 0.3, 0.08); },
+    b: B => {
+      pavilion(B, 0.1, 0.06, 1);
+      block(B, 0.25, -0.3, 0.26, 0.09, 5, C.panel3); block(B, -0.06, -0.32, 0.14, 0.09, 5, C.sand);
+      for (const [x, z] of [[0.36, 0.1], [-0.08, 0.16], [0.3, -0.08]]) plane(B, x, z, 0.85);
+      stall(B, -0.02, 0.0, 0.3, C.yellow); umbrella(B, 0.32, 0.26, C.red);
+    }
+  };
+  // მარცხენა სანაპირო
+  L[11] = { r: R => { green(R); R.pad(-0.14, -0.04, 0.42); }, b: B => { cypress(B, 0.2, 0.36, 0.9); bush(B, -0.45, 0.4, 0.8); } };    // Avlabari: Sameba (its model)
+  L[13] = { r: R => { city(R); R.pad(0, -0.02, 0.45); }, b: B => { tree(B, 0.44, 0.38, 0.7); tree(B, -0.44, 0.38, 0.7); } };                 // Chughureti: the old courtyard (its model)
+  L[14] = {  // Aghmashenebeli Avenue: the pedestrian street of pastel houses, cafés, the fountain
+    r: R => { city(R); street(R, -0.6, 0.04, 0.6, 0.04, 0.12, C.cobble); R.pad(0, -0.25, 0.3); R.pad(0, 0.3, 0.25); },
+    b: B => {
+      const cols = [C.peach, C.sky, C.cream, C.mint, C.lilac];
+      [-0.36, -0.12, 0.12, 0.36].forEach((x, k) => oldHouse(B, x, -0.22, 0.2, 0.13, 3, cols[k], k % 2 ? C.tile : C.tin, 0, true));
+      oldHouse(B, -0.26, 0.32, 0.22, 0.11, 2, cols[4], C.tile2, Math.PI); oldHouse(B, 0.28, 0.32, 0.2, 0.11, 2, cols[2], C.tin, Math.PI);
+      for (const x of [-0.24, 0.0, 0.22]) umbrella(B, x, 0.12, [C.white, C.red, C.white][Math.round(x * 5 + 1) % 3]);
+      B.add(cyl(0.03, 0.035, 0.02, 10), C.stone, 0.04, 0, -0.04); B.add(cyl(0.006, 0.006, 0.04, 6), C.stone, 0.04, 0.02, -0.04);
+    }
+  };
+  // ჩრდილოეთი
+  L[16] = {  // Gldani: tall blocks round a big courtyard, swings, a carousel
+    r: R => { city(R); R.pad(0, -0.05, 0.42); street(R, -0.6, 0.36, 0.6, 0.36, 0.07); },
+    b: B => {
+      block(B, -0.3, -0.18, 0.1, 0.4, 14, C.panel); block(B, 0.06, -0.34, 0.36, 0.1, 12, C.panel2, 0, 4); block(B, 0.38, -0.08, 0.1, 0.3, 14, C.panel3);
+      for (const x of [-0.08, 0.0]) { B.add(box(0.004, 0.06, 0.004), C.red, x - 0.02, 0, 0.08); B.add(box(0.004, 0.06, 0.004), C.red, x + 0.02, 0, 0.08); B.add(box(0.045, 0.004, 0.004), C.red, x, 0.06, 0.08); }
+      B.add(box(0.004, 0.11, 0.004), C.iron, 0.2, 0, 0.12); B.add(box(0.03, 0.022, 0.003), C.white, 0.2, 0.11, 0.115);
+      car(B, -0.38, 0.28, 0, C.white); car(B, -0.26, 0.28, 0, 0x3c3c3c); car(B, 0.3, 0.28, 0, C.red);
+      tree(B, -0.12, -0.08, 0.6); tree(B, 0.18, 0.16, 0.6);
+    }
+  };
+  L[18] = {  // Nadzaladevi: the railway and its old train, the covered market, the footbridge over the tracks
+    r: R => { city(R); street(R, -0.6, 0.05, 0.6, 0.05, 0.14, 0x6d6255); R.pad(0, -0.3, 0.28); R.pad(0, 0.32, 0.2); },
+    b: B => {
+      for (const z of [0.0, 0.1]) { B.add(box(1.2, 0.006, 0.006), 0x8a8a8a, 0, 0.003, z - 0.02); B.add(box(1.2, 0.006, 0.006), 0x8a8a8a, 0, 0.003, z + 0.02); }
+      const put = B.at(-0.1, -0.3); put(box(0.42, 0.07, 0.15), C.brick, 0, 0, 0, { vary: 0.06 }); put(roof(0.46, 0.06, 0.18), C.tin, 0, 0.07, 0, { vary: 0.06 });
+      for (let k = 0; k < 4; k++) stall(B, -0.25 + k * 0.1, -0.16, 0, [C.red, 0x55ad5f, C.yellow, 0x3f7fc2][k]);
+      const fb = B.at(0.3, 0.05, Math.PI / 2); fb(box(0.03, 0.006, 0.36), C.iron, 0, 0.12, 0); for (const z of [-0.16, 0.16]) fb(box(0.03, 0.12, 0.03), C.stone2, 0, 0, z);
+      oldHouse(B, 0.34, -0.3, 0.16, 0.12, 2, C.cream, C.tin2, 0, false);
+    }
+  };
+  L[19] = {  // Didube: the bus station full of minibuses, the market, the old church among cypresses (away from the river)
+    r: R => { city(R); R.pad(0.15, 0.0, 0.34); },
+    b: B => {
+      for (let k = 0; k < 3; k++) for (let j = 0; j < 2; j++) minibus(B, 0.0 + k * 0.11, 0.2 + j * 0.08, Math.PI / 2);
+      chapel(B, 0.3, -0.24, 0.55);
+      for (const [x, z] of [[0.12, -0.32], [0.45, -0.14], [0.44, -0.36]]) cypress(B, x, z, 0.9);
+      stall(B, 0.36, 0.14, -0.2, C.red); stall(B, 0.42, 0.28, -0.2, C.yellow);
+    }
+  };
+  // ჩრდილო-დასავლეთი
+  L[21] = {  // Dighomi: new coloured towers by the forest park (away from the river)
+    r: R => { green(R); R.pad(-0.18, -0.12, 0.32); },
+    b: B => {
+      tower(B, -0.3, -0.22, 0.12, 0.1, 0.48, C.panel3, C.peach); tower(B, -0.1, -0.3, 0.12, 0.1, 0.56, C.panel3, 0x8fb5d0); tower(B, -0.28, 0.02, 0.1, 0.1, 0.4, C.panel3, 0xb7d08f);
+      for (let k = 0; k < 7; k++) pine(B, -0.02 + (k % 3) * 0.1, 0.06 + Math.floor(k / 3) * 0.1 - 0.12, 0.7);
+      bench(B, -0.12, 0.3); lamp(B, -0.2, 0.3);
+    }
+  };
+  L[23] = {  // Vashlijvari: towers on the green hill above Lisi Lake, its pier
+    r: R => { green(R); R.hill(0, -0.35, 0.6, 0.28, 0.13); R.pad(0, -0.32, 0.25); R.lake(0.05, 0.2, 0.4, 0.18, 0.06); },
+    b: B => {
+      tower(B, -0.22, -0.34, 0.12, 0.1, 0.5, C.panel3, 0xd9a07a); tower(B, 0.02, -0.38, 0.12, 0.1, 0.62, C.panel3, 0xd9a07a); tower(B, 0.26, -0.32, 0.12, 0.1, 0.46, C.panel3, 0xd9a07a);
+      B.add(box(0.03, 0.008, 0.2), C.wood, 0.3, 0.02, 0.18, { free: false });
+      for (const [x, z] of [[-0.42, 0.0], [0.45, -0.05], [-0.4, 0.3]]) tree(B, x, z, 0.75);
+    }
+  };
+  L[24] = {  // Saburtalo: the stacked blocks of the old ministry over the trees, the university
+    r: R => { green(R); R.hill(-0.1, -0.2, 0.45, 0.35, 0.1); R.pad(-0.12, -0.18, 0.28); street(R, -0.6, 0.32, 0.6, 0.3, 0.08); },
+    b: B => {
+      const put = B.at(-0.12, -0.18);
+      put(box(0.05, 0.36, 0.05), C.panel3, 0, 0, 0);
+      put(box(0.34, 0.07, 0.08), C.panel, 0, 0.12, 0); put(box(0.08, 0.07, 0.3), C.panel, 0.02, 0.19, 0); put(box(0.3, 0.07, 0.08), C.panel, -0.02, 0.26, 0.04); put(box(0.08, 0.07, 0.26), C.panel, 0.06, 0.33, -0.02);
+      for (const y of [0.12, 0.26]) put(pane(0.3, 0.03), C.win, 0, y + 0.02, 0.042, { vary: 0 });
+      const u = B.at(0.3, -0.18); u(box(0.24, 0.12, 0.14), C.cream); for (let k = 0; k < 5; k++) u(cyl(0.008, 0.008, 0.12, 6), C.white, -0.09 + k * 0.045, 0, 0.075); u(roof(0.26, 0.04, 0.16), C.tin, 0, 0.12, 0);
+      for (const [x, z] of [[0.08, 0.14], [-0.3, 0.12], [0.42, 0.12], [-0.42, -0.36]]) tree(B, x, z, 0.65);
+    }
+  };
+  // ვაკე-ვერა
+  L[26] = {  // Vera: the steep cobbled street, houses with iron balconies, great plane trees in autumn, the ravine
+    r: R => { city(R); R.hill(0, -0.3, 0.6, 0.28, 0.14); R.dig(0.55, 0.15, 0.2, 0.55, 0.08, 0.06); street(R, -0.5, -0.1, 0.2, 0.3, 0.07, C.cobble); R.pad(-0.3, -0.25, 0.16); R.pad(0.05, -0.3, 0.14); R.pad(-0.28, 0.14, 0.12); },
+    b: B => {
+      oldHouse(B, -0.3, -0.25, 0.18, 0.12, 3, C.peach, C.tin, 0.2); oldHouse(B, 0.05, -0.3, 0.16, 0.12, 3, C.sky, C.tile, -0.1); oldHouse(B, -0.28, 0.14, 0.14, 0.1, 2, C.cream, C.rust, 0.5);
+      for (const [x, z] of [[0.22, -0.08], [-0.05, 0.02], [0.36, -0.3], [-0.45, -0.02]]) bigTree(B, x, z, 0.6, C.autumn);
+    }
+  };
+  L[27] = {  // Vake: the leafy avenue, the tall 1950s houses, cafés
+    r: R => { city(R); street(R, -0.6, 0.12, 0.6, 0.12, 0.12); R.pad(0, -0.25, 0.32); },
+    b: B => {
+      [-0.3, 0.0, 0.3].forEach((x, k) => { block(B, x, -0.26, 0.24, 0.14, 5, [C.ochre, C.cream, C.sand][k], 0, 4); B.at(x, -0.26)(roof(0.26, 0.05, 0.16), C.tile, 0, 0.25, 0, { vary: 0.06 }); });
+      for (let k = 0; k < 6; k++) tree(B, -0.45 + k * 0.18, 0.0, 0.65, C.leaf2);
+      for (let k = 0; k < 6; k++) tree(B, -0.45 + k * 0.18, 0.26, 0.6, C.leaf2);
+      umbrella(B, -0.15, -0.06, C.red); umbrella(B, 0.15, -0.06, C.white);
+    }
+  };
+  L[29] = {  // Vake Park: the great stair with its fountains up to the memorial (away from the corner)
+    r: R => { green(R); R.hill(0.12, -0.32, 0.45, 0.3, 0.15); R.pad(0.12, -0.36, 0.1); street(R, 0.12, 0.45, 0.12, -0.3, 0.1, C.paving); },
+    b: B => {
+      for (let k = 0; k < 6; k++) B.add(box(0.1, 0.012, 0.06), k % 2 ? C.stone : C.stone2, 0.12, -0.012 + k * 0.022, 0.24 - k * 0.09);
+      B.add(box(0.05, 0.03, 0.05), C.stone2, 0.12, 0, -0.36); B.add(taperFrame2(0.03, 0.012, 0.34), C.stone, 0.12, 0.03, -0.36);
+      for (const [x, z] of [[-0.05, 0.1], [0.3, 0.1], [-0.02, -0.22], [0.3, -0.2], [0.4, 0.35]]) tree(B, x, z, 0.75);
+    }
+  };
+  function taperFrame2(rb, rt, h) { return new T.CylinderGeometry(rt, rb, h, 4).rotateY(Math.PI / 4).translate(0, h / 2, 0); }
+  // მთაწმინდის კალთა
+  L[31] = {  // Turtle Lake: the little lake in the forest, its piers, the ethnographic museum's wooden houses (away from the corner)
+    r: R => { green(R, 0x6f9a46); R.hill(-0.1, -0.4, 0.6, 0.24, 0.12); R.lake(-0.14, -0.02, 0.24, 0.17, 0.06); R.pad(-0.38, 0.28, 0.1); },
+    b: B => {
+      for (let k = 0; k < 9; k++) { const a = k / 9 * Math.PI * 2; pine(B, -0.14 + Math.cos(a) * 0.36, -0.06 + Math.sin(a) * 0.27 - 0.05, 0.7 + (k % 3) * 0.1); }
+      B.add(box(0.12, 0.008, 0.03), C.wood, -0.14, 0.01, 0.17);
+      const h = B.at(-0.38, 0.28, 0.3); h(box(0.11, 0.06, 0.08), C.wood); h(roof(0.13, 0.04, 0.1), 0x6d5a45, 0, 0.06, 0, { vary: 0.08 });
+    }
+  };
+  L[32] = { r: R => { city(R); R.pad(0, 0.02, 0.45); }, b: B => { for (let k = 0; k < 5; k++) tree(B, -0.4 + k * 0.2, -0.38, 0.7, C.leaf2); } };      // Rustaveli (its model)
+  L[34] = {  // Mtatsminda Park (the mountain itself stands in the middle): the Ferris wheel over the city, the carousel, the kiosks
+    r: R => { green(R, 0x6f9a46); R.pad(0, -0.1, 0.45); street(R, -0.5, 0.06, 0.5, 0.02, 0.3, C.paving); },
+    b: B => {
+      // the wheel's two A-frames either side of it (the wheel itself turns: FX), the axle between them
+      const fw = B.at(FERRIS[0], FERRIS[1], FERRIS_RY);
+      for (const sx of [-0.04, 0.04]) for (const sz of [-1, 1]) fw(box(0.009, 0.27, 0.009), C.white, sx, 0, sz * 0.075, { rx: -sz * 0.28 });
+      fw(box(0.1, 0.012, 0.012), C.iron, 0, 0.245, 0);
+      fw(box(0.12, 0.012, 0.18), C.paving, 0, 0, 0);
+      // the carousel's round floor (it turns: FX), the kiosks with their awnings, lamps, benches, the trees at the back
+      B.add(cyl(0.085, 0.09, 0.012, 16), C.stone, 0.24, 0, -0.14);
+      stall(B, 0.3, 0.2, -0.4, C.red); stall(B, -0.36, 0.22, 0.3, 0x2f62a8);
+      for (const [x, z] of [[-0.44, 0.0], [0.44, 0.02], [0.05, 0.3]]) lamp(B, x, z, 1.2);
+      bench(B, -0.1, 0.24, 0); bench(B, 0.14, 0.26, 0);
+      for (const [x, z, sc] of [[-0.42, -0.38, 0.75], [0.44, -0.4, 0.7], [0.02, -0.44, 0.65]]) tree(B, x, z, sc, C.leaf2);
+      pine(B, -0.46, -0.16, 0.7);
+    }
+  };
+  const FERRIS = [-0.14, -0.16], FERRIS_RY = Math.PI / 4, FERRIS_H = 0.245;
+  // ძველი ქალაქი
+  L[37] = {  // Sololaki: the mansions with carved balconies and painted halls, the old walls on the ridge above
+    r: R => { city(R); R.ridge(-0.6, -0.42, 0.6, -0.4, 0.3, 0.16); street(R, -0.6, 0.12, 0.6, 0.1, 0.07, C.cobble); R.pad(-0.25, -0.08, 0.16); R.pad(0.12, -0.1, 0.16); R.pad(0.38, -0.05, 0.12); },
+    b: B => {
+      oldHouse(B, -0.25, -0.08, 0.22, 0.14, 3, C.ochre, C.tin, 0); oldHouse(B, 0.12, -0.1, 0.2, 0.14, 3, C.rose, C.tin2, 0); oldHouse(B, 0.38, -0.05, 0.14, 0.12, 2, C.cream, C.tile, 0);
+      Models.parts.wall(B, 0.0, -0.4, 0.9, 0.08, 0.0, 0xb3a184);
+      for (const [x, z] of [[-0.45, 0.2], [0.0, 0.26], [0.44, 0.26]]) tree(B, x, z, 0.6);
+    }
+  };
+  L[39] = { r: R => { city(R); R.pad(0.12, 0.06, 0.38); }, b: B => { cypress(B, 0.42, -0.28, 0.9); } };          // Old Tbilisi: the baths (their model)
+  // the four stations
+  L[5] = {   // the central station: the glass vault over the platforms, the train, the square in front with buses
+    r: R => { city(R); R.pad(0, -0.2, 0.36); street(R, -0.6, 0.28, 0.6, 0.28, 0.12); for (const z of [-0.22, -0.12]) street(R, -0.6, z, 0.6, z, 0.02, 0x6d6255); },
+    b: B => {
+      vault(B, 0, -0.17, 0.8, 0.13);
+      for (const x of [-0.4, 0.4]) B.add(box(0.03, 0.06, 0.26), C.panel3, x, 0, -0.17);
+      bus(B, -0.3, 0.2, 0); bus(B, 0.0, 0.2, 0, 0xd9a03a); car(B, 0.25, 0.2, 0, C.yellow); car(B, 0.38, 0.2, 0, C.white);
+      lamp(B, -0.45, 0.1); lamp(B, 0.45, 0.1);
+    }
+  };
+  L[15] = {  // the metro: its round pavilion, the sign, the little square
+    r: R => { city(R); R.pad(0, -0.05, 0.35); },
+    b: B => {
+      pavilion(B, 0, -0.08, 1.4);
+      for (const [x, z] of [[-0.35, -0.3], [0.35, -0.3], [-0.38, 0.2], [0.38, 0.22]]) plane(B, x, z, 0.8);
+      bench(B, -0.2, 0.25); bench(B, 0.2, 0.25); lamp(B, 0, 0.3);
+    }
+  };
+  L[25] = {  // the cable car: its glass station below, the line up to the hill at the back
+    r: R => { green(R); R.hill(0, -0.5, 0.65, 0.35, 0.28); R.pad(0, 0.2, 0.16); },
+    b: B => {
+      const put = B.at(0, 0.2); put(box(0.2, 0.08, 0.12), C.glass2); put(box(0.22, 0.01, 0.14), C.white, 0, 0.08, 0);
+      for (const [x, h, z] of CAB25) { B.add(box(0.014, h, 0.014), 0x5b5f66, x, 0, z); B.add(box(0.05, 0.01, 0.02), 0x5b5f66, x, h, z); }
+      const top = CAB25.map(([x, h, z]) => [x, B.ground(x, z) + h, z]), [a, b] = top, len = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+      const up = Math.atan2(b[1] - a[1], Math.hypot(b[0] - a[0], b[2] - a[2])), ry = Math.atan2(-(b[2] - a[2]), b[0] - a[0]);
+      B.add(box(len, 0.004, 0.004), 0x2b2d31, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2, { ry, rz: up, free: true });
+      for (const [x, z] of [[-0.35, 0.1], [0.35, 0.12], [-0.3, -0.3], [0.32, -0.32]]) tree(B, x, z, 0.75);
+    }
+  };
+  const CAB25 = [[0.0, 0.14, 0.18], [0.0, 0.16, -0.4]];
+  L[35] = {  // the funicular: its old stone station below, the track straight up the wooded slope
+    r: R => { green(R, 0x6f9a46); R.hill(0, -0.5, 0.75, 0.55, 0.34); R.pad(0, 0.3, 0.12); },
+    b: B => {
+      const put = B.at(0, 0.3); put(box(0.22, 0.1, 0.1), C.stone); for (let k = 0; k < 3; k++) put(pane(0.04, 0.06), C.win, -0.06 + k * 0.06, 0, 0.051, { vary: 0 }); put(roof(0.24, 0.05, 0.12), C.tile, 0, 0.1, 0);
+      for (let k = 0; k < 12; k++) { const z = 0.2 - k * 0.06; B.add(box(0.05, 0.008, 0.012), C.wood2, 0, 0.004, z); }
+      for (const x of [-0.016, 0.016]) for (let k = 0; k < 6; k++) { const z0 = 0.22 - k * 0.12; B.add(box(0.004, 0.006, 0.12), 0x8a8a8a, x, 0.008, z0 - 0.06); }
+      for (let k = 0; k < 12; k++) { const r = rng(35 + k); pine(B, (k % 2 ? 1 : -1) * (0.12 + r() * 0.3), 0.15 - Math.floor(k / 2) * 0.12, 0.6 + r() * 0.3); }
+    }
+  };
+  // the water and the power
+  L[12] = {  // the Tbilisi Sea: the reservoir, its beach and pier, the Chronicle's bronze pillars on the hill
+    r: R => { R.tint(0xb5a87a, 9, undefined, 0x9c917a); R.lake(0.0, 0.12, 0.55, 0.28, 0.08); R.hill(0.0, -0.4, 0.5, 0.22, 0.14); R.pad(0, -0.4, 0.16); },
+    b: B => {
+      for (let k = 0; k < 7; k++) B.add(box(0.035, 0.22 + (k % 3) * 0.05, 0.05), C.bronze, -0.18 + k * 0.06, 0, -0.42, { vary: 0.1 });
+      for (const x of [-0.3, -0.18, 0.2, 0.32]) umbrella(B, x, -0.16, [C.red, C.yellow, C.white, C.red][Math.round((x + 0.3) * 6) % 4]);
+      B.add(box(0.03, 0.008, 0.18), C.wood, 0.38, 0.015, 0.12);
+    }
+  };
+  L[28] = {  // ZAHES: the stone dam across the river, the classical power station, the pylons
+    r: R => { green(R); R.dig(-0.65, 0.05, 0.65, 0.05, 0.14, 0.07); R.pad(0.25, -0.3, 0.15); },
+    b: B => {
+      const d = B.at(-0.12, 0.05, Math.PI / 2); d(box(0.3, 0.08, 0.05), C.stone2, 0, -0.03, 0, { vary: 0.06 }); for (let k = 0; k < 3; k++) d(box(0.04, 0.05, 0.052), 0x2c3a3e, -0.08 + k * 0.08, -0.02, 0);
+      const p = B.at(0.25, -0.3); p(box(0.22, 0.12, 0.13), C.cream); for (let k = 0; k < 4; k++) p(cyl(0.008, 0.008, 0.12, 6), C.white, -0.075 + k * 0.05, 0, 0.07); p(roof(0.24, 0.045, 0.15), C.tile, 0, 0.12, 0); p(box(0.06, 0.02, 0.005), 0x8a2a2a, 0, 0.13, 0.075);
+      pylon(B, -0.35, -0.3, 0.42); pylon(B, 0.42, 0.3, 0.38);
+      for (const [x, z] of [[-0.4, 0.32], [0.05, -0.38], [0.45, -0.12]]) tree(B, x, z, 0.7);
+    }
+  };
+  // the cards and the taxes
+  const kintoLot = {   // Kinto's question: a kinto's fruit stall in the street
+    r: R => { city(R); R.pad(-0.1, -0.05, 0.22); },
+    b: B => {
+      stall(B, -0.12, -0.06, 0, C.red); stall(B, 0.02, -0.08, -0.2, C.yellow);
+      const put = B.at(-0.12, 0.14); put(cyl(0.05, 0.04, 0.012, 12), C.wood, 0, 0.05, 0); for (let k = 0; k < 6; k++) put(ball(0.012), [0xd94a2e, 0xf0a530, 0x7cae3a][k % 3], Math.cos(k) * 0.025, 0.065, Math.sin(k) * 0.025, { vary: 0 });
+      put(cyl(0.006, 0.006, 0.05, 5), C.wood2, 0, 0, 0);
+      plane(B, -0.36, -0.28, 0.8); lamp(B, 0.08, 0.22); bench(B, -0.3, 0.2);
+    }
+  };
+  const storyLot = {   // the old Tiflis story: a poster column, a newspaper kiosk, a bench under a plane tree
+    r: R => { city(R); R.pad(0, -0.05, 0.22); },
+    b: B => {
+      B.add(cyl(0.035, 0.035, 0.16, 12), (y, k) => [0xe9ddc3, 0xc23a2e, 0xe9c449, 0x3f7fc2][Math.floor(y / 0.04) % 4], -0.08, 0, -0.06);
+      B.add(dome(0.04, 10), 0x3a5a46, -0.08, 0.16, -0.06, { smooth: true, vary: 0 });
+      const k = B.at(0.12, -0.08); k(box(0.1, 0.08, 0.07), 0x4f7f6a); k(box(0.11, 0.008, 0.08), C.white, 0, 0.08, 0); k(pane(0.06, 0.03), C.white, 0, 0.03, 0.036, { vary: 0 });
+      plane(B, -0.34, -0.3, 0.85); bench(B, -0.22, 0.2); lamp(B, 0.1, 0.22);
+    }
+  };
+  L[2] = kintoLot; L[17] = kintoLot; L[33] = kintoLot;
+  L[7] = storyLot; L[22] = storyLot; L[36] = storyLot;
+  L[4] = { r: R => { city(R); R.pad(0, -0.04, 0.42); }, b: B => { tree(B, -0.44, 0.36, 0.6); tree(B, 0.44, 0.36, 0.6); } };   // the bank (its model)
+  L[38] = {  // the Dry Bridge: its stone arches over a dry garden, the painters' market under them
+    r: R => { city(R); R.pad(0, -0.1, 0.4); },
+    b: B => {
+      const put = B.at(0, -0.22); put(box(0.7, 0.03, 0.12), C.stone2, 0, 0.12, 0, { vary: 0.06 });
+      for (const x of [-0.3, -0.1, 0.1, 0.3]) put(box(0.05, 0.12, 0.12), C.stone, x, 0, 0, { vary: 0.06 });
+      for (let k = 0; k < 7; k++) { const x = -0.3 + k * 0.1, e = B.at(x, 0.08, 0.1 * Math.sin(k)); e(box(0.004, 0.06, 0.004), C.wood2, 0, 0, -0.01); e(box(0.05, 0.04, 0.004), [0x3f7fc2, 0xe9c449, 0xc23a2e, 0x55ad5f, 0xd99d8c][k % 5], 0, 0.035, 0, { rx: -0.2 }); }
+      lamp(B, -0.42, 0.25); lamp(B, 0.42, 0.25);
+    }
+  };
+
+  // ===== the inside corners of the ring: the river goes through two of them (0, 2) =====
+  const RING = [
+    { r: R => green(R), b: () => { } },
+    { r: R => R.tint(C.dusty, 9), b: B => { tree(B, -0.3, -0.3, 0.9); bush(B, 0.2, 0.2, 0.8); car(B, 0.0, -0.1, 0.3, C.white); } },
+    { r: R => green(R), b: () => { } },
+    { r: R => green(R, 0x6f9a46), b: B => { pine(B, -0.3, -0.35, 1); pine(B, -0.1, -0.4, 0.9); tree(B, 0.25, 0.2, 0.8); } }
+  ];
+
+  // ===== the middle: Mtatsminda's great mountain with its tower (like the archipelago's island), the Mtkvari round its
+  // foot with its bridges, Narikala on its rock in the river's bend, Kartlis Deda on the bank =====
+  // (board coordinates; the river from the back left corner (the embankment) round the mountain to the front, out
+  // between the squares 1 and 2 (Ortachala))
+  const MT = [0.4, -0.45], MT_W = 4.6, MT_R = MT_W / 2;               // the mountain's middle and how wide it is
+  const RIVER = [[-5.2, -5.2], [-3.4, -3.35], [-2.65, -2.2], [-2.5, -0.9], [-2.48, 0.55], [-2.38, 1.75], [-1.65, 2.42], [-0.2, 2.52], [1.2, 2.48], [2.35, 2.62], [3.15, 3.25], [3.45, 5.2]];
+  const WATER_Y = -0.05, RIVER_W = 0.62;            // the water's level, how wide it is (the bed is dug a little narrower)
+  let riverPts = RIVER;
+  // which way the river flows at a point near it (a unit vector along it)
+  function along(x, z) {
+    let best = Infinity, dir = [1, 0];
+    for (let k = 1; k < riverPts.length; k++) {
+      const [ax, az] = riverPts[k - 1], [bx, bz] = riverPts[k], dx = bx - ax, dz = bz - az, l = Math.hypot(dx, dz) || 1e-9;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (l * l))), d = Math.hypot(ax + dx * t - x, az + dz * t - z);
+      if (d < best) { best = d; dir = [dx / l, dz / l]; }
+    }
+    return dir;
+  }
+  // the tower's foot on the model (a model 1 wide: its tower stands a little behind its middle), turned with it
+  const MT_RY = 0.35, TOWER = [MT[0] + Math.sin(MT_RY) * -0.09 * MT_W, MT[1] + Math.cos(MT_RY) * -0.09 * MT_W];
+  const CENTER = { peak: TOWER, mountain: MT, narikala: [-1.4, 1.35], deda: [2.25, 1.72], peace: [-0.4, 2.52], metekhiBridge: [1.25, 2.48], stone: [-2.5, -1.3] };
+  function centerRelief(R) {
+    R.tint(0, 0, 0x7fa04e, 9, 2.8, 0x7d7a5a);                                   // the park round the mountain
+    R.tint(MT[0], MT[1], 0x6f9846, 9, 1.6, 0x6f7c4e);
+    R.pad(MT[0], MT[1], MT_R + 0.08);                                           // level under the mountain and the fortress
+    R.pad(CENTER.narikala[0], CENTER.narikala[1], 0.62);
+    R.pad(CENTER.deda[0], CENTER.deda[1], 0.3);
+    riverPts = R.flow(RIVER, 0.5, 0.19, WATER_Y, RIVER_W);
+    // the stone embankments: where the banks are steep, their stone shows
+    for (let k = 0; k < riverPts.length; k += 5) R.tint(riverPts[k][0], riverPts[k][1], 0x9fa57e, 9, 0.42, 0xc9bfa9);
+  }
+  function centerWater() { return null; }
+  // the cable car from the front bank over the river up to Narikala: its two masts (x, z) and their heights
+  const CABLE = [[-0.75, 3.04], [-1.12, 1.78]], CABLE_H = [0.3, 0.72];
+  function center(ground) {
+    const B = new Builder();
+    B.ground = ground;
+    const steps = [
+      () => { for (const [k, [x, z]] of CABLE.entries()) { const h = CABLE_H[k]; B.add(box(0.018, h, 0.018), 0x5b5f66, x, 0, z); B.add(box(0.06, 0.012, 0.024), 0x5b5f66, x, h, z); } }
+    ];
+    return { B, steps };
+  }
+
+  // ===== the landmarks from files (art/m_tb_*.glb; a computer's or ultra's, a phone's from art/mobile) =====
+  // a lot's: s its size (a lot is 1 wide), x and z where it stands in the lot, ry how it is turned, on its own ground
+  const MODELS = {
+    4: { url: 'art/m_tb_bank.glb', s: 0.8, z: -0.04, ground: true, y: -0.006 },
+    11: { url: 'art/m_tb_sameba.glb', s: 0.92, x: -0.14, z: -0.04, ground: true, y: -0.006 },
+    13: { url: 'art/m_tb_courtyard.glb', s: 0.95, z: -0.02, ground: true, y: -0.004 },
+    32: { url: 'art/m_tb_rustaveli.glb', s: 1.08, z: 0.06, ground: true, y: -0.004 },
+    39: { url: 'art/m_tb_baths.glb', s: 0.86, x: 0.12, z: 0.06, ground: true, y: -0.006 }
+  };
+  // a corner's: at the back of its square, its name written in front of it (z: towards the square's outer edge)
+  const CORNER_MODELS = {
+    0: { url: 'art/m_tb_freedom.glb', fitWidth: 1.0, z: -0.3 },
+    20: { url: 'art/m_tb_bench.glb', fitWidth: 0.78, z: -0.34, ry: 0 }
+  };
+  // the middle's: board coordinates; on: what they stand on (the ground there, or the river's water)
+  const FREE_MODELS = [
+    { url: 'art/m_tb_mtatsminda.glb', x: MT[0], z: MT[1], s: MT_W, ry: MT_RY, on: 'ground', y: -0.07, top: true, topY: 1.049 * MT_W - 0.07 },
+    { url: 'art/m_tb_narikala.glb', x: CENTER.narikala[0], z: CENTER.narikala[1], s: 1.35, ry: 0.35, on: 'ground', y: -0.05 },
+    { url: 'art/m_tb_kartlisdeda.glb', x: CENTER.deda[0], z: CENTER.deda[1], s: 0.9, ry: 0.25, on: 'ground', y: -0.02 },
+    { url: 'art/m_tb_peace.glb', x: CENTER.peace[0], z: CENTER.peace[1], s: 1.05, bridge: true, on: 'water', y: 0.07 },
+    { url: 'art/m_tb_metekhi.glb', x: CENTER.metekhiBridge[0], z: CENTER.metekhiBridge[1], s: 1.02, bridge: true, on: 'water', y: 0 },
+    { url: 'art/m_tb_stonebridge.glb', x: CENTER.stone[0], z: CENTER.stone[1], s: 1.02, bridge: true, on: 'water', y: 0 }
+  ];
+  for (const d of FREE_MODELS) if (d.bridge) { const [dx, dz] = along(d.x, d.z); d.ry = Math.atan2(dx, dz); }      // its length across the river
+
+  // ===== what moves (in the place's frame; heights above its land) =====
+  const FX = {
+    1: { sparkle: [[-0.45, 0.0, 0.03, 2]] },
+    3: { actors: [{ k: 'minibus', a: [-0.55, 0.3], b: [0.55, 0.26], speed: 0.06 }] },
+    5: { actors: [{ k: 'train', a: [-0.5, -0.17], b: [0.5, -0.17], speed: 0.07, h: 0.005 }] },
+    6: { smoke: [[-0.2, -0.24, 0.48]] },
+    8: { actors: [{ k: 'car', a: [-0.55, 0.1], b: [0.55, 0.12], speed: 0.09 }, { k: 'bus', a: [0.55, 0.19], b: [-0.55, 0.17], speed: 0.06 }, { k: 'plane', a: [-0.6, -0.1], b: [0.6, 0.0], h: 0.95, speed: 0.12, s: 1 }] },
+    9: { actors: [{ k: 'bus', a: [0.0, 0.32], b: [0.55, 0.3], speed: 0.05 }] },
+    12: { actors: [{ k: 'sail', a: [-0.35, 0.1], b: [0.3, 0.16], speed: 0.03 }], sparkle: [[0.0, 0.15, 0.02, 2]] },
+    14: { sparkle: [[0.04, -0.04, 0.05, 2], [-0.2, 0.04, 0.2, 1], [0.2, 0.04, 0.2, 1]] },
+    16: { actors: [{ k: 'carousel', spin: 0.9, at: [-0.08, 0.2] }] },
+    18: { actors: [{ k: 'train', a: [-0.5, 0.0], b: [0.5, 0.0], speed: 0.05, h: 0.005 }] },
+    19: { actors: [{ k: 'minibus', a: [0.0, 0.42], b: [0.5, 0.42], speed: 0.05 }] },
+    21: { actors: [{ k: 'cyclist', a: [-0.1, 0.36], b: [0.0, 0.0], speed: 0.04 }] },
+    23: { actors: [{ k: 'boat', a: [-0.25, 0.22], b: [0.3, 0.16], speed: 0.025 }] },
+    25: { actors: [{ k: 'gondola', cable: CAB25 }] },
+    26: { leaves: [[0.22, -0.08, 0.3], [-0.05, 0.02, 0.28]] },
+    27: { actors: [{ k: 'car', a: [-0.55, 0.12], b: [0.55, 0.12], speed: 0.08 }, { k: 'car2', a: [0.55, 0.14], b: [-0.55, 0.14], speed: 0.07 }] },
+    28: { sparkle: [[-0.12, 0.05, 0.02, 2], [-0.12, 0.1, 0.0, 2]] },
+    29: { sparkle: [[0.12, 0.2, 0.03, 2], [0.12, 0.02, 0.06, 2]] },
+    31: { actors: [{ k: 'boat', a: [-0.3, -0.05], b: [0.0, 0.02], speed: 0.02 }] },
+    32: { actors: [{ k: 'car', a: [-0.55, 0.2], b: [0.55, 0.2], speed: 0.07 }, { k: 'bus', a: [0.55, 0.15], b: [-0.55, 0.15], speed: 0.05 }] },
+    34: { actors: [{ k: 'ferris', spin: 0.22, axis: 'x', at: FERRIS, h: FERRIS_H, ry: FERRIS_RY }, { k: 'carousel', spin: 0.8, at: [0.24, -0.14], h: 0.012 }] },
+    35: { actors: [{ k: 'funicular', a: [0.0, 0.22], b: [0.0, -0.45], speed: 0.05, h: 0.012 }] },
+    37: { smoke: [[0.12, -0.1, 0.3]] },
+    39: { smoke: [[0.0, 0.0, 0.3], [0.2, 0.1, 0.28]] },
+    38: { sparkle: [[-0.42, 0.25, 0.14, 1], [0.42, 0.25, 0.14, 1]] },
+    2: { sparkle: [[-0.12, 0.14, 0.08, 1]] }, 17: { sparkle: [[-0.12, 0.14, 0.08, 1]] }, 33: { sparkle: [[-0.12, 0.14, 0.08, 1]] },
+    7: { sparkle: [[-0.08, -0.06, 0.2, 2]] }, 22: { sparkle: [[-0.08, -0.06, 0.2, 2]] }, 36: { sparkle: [[-0.08, -0.06, 0.2, 2]] },
+    // the corners (on the square itself)
+    0: { sparkle: [[0.0, -0.3, 0.75, 1]] },
+    10: { sparkle: [[0.52, -0.42, 0.25, 1]] },
+    30: { actors: [{ k: 'police', a: [-0.5, -0.12], b: [0.5, -0.12], speed: 0.12 }], sparkle: [[0.0, -0.45, 0.06, 1]] }
+  };
+  const CENTER_FX = {
+    smoke: [], mist: [], sheep: [],
+    actors: [
+      { k: 'gondola', cable: [[CABLE[0][0], CABLE_H[0], CABLE[0][1]], [CABLE[1][0], CABLE_H[1], CABLE[1][1]]] },
+      { k: 'boat', a: [-1.6, 2.38], b: [1.9, 2.5], speed: 0.05 },
+      { k: 'boat', a: [-2.5, -2.3], b: [-2.47, 0.1], speed: 0.04, phase: 0.4 }
+    ],
+    // eagles round the tower, one higher, one wider
+    birds: [{ at: TOWER, h: 3.05, r: 1.25, w: 0.3 }, { at: TOWER, h: 2.45, r: 2.15, w: -0.22 }]
+  };
+
+  // ----- the moving things' own shapes (around their own origin, facing +x) -----
+  function actor(k) {
+    const B = new Builder();
+    if (k === 'car' || k === 'car2' || k === 'police') {
+      car(B, 0, 0, 0, k === 'car' ? C.red : k === 'car2' ? 0x2f62a8 : C.white, 1);
+      if (k === 'police') { B.add(box(0.012, 0.008, 0.026), 0x2a5ad8, 0, 0.048, -0.007); B.add(box(0.012, 0.008, 0.012), 0xe8342a, 0, 0.048, 0.01); B.add(box(0.077, 0.006, 0.037), 0x2a5ad8, 0, 0.016, 0); }
+    } else if (k === 'bus') bus(B, 0, 0, 0, 0x3f7fc2);
+    else if (k === 'minibus') minibus(B, 0, 0, 0);
+    else if (k === 'train') {
+      for (let j = 0; j < 3; j++) { B.add(box(0.15, 0.05, 0.05), C.white, -j * 0.16, 0.012, 0); B.add(box(0.15, 0.014, 0.052), C.red, -j * 0.16, 0.03, 0); B.add(box(0.13, 0.012, 0.053), C.glass, -j * 0.16, 0.046, 0); }
+    } else if (k === 'funicular') {
+      B.add(box(0.07, 0.05, 0.04), C.red, 0, 0.006, 0, { rz: 0.3 }); B.add(box(0.072, 0.014, 0.042), C.white, 0, 0.04, 0, { rz: 0.3 }); B.add(box(0.06, 0.016, 0.043), C.glass, 0, 0.028, 0, { rz: 0.3 });
+    } else if (k === 'plane') {
+      B.add(cyl(0.012, 0.012, 0.14, 8), C.white, 0, 0, 0, { rz: Math.PI / 2 }); B.add(box(0.035, 0.003, 0.16), C.white, 0.0, 0.0, 0); B.add(box(0.02, 0.03, 0.003), 0xc23a2e, -0.06, 0.006, 0);
+    } else if (k === 'carousel') {
+      B.add(cyl(0.05, 0.05, 0.008, 12), C.yellow, 0, 0.012, 0); B.add(cyl(0.004, 0.004, 0.06, 5), C.iron, 0, 0, 0); B.add(cone(0.05, 0.025, 12), C.red, 0, 0.06, 0);
+      for (let j = 0; j < 4; j++) B.add(box(0.012, 0.016, 0.012), [C.red, 0x2f62a8, 0x55ad5f, C.white][j], Math.cos(j * Math.PI / 2) * 0.035, 0.02, Math.sin(j * Math.PI / 2) * 0.035);
+    } else if (k === 'ferris') {
+      B.add(new T.TorusGeometry(0.2, 0.005, 5, 40).rotateY(Math.PI / 2), C.white, 0, 0, 0, { vary: 0, free: true });
+      B.add(new T.TorusGeometry(0.155, 0.003, 4, 32).rotateY(Math.PI / 2), C.white, 0, 0, 0, { vary: 0, free: true });
+      B.add(cyl(0.016, 0.016, 0.03, 8), C.iron, -0.015, 0, 0, { rz: Math.PI / 2, free: true });
+      const cols = [C.red, C.yellow, 0x2f62a8, 0x55ad5f, 0xee8f3e, 0xa8365f, 0x72bde6, C.white, C.red, C.yellow, 0x2f62a8, 0x55ad5f];
+      for (let j = 0; j < 12; j++) {
+        const a = j / 12 * Math.PI * 2;
+        B.add(box(0.003, 0.2, 0.003), C.white, 0, 0, 0, { rx: a, free: true });
+        B.add(ball(0.02, 1), cols[j], 0, Math.cos(a) * 0.205, Math.sin(a) * 0.205, { vary: 0, free: true });
+      }
+    } else if (k === 'cyclist') {
+      B.add(box(0.03, 0.004, 0.004), C.iron, 0, 0.01, 0); for (const x of [-0.014, 0.014]) B.add(cyl(0.009, 0.009, 0.003, 8), 0x222222, x, 0.009, 0, { rx: Math.PI / 2 });
+      B.add(box(0.008, 0.026, 0.01), 0x2f62a8, 0, 0.014, 0); B.add(ball(0.007), 0xe8bf98, 0, 0.044, 0, { vary: 0 });
+    } else return Models.actor(k);
+    return B.build();
+  }
+
+  // ===== what the players build, painted in their colour: a house (1 to 4 on a square) or a hotel =====
+  function houseParts() {
+    const B = new Builder(), R = new Builder();
+    B.add(box(0.14, 0.14, 0.12), C.cream, 0, 0, 0);
+    B.add(box(0.13, 0.05, 0.03), C.balcony, 0, 0.075, 0.065);
+    B.add(box(0.13, 0.012, 0.04), C.wood2, 0, 0.07, 0.065);
+    for (const x of [-0.035, 0.035]) B.add(pane(0.03, 0.04), C.win, x, 0.025, 0.061, { vary: 0 });
+    B.add(pane(0.03, 0.05), C.wood2, 0, 0, 0.0615, { vary: 0 });
+    R.add(pyr(0.17, 0.09, 0.15), 0xffffff, 0, 0.14, 0, { vary: 0 });
+    R.add(box(0.018, 0.04, 0.018), 0xffffff, 0.04, 0.17, -0.02, { vary: 0 });
+    return { body: B.build(), roof: R.build() };
+  }
+  function hotelParts() {
+    const B = new Builder(), R = new Builder();
+    B.add(box(0.36, 0.34, 0.16), C.panel3, 0, 0, 0);
+    for (let f = 0; f < 6; f++) B.add(pane(0.32, 0.026), C.glass, 0, 0.03 + f * 0.05, 0.081, { vary: 0 });
+    B.add(box(0.12, 0.05, 0.04), C.glass2, 0, 0, 0.09);
+    R.add(box(0.38, 0.024, 0.18), 0xffffff, 0, 0.34, 0, { vary: 0 });
+    R.add(box(0.22, 0.06, 0.012), 0xffffff, 0, 0.364, 0.02, { vary: 0 });         // its sign on the roof
+    R.add(box(0.04, 0.34, 0.165), 0xffffff, 0.16, 0, 0, { vary: 0 });              // a band down its side
+    return { body: B.build(), roof: R.build() };
+  }
+
+  // ===== public =====
+  function relief(i, R) { if (L[i] && L[i].r) L[i].r(R); else city(R); }
+  function lot(i, ground) { const B = new Builder(); B.ground = ground; if (L[i] && L[i].b) L[i].b(B); return B.parts.length ? B.build() : null; }
+  // the corners: the traffic jam (10) and the patrol at Heroes Square (30) made here, the others from their files
+  function corner(i) {
+    const B = new Builder();
+    if (i === 10) {
+      jam(B, -0.08, -0.5, 7, 0, 0.13, 3); jam(B, -0.1, -0.32, 6, 0, 0.14, 7);
+      trafficLight(B, 0.52, -0.46, 0); trafficLight(B, -0.58, -0.2, Math.PI);
+      B.add(box(1.2, 0.002, 0.012), 0xf0ead8, 0, 0.001, -0.41);
+    }
+    if (i === 30) {
+      // the memorial's arc of tall slabs, its eternal flame, the patrol car's lane
+      for (let k = 0; k < 7; k++) { const a = Math.PI * (0.15 + 0.7 * k / 6); B.add(box(0.07, 0.24 + (k % 2) * 0.05, 0.03), 0x9a9286, Math.cos(a) * 0.4, 0, -0.62 + Math.sin(a) * 0.18, { ry: Math.PI / 2 - a }); }
+      B.add(cyl(0.05, 0.06, 0.03, 10), 0x6a6458, 0, 0, -0.45);
+      B.add(box(1.25, 0.002, 0.012), 0xf0ead8, 0, 0.001, -0.2);
+      trafficLight(B, -0.6, -0.3, 0);
+    }
+    return B.parts.length ? B.build() : null;
+  }
+  function ringRelief(k, R) { RING[k].r(R); }
+  function inner(k, ground) { const B = new Builder(); B.ground = ground; RING[k].b(B); return B.build(); }
+  let houseCache = null, hotelCache = null;
+  return {
+    world: 'city', PAL, relief, lot, corner, ringRelief, inner, centerRelief, centerWater, center, CENTER, CENTER_FX, actor,
+    models: MODELS, cornerModels: CORNER_MODELS, freeModels: FREE_MODELS, clouds: 2, waterY: WATER_Y,
+    fx: i => FX[i] || null,
+    tower: () => houseCache || (houseCache = houseParts()),
+    castle: () => hotelCache || (hotelCache = hotelParts()),
+    LIFE: ['car', 'car2', 'police', 'bus', 'minibus', 'train', 'funicular', 'plane', 'carousel', 'ferris', 'cyclist', 'boat', 'sail', 'gondola', 'eagle', 'wing'],
+    BIRD: ['eagle', 'wing']
+  };
+})();
+
 // ===== the archipelago's 3D models, made from its Higgsfield pictures (art/m_*.glb, written by tools/glb_prep.mjs) =====
 // A small reader for exactly what that tool writes: a GLB of one mesh with one texture (webp), its numbers maybe stored
 // as small integers. It gives the mesh's shape (in the model's own units, every node's place applied) and its material,
@@ -5748,7 +6562,7 @@ const GLB = (() => {
             await deadline(prepareTextures(asset,job.url),job.url+' textures');retainScene(asset.scene);
             asset.scene.traverse(o => { if (o.isMesh) { const g=o.geometry; counts.vertices+=g.attributes.position.count; counts.triangles+=(g.index?g.index.count:g.attributes.position.count)/3; } });
             if (job.url.startsWith('art/mobile/')) counts.lodModels++;
-          } else asset=await deadline(make(buffer),job.url+' parse');
+          } else { asset=await deadline(make(buffer),job.url+' parse'); if (job.url.startsWith('art/mobile/')) counts.lodModels++; }
           item.done=true;if(job.requests.every(r=>r.done)){job.closed=true;if(jobs.get(job.url)===job)jobs.delete(job.url);}item.resolve(asset);
         } catch(error){failed=true;rejectRequest(job,item,error);}
       }
@@ -5955,7 +6769,9 @@ const GLB = (() => {
     };
     return attempt().catch(async error=>{if(error.retryable===false)throw error;counts.retries++;await pause(250);return attempt();});
   }
-  function load(url, priority=0) {return request('static',url,priority,cache);}
+  // ტფილისი's landmarks are static models with a phone's version of their own (art/mobile, baked by tools/tb_make.mjs)
+  function staticURL(url) { return policy.mobile && /^art\/m_tb_[a-z]+\.glb$/.test(url) ? url.replace('art/', 'art/mobile/') : url; }
+  function load(url, priority=0) {return request('static',staticURL(url),priority,cache);}
   function parseScene(buf, path = '') {
     if (!window.MamuliGLTFLoader) return Promise.reject(new Error('the animated GLB reader is unavailable'));
     return new Promise((resolve, reject) => new window.MamuliGLTFLoader().parse(buf, path, resolve, reject));
@@ -7884,14 +8700,16 @@ const Board3D = (() => {
   let st = null, pos = [], turnSeat = -1, pickCb = null, built = false, mats = null, ownerMats = [], wheel = null;
   let landG = null, landTop = 4, fallFoot = null;
   const lotF = [], ringF = [];
-  // the world on the board: the land (models.js) or the archipelago's sea (sea.js), as the room's theme says; made again
-  // when the theme changes (see retheme)
+  // the world on the board: the land (models.js), the archipelago's sea (sea.js) or ტფილისი's city (city.js), as the room's
+  // theme says; made again when the theme changes (see retheme)
   let MOD = Models, worldBuilt = null, hemi = null, seaMesh = null;
   let marineLife = null, lagoonLife = null, reefLife = null, weatherLife = null;
   let placeModelsLife = null, mapPropsLife = null, placeEffects = null;
   const animatedModels = [];
   let modelDelta = 0;
-  const wantWorld = () => (typeof THEME !== 'undefined' && THEME.world === 'sea' && typeof SeaModels !== 'undefined' && SeaModels) ? 'sea' : 'land';
+  const wantWorld = () => typeof THEME === 'undefined' ? 'land'
+    : THEME.world === 'sea' && typeof SeaModels !== 'undefined' && SeaModels ? 'sea'
+    : THEME.world === 'city' && typeof CityModels !== 'undefined' && CityModels ? 'city' : 'land';
   const O = new T.Object3D();                              // for putting matrices together
 
   // ----- where things are -----
@@ -8044,9 +8862,9 @@ const Board3D = (() => {
       };
       const small = (text, y) => { x.fillStyle = soft; fit(x, text, 700, FONT.sans, 26, cw - 50); x.fillText(text, mid, y); };
       if (t.k === 'start') {
-        // the big arrow along the way
+        // the big arrow along the way (in the city Freedom Square's column stands there)
         x.fillStyle = '#c8372d'; x.strokeStyle = '#7a1d14'; x.lineWidth = 5;
-        x.beginPath(); x.moveTo(60, 196); x.lineTo(140, 146); x.lineTo(140, 176); x.lineTo(320, 176); x.lineTo(320, 216); x.lineTo(140, 216); x.lineTo(140, 246); x.closePath(); x.fill(); x.stroke();
+        if (wantWorld() !== 'city') { x.beginPath(); x.moveTo(60, 196); x.lineTo(140, 146); x.lineTo(140, 176); x.lineTo(320, 176); x.lineTo(320, 216); x.lineTo(140, 216); x.lineTo(140, 246); x.closePath(); x.fill(); x.stroke(); }
         big(words.start, 282, '#8d2a1f');
         x.fillStyle = '#2f7a2a'; x.font = `400 40px ${FONT.num}`;
         priceLine(x, mid - 40, 336, '+' + SALARY, '#2f7a2a', 40);
@@ -8356,6 +9174,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     f: `#include <map_fragment>
       {
         vec3 c = diffuseColor.rgb;
+        #ifndef DRY
         float wet = smoothstep( 0.1, 0.24, c.b - c.r ) * smoothstep( -0.06, 0.04, c.b - c.g );
         float steep = 1.0 - smoothstep( 0.5, 0.8, abs( normalize( vWN ).y ) );
         float fall = wet * steep, pool = wet * ( 1.0 - steep );
@@ -8370,6 +9189,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
         float w2 = sin( vWP.z * 17.0 - uTime * 0.95 + sin( vWP.x * 6.5 - uTime * 0.4 ) * 1.4 );
         diffuseColor.rgb *= 1.0 + pool * 0.12 * ( w1 * 0.5 - 0.25 );
         totalEmissiveRadiance += vec3( 0.16, 0.19, 0.2 ) * smoothstep( 0.55, 0.95, w1 * w2 ) * pool;
+        #endif
         #ifdef LAVA
           // a volcano's lava (orange, as no gold or sand is): it glows, and the glow wanders along its cracks
           float hot = smoothstep( 0.35, 0.6, c.r - c.b ) * smoothstep( 0.06, 0.16, c.g ) * ( 1.0 - smoothstep( 0.42, 0.55, c.g ) );
@@ -8383,12 +9203,15 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     sh.vertexShader = sh.vertexShader.replace('#include <common>', MODEL_WATER.vp).replace('#include <begin_vertex>', MODEL_WATER.v);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', MODEL_WATER.fp).replace('#include <map_fragment>', MODEL_WATER.f);
   };
-  const modelWaterKey = () => 'modelwater', modelLavaKey = () => 'modellava';
-  // (lava only where the model says it has some: elsewhere an orange sail would glow)
+  const modelWaterKey = () => 'modelwater', modelLavaKey = () => 'modellava', modelDryKey = () => 'modeldry';
+  // (lava only where the model says it has some: elsewhere an orange sail would glow; the city's models have no water of
+  // their own, so their blue glass and balconies stay as they are: only their leaves sway)
   function modelWater(m, lava) {
+    const dry = !lava && MOD && MOD.world === 'city';
     m.onBeforeCompile = modelWaterPatch;
-    m.customProgramCacheKey = lava ? modelLavaKey : modelWaterKey;
+    m.customProgramCacheKey = lava ? modelLavaKey : dry ? modelDryKey : modelWaterKey;
     if (lava) m.defines = Object.assign({}, m.defines, { LAVA: '' });
+    if (dry) m.defines = Object.assign({}, m.defines, { DRY: '' });
     return m;
   }
 
@@ -8496,7 +9319,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       lake(x, z, rx, rz, d, rot = 0, sea = false) { const [a, b] = W(x, z); Terrain.lake(a, b, rx * sx, rz * sz, d * sy, yaw + rot, sea); },
       pad(x, z, r) { const [a, b] = W(x, z); Terrain.pad(a, b, r * sr); },
       path(x1, z1, x2, z2, w, color) { const [a, b] = W(x1, z1), [c, d] = W(x2, z2); Terrain.path(a, b, c, d, w * sr, color); },
-      tint(color, snow = 9, spread) { Terrain.tint(cx, cz, color, snow, spread); },
+      tint(color, snow = 9, spread, rock) { Terrain.tint(cx, cz, color, snow, spread, rock); },
       ground(x, z) { const [a, b] = W(x, z); return Terrain.height(a, b) / sy; },
       // a point of the place, h (its units) above its land, on the board
       at(x, z, h = 0) { const [a, b] = W(x, z); return new T.Vector3(a, Terrain.height(a, b) + h * sy, b); }
@@ -8505,7 +9328,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   // made in steps (each yield is a pause where the page may do other things): see prepare()
   function* buildStatic() {
     worldBuilt = wantWorld();
-    MOD = worldBuilt === 'sea' ? SeaModels : Models;
+    MOD = worldBuilt === 'sea' ? SeaModels : worldBuilt === 'city' ? CityModels : Models;
     Terrain.setWorld(MOD.world);
     scene.fog.color.set(MOD.world === 'sea' ? SEA_HAZE : HAZE);
     hemi.groundColor.set(MOD.world === 'sea' ? 0x4f8aa0 : 0x8a6a48);
@@ -8591,8 +9414,9 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       m.position.set(F.cx, 0, F.cz); m.rotation.y = F.yaw; m.castShadow = true; m.receiveShadow = true;
       landG.add(m); lotMesh[100 + k] = m;
     }
-    // the middle's own model, when there is one (then nothing is made for it here)
+    // the middle's own model, when there is one (then nothing is made for it here); the city's landmarks in the middle
     if (MOD.centerModel && typeof GLB !== 'undefined' && GLB) { placeCenter(MOD.centerModel); landTop = Math.max(landTop, MOD.centerModel.top); }
+    if (MOD.freeModels && typeof GLB !== 'undefined' && GLB) for (const d of MOD.freeModels) { if (d.topY) landTop = Math.max(landTop, d.topY); placeFree(d); }
     // the great mountain's church, village, forest and lake shore
     const ctr = MOD.center(Terrain.height);
     for (const step of ctr.steps) { yield; step(); }
@@ -8738,7 +9562,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       GLB.loadScene(d.url).then(pack => {
         if (landG !== land || !F) return;
         const g = new T.Group(), p = F.at(d.x || 0, d.z || 0, 0);
-        g.position.set(p.x, Terrain.SEA_Y + (d.y || 0), p.z); g.rotation.y = F.yaw + (d.ry || 0); g.scale.setScalar((d.s || 1) * TW);
+        g.position.set(p.x, (d.ground ? p.y : Terrain.SEA_Y) + (d.y || 0), p.z); g.rotation.y = F.yaw + (d.ry || 0); g.scale.setScalar((d.s || 1) * TW);
         if (d.own) g.position.y = Math.max(g.position.y, p.y);
         const model = nativeModel(pack, i);
         g.add(model); land.add(g);
@@ -8753,8 +9577,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       geometry.userData.keep = material.userData.keep = true;           // (kept for a board made again)
       modelWater(material);
       const g = new T.Group(), p = F.at(d.x || 0, d.z || 0, 0);
-      g.position.set(p.x, Terrain.SEA_Y + (d.y || 0), p.z); g.rotation.y = F.yaw + (d.ry || 0); g.scale.setScalar((d.s || 1) * TW);
-      if (d.own) g.position.y = Math.max(g.position.y, p.y);                  // (on the island made here)
+      g.position.set(p.x, (d.ground ? p.y : Terrain.SEA_Y) + (d.y || 0), p.z); g.rotation.y = F.yaw + (d.ry || 0); g.scale.setScalar((d.s || 1) * TW);
+      if (d.own) g.position.y = Math.max(g.position.y, p.y);                  // (on the island made here; ground: on the land there)
       const m = new T.Mesh(geometry, material);
       m.castShadow = true; m.receiveShadow = true; m.userData.i = i; m.userData.model = true;
       g.add(m); prepareMaterials(g); landG.add(g);
@@ -8789,11 +9613,32 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       m.rotation.y=d.ry||0;m.updateMatrixWorld(true);
       const box=new T.Box3().setFromObject(m),size=box.getSize(new T.Vector3()),middle=box.getCenter(new T.Vector3());
       m.position.set(-middle.x,-box.min.y,-middle.z);const scale=Math.min(C-.16,d.fitWidth||C-.16)/Math.max(size.x,size.z,.001);
-      g.position.set(0,TH+.012,0);g.scale.setScalar(scale);
+      g.position.set(d.x||0,TH+.012,d.z||0);g.scale.setScalar(scale);
       m.castShadow = true; m.receiveShadow = true; m.userData.i = i; m.userData.model = true;
       g.add(m); prepareMaterials(g); tile.add(g);cornerTitle(i,tile,TH+.012+size.y*scale);
       lotMesh[i] = m;
       shadowDirty = true;
+    }).catch(e => Diag.note('3d', `model ${d.url} not read: ${e && e.message}`));
+  }
+  // a model standing freely in the middle (the city's Narikala, Kartlis Deda, the bridges): board coordinates, on the
+  // ground there or on the river's water (a bridge's file has its water line at y = 0); top: the board's highest point
+  // (the camera keeps it in view)
+  function placeFree(d) {
+    const land = landG;
+    GLB.load(d.url).then(({ geometry, material }) => {
+      if (landG !== land) return;
+      geometry.userData.keep = material.userData.keep = true;
+      modelWater(material);
+      const water = d.on === 'water' ? Terrain.waterAt(d.x, d.z) : null;
+      const base = water != null ? water : d.on === 'water' && MOD.waterY != null ? MOD.waterY : Terrain.height(d.x, d.z);
+      const m = new T.Mesh(geometry, material);
+      m.position.set(d.x, base + (d.y || 0), d.z); m.rotation.y = d.ry || 0; m.scale.setScalar(d.s || 1);
+      m.castShadow = true; m.receiveShadow = true; m.userData.model = true;
+      prepareMaterials(m); landG.add(m);
+      if (!geometry.boundingBox) geometry.computeBoundingBox();
+      if (d.top) { landTop = Math.max(landTop, m.position.y + geometry.boundingBox.max.y * (d.s || 1)); if (cam) distances(); }
+      shadowDirty = true;
+      Diag.note('3d', `model ${d.url}: ${geometry.index ? geometry.index.count / 3 : 0} triangles`);
     }).catch(e => Diag.note('3d', `model ${d.url} not read: ${e && e.message}`));
   }
   // the middle's model: in the board's middle, its water line on the sea's, made lower by sy
@@ -9075,7 +9920,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     for (const [x, z] of CF.sheep) add(actorOf({ k: 'sheep', at: [x, z], r: 0.09, s: 1.35 }, (xx, zz) => ground(xx, zz), null, -1, rnd() * 20));
     for (const a of CF.actors || []) add(actorOf(a, ground, null, -1, rnd() * 20));
     const [px, pz] = MOD.CENTER.peak, isl = MOD.world === 'sea';       // the volcano's clouds: fewer, smaller and higher
-    for (let k = 0; k < (isl && MOD.centerModel && MOD.centerModel.animated ? 0 : isl ? 3 : 4); k++) {
+    for (let k = 0; k < (MOD.clouds != null ? MOD.clouds : isl && MOD.centerModel && MOD.centerModel.animated ? 0 : isl ? 3 : 4); k++) {
       const r = (isl ? 1.45 : 1.0) + 0.3 * (k % 2) + 0.08 * k, h = landTop * (isl ? 0.86 + 0.08 * k : 0.56 + 0.06 * k), w = 0.045 + 0.012 * k, a0 = k * 1.7, cs = (isl ? 0.4 : 0.6) + 0.12 * (k % 3), ph = k * 2.1;
       add({ k: 'cloud', up(t, o) { const a = a0 + w * t; o.p.set(px + Math.cos(a) * r, h + 0.05 * Math.sin(t * 0.3 + ph), pz + Math.sin(a) * r); o.yaw = -a - Math.PI / 2; o.s = cs; } });
     }
@@ -10677,9 +11522,10 @@ const Dice3D = (() => {
     _top: top, _where: where, _ahead: seed => ahead.has(seed >>> 0), get _landed() { return !!(play && play.done); } };
 })();
 
-// ===== the archipelago's pictures =====
+// ===== the archipelago's pictures, and ტფილისი's =====
 // Which picture each place shows on its card (they are files in art/), the sea and island drawn for one that has none, and
-// the small icons: a hut and a sea fort for the levels, the castaway's islet and the fisherman's boat, a ship.
+// the small icons: a hut and a sea fort for the levels, the castaway's islet and the fisherman's boat, a ship; for the
+// city its districts' cards and its own icons (at the end).
 
 // a picture written as SVG, ready for src="" or url('') (no quotes are left in it)
 const svgUri = s => 'data:image/svg+xml,' + encodeURIComponent(s.replace(/\s*\n\s*/g, ' '));
@@ -10775,6 +11621,22 @@ const SEAFORT_SVG = '<svg viewBox="0 0 30 28" aria-hidden="true"><path d="M3 27V
 const ISLE_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M1 17q9-6.5 18 0z" fill="#e8d59a"/><path d="M9.5 15.5q-.5-6 2.5-10" stroke="#7a4a22" stroke-width="1.6" fill="none"/><g fill="#4f9a46"><path d="M12 5.5q-5-1.5-8.5 2q4-2.5 8.5-2z"/><path d="M12 5.5q5-2 7.5 1.2q-4-2.2-7.5-1.2z"/><path d="M12 5.5q1-4.3 5-4.3q-3 1.2-5 4.3z"/><path d="M12 5.5q-2-4-6-3q4 .2 6 3z"/></g><path d="M0 18.5h20" stroke="#4ea4f0" stroke-width="2"/></svg>';
 const BOAT_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 11.5h16l-3.2 5H5.2z" fill="#a8743f" stroke="#5a3a1e" stroke-width="1.2" stroke-linejoin="round"/><path d="M10 11.5V2" stroke="#5a3a1e" stroke-width="1.2"/><path d="M10.7 2.6l6 7.4h-6z" fill="#f3e8d0" stroke="#5a3a1e" stroke-width=".8"/><path d="M1 18.5q2.5-1.5 5 0t5 0 5 0 4 0" stroke="#4ea4f0" stroke-width="1.4" fill="none"/></svg>';
 const SHIP_SVG = '<svg viewBox="0 0 30 30" aria-hidden="true"><path d="M3 19h24l-4 6H7z" fill="#5a3a22" stroke="#2c1b10" stroke-width="1.2" stroke-linejoin="round"/><path d="M11 19V5M19 19V3" stroke="#2c1b10" stroke-width="1.4"/><path d="M5.5 7q4 4 0 9h10q2-4.5 0-9zM13.5 5q5 5 0 11h11q2-5.5 0-11z" fill="#f3e8d0" stroke="#8a7350" stroke-width=".9"/><path d="M19 3h5l-1.4 1.6L24 6.2h-5z" fill="#1d1a1e"/><path d="M1 27.5q3-1.6 6 0t6 0 6 0 6 0 4 0" stroke="#4ea4f0" stroke-width="1.5" fill="none"/></svg>';
+
+// ----- ტფილისი's pictures: each district's card (art/card_tb_NN_*.jpg: the generated pictures, and the landmarks' for the
+// squares that have a model), Tbilisi's landscape where a square has none of its own; its icons: a house with a wooden
+// balcony and a hotel for the levels, a car in the traffic jam, the green wave, Kinto's tray -----
+const CITY_CARDS = { 0: '00_freedom_square', 1: '01_ortachala', 3: '03_ponichala', 4: '04_bank', 5: '05_station', 6: '06_varketili', 8: '08_samgori', 9: '09_isani',
+  11: '11_avlabari', 12: '12_tbilisi_sea', 13: '13_chughureti', 14: '14_aghmashenebeli', 15: '15_metro', 18: '18_nadzaladevi', 19: '19_didube', 20: '20_embankment',
+  21: '21_dighomi', 23: '23_vashlijvari', 24: '24_saburtalo', 25: '25_cable_car', 26: '26_vera', 27: '27_vake', 28: '28_zahes', 29: '29_vake_park',
+  31: '31_turtle_lake', 32: '32_rustaveli', 34: '34_mtatsminda', 35: '35_funicular', 37: '37_sololaki', 39: '39_old_tbilisi' };
+const cityPicture = t => CITY_CARDS[t.i] ? 'card_tb_' + CITY_CARDS[t.i] + '.jpg' : 'g_tbilisi';
+const HOUSE_SVG = '<svg viewBox="0 0 22 28" aria-hidden="true"><path d="M3 27V12h16v15z" fill="#eadcc0" stroke="#4f3a28" stroke-width="1.4"/><path d="M1 13L11 4l10 9z" fill="currentColor" stroke="#4f3a28" stroke-width="1.4" stroke-linejoin="round"/><path d="M3.5 15.5h15v4h-15z" fill="#6b8f88" stroke="#4f3a28" stroke-width="1"/><path d="M5 15.5v4M8 15.5v4M11 15.5v4M14 15.5v4M17 15.5v4" stroke="#4f3a28" stroke-width=".6"/><path d="M9 27v-5h4v5" fill="#5b3a24"/></svg>';
+const HOTEL_SVG = '<svg viewBox="0 0 26 30" aria-hidden="true"><path d="M3 29V6h20v23z" fill="#d9d2c3" stroke="#3f4650" stroke-width="1.4"/><path d="M2 3h22v4H2z" fill="currentColor" stroke="#3f4650" stroke-width="1.2"/><g fill="#5b7889"><path d="M6 9h4v3H6zM11 9h4v3h-4zM16 9h4v3h-4zM6 14h4v3H6zM11 14h4v3h-4zM16 14h4v3h-4zM6 19h4v3H6zM16 19h4v3h-4z"/></g><path d="M10.5 29v-6h5v6" fill="#86a8bb" stroke="#3f4650" stroke-width=".8"/></svg>';
+const JAM_SVG = '<svg viewBox="0 0 24 20" aria-hidden="true"><path d="M2 13l2-5h11l3 5h4v4H2z" fill="#c23a2e" stroke="#3a1c16" stroke-width="1.2" stroke-linejoin="round"/><path d="M5.5 8.6h4v3.6h-5zM11 8.6h3.4l2 3.6H11z" fill="#8aabbd"/><circle cx="6.5" cy="17" r="2" fill="#222"/><circle cx="17" cy="17" r="2" fill="#222"/></svg>';
+const GREEN_SVG = '<svg viewBox="0 0 14 26" aria-hidden="true"><path d="M7 25V19" stroke="#3a3c40" stroke-width="2"/><rect x="2" y="1" width="10" height="18" rx="2.5" fill="#2a2d31"/><circle cx="7" cy="5" r="2.2" fill="#4a2a24"/><circle cx="7" cy="10" r="2.2" fill="#4a3d1e"/><circle cx="7" cy="15" r="2.4" fill="#4cd964"/></svg>';
+const KINTO_SVG = '<svg viewBox="0 0 40 40" aria-hidden="true"><ellipse cx="20" cy="32" rx="17" ry="5" fill="#9a6a3a" stroke="#4f3016" stroke-width="1.4"/><circle cx="12" cy="27" r="4.4" fill="#d94a2e"/><circle cx="20" cy="25.5" r="4.6" fill="#f0a530"/><circle cx="28" cy="27" r="4.2" fill="#7cae3a"/><circle cx="16" cy="23" r="3.2" fill="#8a3a6a"/><path d="M15.4 6.6a4.6 4.6 0 1 1 6.6 4.1c-1.4.7-2 1.4-2 2.9" fill="none" stroke="#2c1b10" stroke-width="2.6" stroke-linecap="round"/><circle cx="20" cy="17.6" r="1.7" fill="#2c1b10"/></svg>';
+const TRAIN_SVG = '<svg viewBox="0 0 30 30" aria-hidden="true"><rect x="6" y="3" width="18" height="21" rx="4" fill="#f3efe6" stroke="#2c3138" stroke-width="1.4"/><path d="M6.7 15h16.6v4H6.7z" fill="#c23a2e"/><path d="M9 6h12v7H9z" fill="#5b7889"/><circle cx="10.5" cy="21" r="1.4" fill="#ffe9a8"/><circle cx="19.5" cy="21" r="1.4" fill="#ffe9a8"/><path d="M9 24l-3 4M21 24l3 4M4 28h22" stroke="#2c3138" stroke-width="1.4" stroke-linecap="round"/></svg>';
+const CITY_ESTATE = svgUri(HOUSE_SVG.replace('currentColor', '#b35a3c').replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '));
 
 // Native event reveals share one WebGL context and three bounded scene kinds.
 // Closing a card detaches its session; the next reveal reuses uploaded geometry,
@@ -11131,15 +11993,19 @@ const tName = i => BOARD[i].n.replace(/\u00ad/g, '');
 // The sea's four pirate cottages upgrade to a timber inn; the land keeps its towers/fortress.
 const PIRATE_INN_SVG = '<svg viewBox="0 0 34 32" aria-hidden="true"><path d="M5 30V12h24v18z" fill="#c79656" stroke="#493421" stroke-width="1.4"/><path d="M2 13 17 3l15 10z" fill="currentColor" stroke="#493421" stroke-width="1.4" stroke-linejoin="round"/><path d="M7 21h20M7 23h20M7 24v6M27 24v6" stroke="#493421" stroke-width="1.4"/><path d="M10 14h4v5h-4zM20 14h4v5h-4z" fill="#ffdf8d" stroke="#493421"/><path d="M14 30v-7h6v7" fill="#473326"/><path d="M26 9V1m0 0h6l-1.5 2L32 5h-6" stroke="#493421" fill="currentColor" stroke-width="1.2"/></svg>';
 const sea = () => THEME.world === 'sea';
-const towerIcon = () => sea() ? HUT_SVG : TOWER_SVG;
-const lvIcons = lv => lv >= 5 ? (sea() ? `<span class="tws fort-i">${PIRATE_INN_SVG}</span>` : `<img class="fort" src="${ART('s_fort')}" alt="">`) : `<span class="tws">${towerIcon().repeat(lv)}</span>`;
+const city = () => THEME.world === 'city';
+const towerIcon = () => sea() ? HUT_SVG : city() ? HOUSE_SVG : TOWER_SVG;
+const fortIcon = () => sea() ? PIRATE_INN_SVG : city() ? HOTEL_SVG : '';
+const lvIcons = lv => lv >= 5 ? (fortIcon() ? `<span class="tws fort-i">${fortIcon()}</span>` : `<img class="fort" src="${ART('s_fort')}" alt="">`) : `<span class="tws">${towerIcon().repeat(lv)}</span>`;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const REDUCED = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } })();
 
 const SCENES = ['g_pass', 'g_svan', 'g_elbrus', 'g_elbrus', 'g_stone', 'g_stone', 'g_svan', 'g_tbilisi'];
 const SCENE_POS = ['50% 70%', '50% 35%', '30% 60%', '70% 40%', '40% 30%', '75% 55%', '20% 70%', '50% 50%'];
-// the picture behind a square's name on its card: a Georgian landscape, or in the archipelago its sea and island
+// the picture behind a square's name on its card: a Georgian landscape, in the archipelago its sea and island, in the
+// city its district's card
 function sceneBg(t, fade) {
+  if (city()) return `background-image:${fade},url(${ART(cityPicture(t))});background-position:50% 55%`;
   if (sea()) { const sc = seaScene(t); return sc ? `background-image:${fade},url(${ART(sc)});background-position:right center` : `background-image:${fade},url('${seaArt(t)}');background-position:50% 62%`; }
   const scene = t.k === 'p' ? SCENES[t.g] : t.k === 'road' ? 'g_pass' : 'g_elbrus', at = t.k === 'p' ? SCENE_POS[t.g] : '50% 50%';
   return `background-image:${fade},url(${ART(scene)});background-position:${at}`;
@@ -11178,7 +12044,7 @@ function seaCaptain(st, seat) {
 }
 const ERR = {
   turn: 'ახლა ამის გაკეთება არ შეიძლება', cash: 'ფული არ გყოფნის', get group() { return W.errGroup; },
-  get even() { return W.errEven; }, get mort() { return W.errMort; }, get max() { return sea() ? 'აქ უკვე მეკობრის სასტუმროა' : 'აქ უკვე ციხეა'; }, answered: 'უკვე უპასუხე',
+  get even() { return W.errEven; }, get mort() { return W.errMort; }, get max() { return sea() ? 'აქ უკვე მეკობრის სასტუმროა' : W.full || 'აქ უკვე ციხეა'; }, answered: 'უკვე უპასუხე',
   own: 'ეს შენი არ არის', bad: 'ასე არ შეიძლება', empty: 'შეთავაზება ცარიელია', stale: 'შეთავაზება აღარ მოქმედებს',
   host: 'ამას მხოლოდ მასპინძელი აკეთებს', few: 'საჭიროა მინიმუმ ორი მოთამაშე', taken: 'ეს გმირი უკვე დაკავებულია',
   full: 'ოთახი სავსეა', watch: 'ამ თამაშს მხოლოდ უყურებ', started: 'თამაში უკვე დაიწყო', out: 'შენ გაკოტრდი', over: 'თამაში დასრულდა',
@@ -11249,7 +12115,7 @@ function applyTheme(st) {
   const app = $('#app');
   if (app) app.dataset.world = THEME.key;
   const est = $('#dockEstate');
-  if (est) { est.querySelector('img').src = ART(sea() ? 'ui_chest_wood' : 's_fort'); est.querySelector('span:last-child').textContent = W.estate; }
+  if (est) { est.querySelector('img').src = city() ? CITY_ESTATE : ART(sea() ? 'ui_chest_wood' : 's_fort'); est.querySelector('span:last-child').textContent = W.estate; }
   if (typeof Board3D !== 'undefined' && Board3D.retheme) Board3D.retheme();
   Diag.note('theme', THEME.key);
 }
@@ -11676,7 +12542,7 @@ const View = (() => {
       pinsKey = key;
       box.innerHTML = list.map(i => {
         const lv = st.own[i].lv + 1, price = GROUPS[BOARD[i].g].b;
-        const icon = lv >= 5 ? (sea() ? PIRATE_INN_SVG : `<img src="${ART('s_fort')}" alt="">`) : towerIcon();
+        const icon = lv >= 5 ? (fortIcon() || `<img src="${ART('s_fort')}" alt="">`) : towerIcon();
         return `<div class="pin" data-pin="${i}" data-lv="${lv}" hidden><button class="pin-b${lv >= 5 ? ' fort' : ''}" data-build="${i}" aria-label="${esc(`${LEVEL_NAMES[lv]}: ${tName(i)} · ${price}`)}"><span class="pin-f"><span class="pin-m">${icon}<b aria-hidden="true">+</b></span><span class="pin-p">${coin(price)}</span></span></button></div>`;
       }).join('');
     }
@@ -11689,8 +12555,8 @@ const View = (() => {
     const html = st.players.map((p, s) => {
       const me = controls(s) && ROOM && ROOM.role !== 'local';
       const tag = me ? '<span class="tag me">შენ</span>' : p.away && !p.bot ? '<span class="tag warn">არ არის</span>' : p.bot ? '<span class="tag">ბოტი</span>' : '';
-      const icons = (p.jail ? (sea() ? `<i class="ic" title="${esc(W.inJail)}">${ISLE_SVG}</i>` : `<img src="${ART('t_palisade')}" alt="${esc(W.inJail)}" title="${esc(W.inJail)}">`) : '')
-        + p.fe.map(() => sea() ? `<i class="ic" title="${esc(W.featherFull)}">${BOAT_SVG}</i>` : `<img src="${ART('ui_feather')}" alt="${esc(W.feather)}" title="${esc(W.featherFull)}">`).join('');
+      const icons = (p.jail ? (sea() || city() ? `<i class="ic" title="${esc(W.inJail)}">${sea() ? ISLE_SVG : JAM_SVG}</i>` : `<img src="${ART('t_palisade')}" alt="${esc(W.inJail)}" title="${esc(W.inJail)}">`) : '')
+        + p.fe.map(() => sea() || city() ? `<i class="ic" title="${esc(W.featherFull)}">${sea() ? BOAT_SVG : GREEN_SVG}</i>` : `<img src="${ART('ui_feather')}" alt="${esc(W.feather)}" title="${esc(W.featherFull)}">`).join('');
       return `<button class="pl${st.turn === s && st.phase !== 'over' ? ' now' : ''}${p.out ? ' out' : ''}" data-s="${s}" style="--c:${SEAT_COLORS[s]}">
         <img class="pp" src="${por(p.hero)}" alt=""><span class="pn">${esc(p.name)}</span><span class="pc">${p.out ? '<b class="amt">გაკოტრდა</b>' : coin(cash[s] != null ? cash[s] : p.cash)}${icons ? `<span class="pi">${icons}</span>` : ''}</span>${tag ? `<span class="pf">${tag}</span>` : ''}</button>`;
     }).join('');
@@ -11859,7 +12725,10 @@ const View = (() => {
   const LETTERS = ['ა', 'ბ', 'გ'];
   const quizItem = (st, q) => { const Q = themeOf(st).quiz; return Q && Q[q]; };
   function quizHead(st, s) {
-    return `<div class="qz-h${sea() ? ' treasure-head' : ''}" style="background-image:linear-gradient(90deg,rgba(44,27,16,.96) 30%,rgba(44,27,16,.55) 62%,rgba(44,27,16,.15)),url(${ART('sc_chest')})">${sea() ? `<div class="card3d quiz-model" aria-hidden="true"><img class="card3d-fallback" src="${ART('ui_chest_wood_o')}" alt=""></div>` : `<img src="${ART('ui_chest_wood_o')}" alt="">`}<div class="quiz-heading"><b>${esc(W.chest)}</b><small>გახსნა ${esc(pName(st, s))} · სწორ პასუხზე მას ${coin(QUIZ_WIN)}, სხვებს ${coin(QUIZ_SHARE)}</small></div></div>`;
+    // (in the city: Kinto's tray of fruit before the old town's picture; whoever drew the card, not opened a chest)
+    const back = city() ? ART('card_tb_39_old_tbilisi.jpg') : ART('sc_chest');
+    const pic = sea() ? `<div class="card3d quiz-model" aria-hidden="true"><img class="card3d-fallback" src="${ART('ui_chest_wood_o')}" alt=""></div>` : city() ? `<span class="kinto-i">${KINTO_SVG}</span>` : `<img src="${ART('ui_chest_wood_o')}" alt="">`;
+    return `<div class="qz-h${sea() ? ' treasure-head' : ''}" style="background-image:linear-gradient(90deg,rgba(44,27,16,.96) 30%,rgba(44,27,16,.55) 62%,rgba(44,27,16,.15)),url(${back})">${pic}<div class="quiz-heading"><b>${esc(W.chest)}</b><small>${city() ? 'ბარათი აიღო' : 'გახსნა'} ${esc(pName(st, s))} · სწორ პასუხზე მას ${coin(QUIZ_WIN)}, სხვებს ${coin(QUIZ_SHARE)}</small></div></div>`;
   }
   function keepQuizModel(box, key) {
     const old = box.querySelector('.quiz-model');
@@ -12043,7 +12912,7 @@ const Sheet = (() => {
         <p class="facts"><span>ფასი ${coin(t.p)}</span><span>${esc(W.tower)} ${coin(g.b)}</span><span>დაგირავება ${coin(t.p / 2)}</span></p>`;
     } else if (t.k === 'road') {
       head = `<div class="deed-h road" style="${sceneBg(t, 'linear-gradient(180deg,rgba(13,16,22,.1),rgba(13,16,22,.85))')}"><span class="chip">${esc(W.road)}</span><h2>${esc(t.n)}</h2></div>`;
-      const n = o ? Engine.countOf(st, o.o, ROADS) : 0, icon = sea() ? `<span class="ph ship-i">${SHIP_SVG}</span>` : `<img src="${ART('s_camp')}" alt="">`;
+      const n = o ? Engine.countOf(st, o.o, ROADS) : 0, icon = sea() ? `<span class="ph ship-i">${SHIP_SVG}</span>` : city() ? `<span class="ph ship-i">${TRAIN_SVG}</span>` : `<img src="${ART('s_camp')}" alt="">`;
       rows = `<ul class="rents">${[1, 2, 3, 4].map(k => `<li class="${n === k ? 'on' : ''}">${icon}<span>${k} ${esc(W.road)}</span>${coin(ROAD_RENT[k])}</li>`).join('')}</ul><p class="facts"><span>ფასი ${coin(t.p)}</span><span>დაგირავება ${coin(t.p / 2)}</span></p>`;
     } else if (t.k === 'util') {
       head = `<div class="deed-h util" style="${sceneBg(t, 'linear-gradient(180deg,rgba(13,16,22,.1),rgba(13,16,22,.85))')}"><span class="chip">${esc(W.util)}</span><h2>${esc(t.n)}</h2></div>`;
@@ -12080,7 +12949,7 @@ const Sheet = (() => {
       const why = Engine.buildBlock(st, seat, i);
       if (o.lv < 5) b.push(`<button class="btn small gold" data-a="build" data-i="${i}" ${why ? 'disabled' : ''} title="${esc(ERR[why] || '')}">+ ${esc(LEVEL_NAMES[o.lv + 1])} ${coin(GROUPS[t.g].b)}</button>`);
     }
-    if (t.k === 'p' && o.lv > 0) b.push(`<button class="btn small" data-a="sell" data-i="${i}" ${Engine.canSell(st, seat, i) ? '' : 'disabled'}>${sea() && o.lv === 5 ? 'სასტუმრო → 4 ქოხი' : '− ' + esc(W.tower)} ${coin(GROUPS[t.g].b / 2)}</button>`);
+    if (t.k === 'p' && o.lv > 0) b.push(`<button class="btn small" data-a="sell" data-i="${i}" ${Engine.canSell(st, seat, i) ? '' : 'disabled'}>${sea() && o.lv === 5 ? 'სასტუმრო → 4 ქოხი' : city() && o.lv === 5 ? 'სასტუმრო → 4 სახლი' : '− ' + esc(W.tower)} ${coin(GROUPS[t.g].b / 2)}</button>`);
     if (!o.m) b.push(`<button class="btn small" data-a="mort" data-i="${i}" ${Engine.canMort(st, seat, i) ? '' : 'disabled'}>დაგირავება ${coin(t.p / 2)}</button>`);
     else if (L.build) b.push(`<button class="btn small" data-a="unmort" data-i="${i}" ${st.players[seat].cash >= Engine.unmortCost(i) ? '' : 'disabled'}>გამოსყიდვა ${coin(Engine.unmortCost(i))}</button>`);
     const why = t.k === 'p' && o.lv < 5 ? Engine.buildBlock(st, seat, i) : '';
@@ -12094,13 +12963,14 @@ const Sheet = (() => {
       if (picture && picture.crop) return `<svg class="asset-picture" viewBox="${picture.crop.join(' ')}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><image href="${esc(ART(picture.name))}" width="1000" height="400"/></svg>`;
       return `<img class="asset-picture" src="${picture ? esc(ART(picture.name)) : seaArt(t)}" alt="" decoding="async" loading="lazy">`;
     }
+    if (city()) return `<img class="asset-picture" src="${ART(cityPicture(t))}" alt="" decoding="async" loading="lazy">`;
     return `<img class="asset-picture" src="${ART(t.k === 'p' ? SCENES[t.g] : t.k === 'road' ? 'g_pass' : 'g_elbrus')}" alt="" decoding="async" loading="lazy">`;
   }
   function assetCard(st, i, options = {}) {
     const t = BOARD[i], o = st.own[i], owner = o && st.players[o.o], lv = o ? o.lv : 0;
     const color = t.k === 'p' ? GROUPS[t.g].c : t.k === 'road' ? '#a57843' : '#4b929b';
     const type = sea() ? seaLotType(t) : t.k === 'p' ? W.town : t.k === 'road' ? W.road : W.util;
-    const state = t.k === 'p' ? lv === 5 ? `1 ${W.fort}` : lv ? `${lv} ${W.tower}` : sea() ? 'გაუშენებელი კუნძული' : 'გაუშენებელი მიწა' : t.k === 'road' ? W.roads : W.util;
+    const state = t.k === 'p' ? lv === 5 ? `1 ${W.fort}` : lv ? `${lv} ${W.tower}` : sea() ? 'გაუშენებელი კუნძული' : W.bare || 'გაუშენებელი მიწა' : t.k === 'road' ? W.roads : W.util;
     const rent = t.k === 'util' && o && !o.m ? `<b>კამათელი ×${UTIL_MULT[Engine.countOf(st, o.o, UTILS)]}</b>` : coin(Engine.rentAt(st, i, 7));
     const pick = options.pick, button = pick ? `data-pick="${pick}" data-i="${i}" aria-pressed="${!!options.selected}"` : `data-deed="${i}"`;
     return `<article class="asset-card${options.selected ? ' is-selected' : ''}${o && o.m ? ' is-mortgaged' : ''}" data-property="${i}" style="--g:${color};--owner:${o ? SEAT_COLORS[o.o] : '#a9874c'}">
@@ -12193,13 +13063,13 @@ const Sheet = (() => {
       const title = g.completed ? 'ასრულებ ჯგუფს' : g.broken ? 'კარგავ სრულ ჯგუფს' : g.after > g.before ? 'უახლოვდები სრულ ჯგუფს' : g.after < g.before ? 'ჯგუფში ნაკლები ქონება გრჩება' : 'ჯგუფის რაოდენობა უცვლელია';
       let detail = '';
       if (g.after === g.total) {
-        detail = `ჯგუფი შენია. ${sea() ? 'ქოხები' : 'კოშკები'} უნდა აშენდეს თანაბრად; თითო მშენებლობა ${fmt(g.buildCost)} ღირს.`;
+        detail = `ჯგუფი შენია. ${sea() ? 'ქოხები' : city() ? 'სახლები' : 'კოშკები'} უნდა აშენდეს თანაბრად; თითო მშენებლობა ${fmt(g.buildCost)} ღირს.`;
         if (g.mortgaged.length) detail += ` ჯერ გამოისყიდე დაგირავებული ქონება: ${fmt(g.redemptionCost)}.`;
         if (!g.firstBuildAffordable) detail += ' გარიგების შემდეგ დარჩენილი თანხა გამოსყიდვასა და პირველ მშენებლობას ერთად არ ჰყოფნის.';
         else detail += g.buildTurnReady ? ' თანხა პირველ მშენებლობასაც ჰყოფნის.' : ' მშენებლობას შენს სვლაზე შეძლებ.';
       } else if (g.broken) detail = 'ამ ჯგუფში ვეღარ ააშენებ, სანამ სრულად არ დაიბრუნებ. გაუშენებელი ქონების ქირაც მცირდება.';
       else detail = g.after ? `მშენებლობისთვის საჭიროა ${g.total}-ვე ${W.town}.` : 'ამ ჯგუფში ქონება აღარ გრჩება.';
-      return `<article class="trade-impact ${g.completed ? 'positive' : g.broken || g.after < g.before ? 'caution' : 'neutral'}" style="--g:${group.c}"><h4>${esc(title)} · ${esc(group.n)}</h4><div class="trade-count">${g.before} / ${g.total} <span aria-label="გაცვლის შემდეგ">→</span> <b>${g.after} / ${g.total}</b></div><p class="trade-detail">${esc(detail)}</p>${g.missing.length && g.after ? `<p class="trade-missing">კიდევ აკლია: ${g.missing.map(i=>esc(tName(i))).join(', ')}</p>` : ''}${g.after === g.total ? `<p class="trade-steps">${sea() ? '4 ქოხი თითო კუნძულზე → შემდეგ სასტუმრო' : '4 კოშკი თითო ქალაქში → შემდეგ ციხე-სიმაგრე'}. ყოველი საფეხური ცალკე ფასიანია.</p>` : ''}</article>`;
+      return `<article class="trade-impact ${g.completed ? 'positive' : g.broken || g.after < g.before ? 'caution' : 'neutral'}" style="--g:${group.c}"><h4>${esc(title)} · ${esc(group.n)}</h4><div class="trade-count">${g.before} / ${g.total} <span aria-label="გაცვლის შემდეგ">→</span> <b>${g.after} / ${g.total}</b></div><p class="trade-detail">${esc(detail)}</p>${g.missing.length && g.after ? `<p class="trade-missing">კიდევ აკლია: ${g.missing.map(i=>esc(tName(i))).join(', ')}</p>` : ''}${g.after === g.total ? `<p class="trade-steps">${sea() ? '4 ქოხი თითო კუნძულზე → შემდეგ სასტუმრო' : W.steps || '4 კოშკი თითო ქალაქში → შემდეგ ციხე-სიმაგრე'}. ყოველი საფეხური ცალკე ფასიანია.</p>` : ''}</article>`;
     });
     for (const [key,label] of [['roads',W.roads],['utilities',W.util]]) {
       const value = result[key];
@@ -12471,24 +13341,26 @@ const UI = (() => {
 
 // ===== the menu, the room's lobby, and starting up =====
 
-// this device's player: a name, a hero for each world (a king or a hero for მამული, a pirate for the archipelago), and
-// the world last played here (a new room starts in it)
+// this device's player: a name, a hero for each world (a king or a hero for მამული and ტფილისი, a pirate for the
+// archipelago), and the world last played here (a new room starts in it)
 const PROFILE = (() => {
   const p = store.get('profile') || {}, of = (h, t) => HEROES[h] && HEROES[h].t === t;
   return { hero: of(p.hero, 'mamuli') ? p.hero : 'david', pirate: of(p.pirate, 'archipelago') ? p.pirate : 'blackbeard',
     theme: THEMES[p.theme] ? p.theme : 'mamuli', name: Engine.cleanName(p.name || '') };
 })();
 const saveProfile = () => store.set('profile', PROFILE);
-// both worlds are offered in the lobby (a world still being made could be held back here)
+// all the worlds are offered in the lobby (a world still being made could be held back here)
 const WORLDS_OPEN = true;
-const heroPrefs = () => ({ mamuli: PROFILE.hero, archipelago: PROFILE.pirate });
+const heroPrefs = () => ({ mamuli: PROFILE.hero, archipelago: PROFILE.pirate, tbilisi: PROFILE.hero });
 const myName = () => PROFILE.name || HEROES[myHero()].s;
 
-// ----- the first screen: the world first (მამული's towns or the pirates' islands), then the hero, then the game -----
-// the two worlds as the first screen shows them: a picture, and what one does there
+// ----- the first screen: the world first (მამული's towns, the pirates' islands or Tbilisi's districts), then the hero, then
+// the game -----
+// the worlds as the first screen shows them: a picture, and what one does there
 const WORLD_CARDS = {
   mamuli: { pic: 'g_svan', at: '50% 32%', pitch: 'იყიდე ციხე-ქალაქები, ააშენე კოშკები და ივაჭრე მეგობრებთან' },
-  archipelago: { pic: 'bg_sea', at: '50% 38%', pitch: 'იყიდე განძის კუნძულები, ააშენე ქოხები და გააკოტრე მეტოქე მეკობრეები' }
+  archipelago: { pic: 'bg_sea', at: '50% 38%', pitch: 'იყიდე განძის კუნძულები, ააშენე ქოხები და გააკოტრე მეტოქე მეკობრეები' },
+  tbilisi: { pic: 'g_tbilisi', at: '50% 12%', pitch: 'იყიდე თბილისის უბნები, ააშენე სახლები და სასტუმროები და გააკოტრე მეტოქეები' }
 };
 const myHero = () => PROFILE.theme === 'archipelago' ? PROFILE.pirate : PROFILE.hero;
 const Menu = (() => {

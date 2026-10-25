@@ -34,14 +34,16 @@ const Board3D = (() => {
   let st = null, pos = [], turnSeat = -1, pickCb = null, built = false, mats = null, ownerMats = [], wheel = null;
   let landG = null, landTop = 4, fallFoot = null;
   const lotF = [], ringF = [];
-  // the world on the board: the land (models.js) or the archipelago's sea (sea.js), as the room's theme says; made again
-  // when the theme changes (see retheme)
+  // the world on the board: the land (models.js), the archipelago's sea (sea.js) or ტფილისი's city (city.js), as the room's
+  // theme says; made again when the theme changes (see retheme)
   let MOD = Models, worldBuilt = null, hemi = null, seaMesh = null;
   let marineLife = null, lagoonLife = null, reefLife = null, weatherLife = null;
   let placeModelsLife = null, mapPropsLife = null, placeEffects = null;
   const animatedModels = [];
   let modelDelta = 0;
-  const wantWorld = () => (typeof THEME !== 'undefined' && THEME.world === 'sea' && typeof SeaModels !== 'undefined' && SeaModels) ? 'sea' : 'land';
+  const wantWorld = () => typeof THEME === 'undefined' ? 'land'
+    : THEME.world === 'sea' && typeof SeaModels !== 'undefined' && SeaModels ? 'sea'
+    : THEME.world === 'city' && typeof CityModels !== 'undefined' && CityModels ? 'city' : 'land';
   const O = new T.Object3D();                              // for putting matrices together
 
   // ----- where things are -----
@@ -194,9 +196,9 @@ const Board3D = (() => {
       };
       const small = (text, y) => { x.fillStyle = soft; fit(x, text, 700, FONT.sans, 26, cw - 50); x.fillText(text, mid, y); };
       if (t.k === 'start') {
-        // the big arrow along the way
+        // the big arrow along the way (in the city Freedom Square's column stands there)
         x.fillStyle = '#c8372d'; x.strokeStyle = '#7a1d14'; x.lineWidth = 5;
-        x.beginPath(); x.moveTo(60, 196); x.lineTo(140, 146); x.lineTo(140, 176); x.lineTo(320, 176); x.lineTo(320, 216); x.lineTo(140, 216); x.lineTo(140, 246); x.closePath(); x.fill(); x.stroke();
+        if (wantWorld() !== 'city') { x.beginPath(); x.moveTo(60, 196); x.lineTo(140, 146); x.lineTo(140, 176); x.lineTo(320, 176); x.lineTo(320, 216); x.lineTo(140, 216); x.lineTo(140, 246); x.closePath(); x.fill(); x.stroke(); }
         big(words.start, 282, '#8d2a1f');
         x.fillStyle = '#2f7a2a'; x.font = `400 40px ${FONT.num}`;
         priceLine(x, mid - 40, 336, '+' + SALARY, '#2f7a2a', 40);
@@ -506,6 +508,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     f: `#include <map_fragment>
       {
         vec3 c = diffuseColor.rgb;
+        #ifndef DRY
         float wet = smoothstep( 0.1, 0.24, c.b - c.r ) * smoothstep( -0.06, 0.04, c.b - c.g );
         float steep = 1.0 - smoothstep( 0.5, 0.8, abs( normalize( vWN ).y ) );
         float fall = wet * steep, pool = wet * ( 1.0 - steep );
@@ -520,6 +523,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
         float w2 = sin( vWP.z * 17.0 - uTime * 0.95 + sin( vWP.x * 6.5 - uTime * 0.4 ) * 1.4 );
         diffuseColor.rgb *= 1.0 + pool * 0.12 * ( w1 * 0.5 - 0.25 );
         totalEmissiveRadiance += vec3( 0.16, 0.19, 0.2 ) * smoothstep( 0.55, 0.95, w1 * w2 ) * pool;
+        #endif
         #ifdef LAVA
           // a volcano's lava (orange, as no gold or sand is): it glows, and the glow wanders along its cracks
           float hot = smoothstep( 0.35, 0.6, c.r - c.b ) * smoothstep( 0.06, 0.16, c.g ) * ( 1.0 - smoothstep( 0.42, 0.55, c.g ) );
@@ -533,12 +537,15 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     sh.vertexShader = sh.vertexShader.replace('#include <common>', MODEL_WATER.vp).replace('#include <begin_vertex>', MODEL_WATER.v);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', MODEL_WATER.fp).replace('#include <map_fragment>', MODEL_WATER.f);
   };
-  const modelWaterKey = () => 'modelwater', modelLavaKey = () => 'modellava';
-  // (lava only where the model says it has some: elsewhere an orange sail would glow)
+  const modelWaterKey = () => 'modelwater', modelLavaKey = () => 'modellava', modelDryKey = () => 'modeldry';
+  // (lava only where the model says it has some: elsewhere an orange sail would glow; the city's models have no water of
+  // their own, so their blue glass and balconies stay as they are: only their leaves sway)
   function modelWater(m, lava) {
+    const dry = !lava && MOD && MOD.world === 'city';
     m.onBeforeCompile = modelWaterPatch;
-    m.customProgramCacheKey = lava ? modelLavaKey : modelWaterKey;
+    m.customProgramCacheKey = lava ? modelLavaKey : dry ? modelDryKey : modelWaterKey;
     if (lava) m.defines = Object.assign({}, m.defines, { LAVA: '' });
+    if (dry) m.defines = Object.assign({}, m.defines, { DRY: '' });
     return m;
   }
 
@@ -646,7 +653,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       lake(x, z, rx, rz, d, rot = 0, sea = false) { const [a, b] = W(x, z); Terrain.lake(a, b, rx * sx, rz * sz, d * sy, yaw + rot, sea); },
       pad(x, z, r) { const [a, b] = W(x, z); Terrain.pad(a, b, r * sr); },
       path(x1, z1, x2, z2, w, color) { const [a, b] = W(x1, z1), [c, d] = W(x2, z2); Terrain.path(a, b, c, d, w * sr, color); },
-      tint(color, snow = 9, spread) { Terrain.tint(cx, cz, color, snow, spread); },
+      tint(color, snow = 9, spread, rock) { Terrain.tint(cx, cz, color, snow, spread, rock); },
       ground(x, z) { const [a, b] = W(x, z); return Terrain.height(a, b) / sy; },
       // a point of the place, h (its units) above its land, on the board
       at(x, z, h = 0) { const [a, b] = W(x, z); return new T.Vector3(a, Terrain.height(a, b) + h * sy, b); }
@@ -655,7 +662,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
   // made in steps (each yield is a pause where the page may do other things): see prepare()
   function* buildStatic() {
     worldBuilt = wantWorld();
-    MOD = worldBuilt === 'sea' ? SeaModels : Models;
+    MOD = worldBuilt === 'sea' ? SeaModels : worldBuilt === 'city' ? CityModels : Models;
     Terrain.setWorld(MOD.world);
     scene.fog.color.set(MOD.world === 'sea' ? SEA_HAZE : HAZE);
     hemi.groundColor.set(MOD.world === 'sea' ? 0x4f8aa0 : 0x8a6a48);
@@ -741,8 +748,9 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       m.position.set(F.cx, 0, F.cz); m.rotation.y = F.yaw; m.castShadow = true; m.receiveShadow = true;
       landG.add(m); lotMesh[100 + k] = m;
     }
-    // the middle's own model, when there is one (then nothing is made for it here)
+    // the middle's own model, when there is one (then nothing is made for it here); the city's landmarks in the middle
     if (MOD.centerModel && typeof GLB !== 'undefined' && GLB) { placeCenter(MOD.centerModel); landTop = Math.max(landTop, MOD.centerModel.top); }
+    if (MOD.freeModels && typeof GLB !== 'undefined' && GLB) for (const d of MOD.freeModels) { if (d.topY) landTop = Math.max(landTop, d.topY); placeFree(d); }
     // the great mountain's church, village, forest and lake shore
     const ctr = MOD.center(Terrain.height);
     for (const step of ctr.steps) { yield; step(); }
@@ -888,7 +896,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       GLB.loadScene(d.url).then(pack => {
         if (landG !== land || !F) return;
         const g = new T.Group(), p = F.at(d.x || 0, d.z || 0, 0);
-        g.position.set(p.x, Terrain.SEA_Y + (d.y || 0), p.z); g.rotation.y = F.yaw + (d.ry || 0); g.scale.setScalar((d.s || 1) * TW);
+        g.position.set(p.x, (d.ground ? p.y : Terrain.SEA_Y) + (d.y || 0), p.z); g.rotation.y = F.yaw + (d.ry || 0); g.scale.setScalar((d.s || 1) * TW);
         if (d.own) g.position.y = Math.max(g.position.y, p.y);
         const model = nativeModel(pack, i);
         g.add(model); land.add(g);
@@ -903,8 +911,8 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       geometry.userData.keep = material.userData.keep = true;           // (kept for a board made again)
       modelWater(material);
       const g = new T.Group(), p = F.at(d.x || 0, d.z || 0, 0);
-      g.position.set(p.x, Terrain.SEA_Y + (d.y || 0), p.z); g.rotation.y = F.yaw + (d.ry || 0); g.scale.setScalar((d.s || 1) * TW);
-      if (d.own) g.position.y = Math.max(g.position.y, p.y);                  // (on the island made here)
+      g.position.set(p.x, (d.ground ? p.y : Terrain.SEA_Y) + (d.y || 0), p.z); g.rotation.y = F.yaw + (d.ry || 0); g.scale.setScalar((d.s || 1) * TW);
+      if (d.own) g.position.y = Math.max(g.position.y, p.y);                  // (on the island made here; ground: on the land there)
       const m = new T.Mesh(geometry, material);
       m.castShadow = true; m.receiveShadow = true; m.userData.i = i; m.userData.model = true;
       g.add(m); prepareMaterials(g); landG.add(g);
@@ -939,11 +947,32 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       m.rotation.y=d.ry||0;m.updateMatrixWorld(true);
       const box=new T.Box3().setFromObject(m),size=box.getSize(new T.Vector3()),middle=box.getCenter(new T.Vector3());
       m.position.set(-middle.x,-box.min.y,-middle.z);const scale=Math.min(C-.16,d.fitWidth||C-.16)/Math.max(size.x,size.z,.001);
-      g.position.set(0,TH+.012,0);g.scale.setScalar(scale);
+      g.position.set(d.x||0,TH+.012,d.z||0);g.scale.setScalar(scale);
       m.castShadow = true; m.receiveShadow = true; m.userData.i = i; m.userData.model = true;
       g.add(m); prepareMaterials(g); tile.add(g);cornerTitle(i,tile,TH+.012+size.y*scale);
       lotMesh[i] = m;
       shadowDirty = true;
+    }).catch(e => Diag.note('3d', `model ${d.url} not read: ${e && e.message}`));
+  }
+  // a model standing freely in the middle (the city's Narikala, Kartlis Deda, the bridges): board coordinates, on the
+  // ground there or on the river's water (a bridge's file has its water line at y = 0); top: the board's highest point
+  // (the camera keeps it in view)
+  function placeFree(d) {
+    const land = landG;
+    GLB.load(d.url).then(({ geometry, material }) => {
+      if (landG !== land) return;
+      geometry.userData.keep = material.userData.keep = true;
+      modelWater(material);
+      const water = d.on === 'water' ? Terrain.waterAt(d.x, d.z) : null;
+      const base = water != null ? water : d.on === 'water' && MOD.waterY != null ? MOD.waterY : Terrain.height(d.x, d.z);
+      const m = new T.Mesh(geometry, material);
+      m.position.set(d.x, base + (d.y || 0), d.z); m.rotation.y = d.ry || 0; m.scale.setScalar(d.s || 1);
+      m.castShadow = true; m.receiveShadow = true; m.userData.model = true;
+      prepareMaterials(m); landG.add(m);
+      if (!geometry.boundingBox) geometry.computeBoundingBox();
+      if (d.top) { landTop = Math.max(landTop, m.position.y + geometry.boundingBox.max.y * (d.s || 1)); if (cam) distances(); }
+      shadowDirty = true;
+      Diag.note('3d', `model ${d.url}: ${geometry.index ? geometry.index.count / 3 : 0} triangles`);
     }).catch(e => Diag.note('3d', `model ${d.url} not read: ${e && e.message}`));
   }
   // the middle's model: in the board's middle, its water line on the sea's, made lower by sy
@@ -1225,7 +1254,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     for (const [x, z] of CF.sheep) add(actorOf({ k: 'sheep', at: [x, z], r: 0.09, s: 1.35 }, (xx, zz) => ground(xx, zz), null, -1, rnd() * 20));
     for (const a of CF.actors || []) add(actorOf(a, ground, null, -1, rnd() * 20));
     const [px, pz] = MOD.CENTER.peak, isl = MOD.world === 'sea';       // the volcano's clouds: fewer, smaller and higher
-    for (let k = 0; k < (isl && MOD.centerModel && MOD.centerModel.animated ? 0 : isl ? 3 : 4); k++) {
+    for (let k = 0; k < (MOD.clouds != null ? MOD.clouds : isl && MOD.centerModel && MOD.centerModel.animated ? 0 : isl ? 3 : 4); k++) {
       const r = (isl ? 1.45 : 1.0) + 0.3 * (k % 2) + 0.08 * k, h = landTop * (isl ? 0.86 + 0.08 * k : 0.56 + 0.06 * k), w = 0.045 + 0.012 * k, a0 = k * 1.7, cs = (isl ? 0.4 : 0.6) + 0.12 * (k % 3), ph = k * 2.1;
       add({ k: 'cloud', up(t, o) { const a = a0 + w * t; o.p.set(px + Math.cos(a) * r, h + 0.05 * Math.sin(t * 0.3 + ph), pz + Math.sin(a) * r); o.yaw = -a - Math.PI / 2; o.s = cs; } });
     }

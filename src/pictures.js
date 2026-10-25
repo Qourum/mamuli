@@ -1,6 +1,7 @@
-// ===== the archipelago's pictures =====
+// ===== the archipelago's pictures, and ტფილისი's =====
 // Which picture each place shows on its card (they are files in art/), the sea and island drawn for one that has none, and
-// the small icons: a hut and a sea fort for the levels, the castaway's islet and the fisherman's boat, a ship.
+// the small icons: a hut and a sea fort for the levels, the castaway's islet and the fisherman's boat, a ship; for the
+// city its districts' cards and its own icons (at the end).
 
 // a picture written as SVG, ready for src="" or url('') (no quotes are left in it)
 const svgUri = s => 'data:image/svg+xml,' + encodeURIComponent(s.replace(/\s*\n\s*/g, ' '));
@@ -96,3 +97,19 @@ const SEAFORT_SVG = '<svg viewBox="0 0 30 28" aria-hidden="true"><path d="M3 27V
 const ISLE_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M1 17q9-6.5 18 0z" fill="#e8d59a"/><path d="M9.5 15.5q-.5-6 2.5-10" stroke="#7a4a22" stroke-width="1.6" fill="none"/><g fill="#4f9a46"><path d="M12 5.5q-5-1.5-8.5 2q4-2.5 8.5-2z"/><path d="M12 5.5q5-2 7.5 1.2q-4-2.2-7.5-1.2z"/><path d="M12 5.5q1-4.3 5-4.3q-3 1.2-5 4.3z"/><path d="M12 5.5q-2-4-6-3q4 .2 6 3z"/></g><path d="M0 18.5h20" stroke="#4ea4f0" stroke-width="2"/></svg>';
 const BOAT_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 11.5h16l-3.2 5H5.2z" fill="#a8743f" stroke="#5a3a1e" stroke-width="1.2" stroke-linejoin="round"/><path d="M10 11.5V2" stroke="#5a3a1e" stroke-width="1.2"/><path d="M10.7 2.6l6 7.4h-6z" fill="#f3e8d0" stroke="#5a3a1e" stroke-width=".8"/><path d="M1 18.5q2.5-1.5 5 0t5 0 5 0 4 0" stroke="#4ea4f0" stroke-width="1.4" fill="none"/></svg>';
 const SHIP_SVG = '<svg viewBox="0 0 30 30" aria-hidden="true"><path d="M3 19h24l-4 6H7z" fill="#5a3a22" stroke="#2c1b10" stroke-width="1.2" stroke-linejoin="round"/><path d="M11 19V5M19 19V3" stroke="#2c1b10" stroke-width="1.4"/><path d="M5.5 7q4 4 0 9h10q2-4.5 0-9zM13.5 5q5 5 0 11h11q2-5.5 0-11z" fill="#f3e8d0" stroke="#8a7350" stroke-width=".9"/><path d="M19 3h5l-1.4 1.6L24 6.2h-5z" fill="#1d1a1e"/><path d="M1 27.5q3-1.6 6 0t6 0 6 0 6 0 4 0" stroke="#4ea4f0" stroke-width="1.5" fill="none"/></svg>';
+
+// ----- ტფილისი's pictures: each district's card (art/card_tb_NN_*.jpg: the generated pictures, and the landmarks' for the
+// squares that have a model), Tbilisi's landscape where a square has none of its own; its icons: a house with a wooden
+// balcony and a hotel for the levels, a car in the traffic jam, the green wave, Kinto's tray -----
+const CITY_CARDS = { 0: '00_freedom_square', 1: '01_ortachala', 3: '03_ponichala', 4: '04_bank', 5: '05_station', 6: '06_varketili', 8: '08_samgori', 9: '09_isani',
+  11: '11_avlabari', 12: '12_tbilisi_sea', 13: '13_chughureti', 14: '14_aghmashenebeli', 15: '15_metro', 18: '18_nadzaladevi', 19: '19_didube', 20: '20_embankment',
+  21: '21_dighomi', 23: '23_vashlijvari', 24: '24_saburtalo', 25: '25_cable_car', 26: '26_vera', 27: '27_vake', 28: '28_zahes', 29: '29_vake_park',
+  31: '31_turtle_lake', 32: '32_rustaveli', 34: '34_mtatsminda', 35: '35_funicular', 37: '37_sololaki', 39: '39_old_tbilisi' };
+const cityPicture = t => CITY_CARDS[t.i] ? 'card_tb_' + CITY_CARDS[t.i] + '.jpg' : 'g_tbilisi';
+const HOUSE_SVG = '<svg viewBox="0 0 22 28" aria-hidden="true"><path d="M3 27V12h16v15z" fill="#eadcc0" stroke="#4f3a28" stroke-width="1.4"/><path d="M1 13L11 4l10 9z" fill="currentColor" stroke="#4f3a28" stroke-width="1.4" stroke-linejoin="round"/><path d="M3.5 15.5h15v4h-15z" fill="#6b8f88" stroke="#4f3a28" stroke-width="1"/><path d="M5 15.5v4M8 15.5v4M11 15.5v4M14 15.5v4M17 15.5v4" stroke="#4f3a28" stroke-width=".6"/><path d="M9 27v-5h4v5" fill="#5b3a24"/></svg>';
+const HOTEL_SVG = '<svg viewBox="0 0 26 30" aria-hidden="true"><path d="M3 29V6h20v23z" fill="#d9d2c3" stroke="#3f4650" stroke-width="1.4"/><path d="M2 3h22v4H2z" fill="currentColor" stroke="#3f4650" stroke-width="1.2"/><g fill="#5b7889"><path d="M6 9h4v3H6zM11 9h4v3h-4zM16 9h4v3h-4zM6 14h4v3H6zM11 14h4v3h-4zM16 14h4v3h-4zM6 19h4v3H6zM16 19h4v3h-4z"/></g><path d="M10.5 29v-6h5v6" fill="#86a8bb" stroke="#3f4650" stroke-width=".8"/></svg>';
+const JAM_SVG = '<svg viewBox="0 0 24 20" aria-hidden="true"><path d="M2 13l2-5h11l3 5h4v4H2z" fill="#c23a2e" stroke="#3a1c16" stroke-width="1.2" stroke-linejoin="round"/><path d="M5.5 8.6h4v3.6h-5zM11 8.6h3.4l2 3.6H11z" fill="#8aabbd"/><circle cx="6.5" cy="17" r="2" fill="#222"/><circle cx="17" cy="17" r="2" fill="#222"/></svg>';
+const GREEN_SVG = '<svg viewBox="0 0 14 26" aria-hidden="true"><path d="M7 25V19" stroke="#3a3c40" stroke-width="2"/><rect x="2" y="1" width="10" height="18" rx="2.5" fill="#2a2d31"/><circle cx="7" cy="5" r="2.2" fill="#4a2a24"/><circle cx="7" cy="10" r="2.2" fill="#4a3d1e"/><circle cx="7" cy="15" r="2.4" fill="#4cd964"/></svg>';
+const KINTO_SVG = '<svg viewBox="0 0 40 40" aria-hidden="true"><ellipse cx="20" cy="32" rx="17" ry="5" fill="#9a6a3a" stroke="#4f3016" stroke-width="1.4"/><circle cx="12" cy="27" r="4.4" fill="#d94a2e"/><circle cx="20" cy="25.5" r="4.6" fill="#f0a530"/><circle cx="28" cy="27" r="4.2" fill="#7cae3a"/><circle cx="16" cy="23" r="3.2" fill="#8a3a6a"/><path d="M15.4 6.6a4.6 4.6 0 1 1 6.6 4.1c-1.4.7-2 1.4-2 2.9" fill="none" stroke="#2c1b10" stroke-width="2.6" stroke-linecap="round"/><circle cx="20" cy="17.6" r="1.7" fill="#2c1b10"/></svg>';
+const TRAIN_SVG = '<svg viewBox="0 0 30 30" aria-hidden="true"><rect x="6" y="3" width="18" height="21" rx="4" fill="#f3efe6" stroke="#2c3138" stroke-width="1.4"/><path d="M6.7 15h16.6v4H6.7z" fill="#c23a2e"/><path d="M9 6h12v7H9z" fill="#5b7889"/><circle cx="10.5" cy="21" r="1.4" fill="#ffe9a8"/><circle cx="19.5" cy="21" r="1.4" fill="#ffe9a8"/><path d="M9 24l-3 4M21 24l3 4M4 28h22" stroke="#2c3138" stroke-width="1.4" stroke-linecap="round"/></svg>';
+const CITY_ESTATE = svgUri(HOUSE_SVG.replace('currentColor', '#b35a3c').replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '));

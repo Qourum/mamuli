@@ -83,7 +83,7 @@ const GLB = (() => {
             await deadline(prepareTextures(asset,job.url),job.url+' textures');retainScene(asset.scene);
             asset.scene.traverse(o => { if (o.isMesh) { const g=o.geometry; counts.vertices+=g.attributes.position.count; counts.triangles+=(g.index?g.index.count:g.attributes.position.count)/3; } });
             if (job.url.startsWith('art/mobile/')) counts.lodModels++;
-          } else asset=await deadline(make(buffer),job.url+' parse');
+          } else { asset=await deadline(make(buffer),job.url+' parse'); if (job.url.startsWith('art/mobile/')) counts.lodModels++; }
           item.done=true;if(job.requests.every(r=>r.done)){job.closed=true;if(jobs.get(job.url)===job)jobs.delete(job.url);}item.resolve(asset);
         } catch(error){failed=true;rejectRequest(job,item,error);}
       }
@@ -290,7 +290,9 @@ const GLB = (() => {
     };
     return attempt().catch(async error=>{if(error.retryable===false)throw error;counts.retries++;await pause(250);return attempt();});
   }
-  function load(url, priority=0) {return request('static',url,priority,cache);}
+  // ტფილისი's landmarks are static models with a phone's version of their own (art/mobile, baked by tools/tb_make.mjs)
+  function staticURL(url) { return policy.mobile && /^art\/m_tb_[a-z]+\.glb$/.test(url) ? url.replace('art/', 'art/mobile/') : url; }
+  function load(url, priority=0) {return request('static',staticURL(url),priority,cache);}
   function parseScene(buf, path = '') {
     if (!window.MamuliGLTFLoader) return Promise.reject(new Error('the animated GLB reader is unavailable'));
     return new Promise((resolve, reject) => new window.MamuliGLTFLoader().parse(buf, path, resolve, reject));

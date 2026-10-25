@@ -1,23 +1,25 @@
 // ===== the menu, the room's lobby, and starting up =====
 
-// this device's player: a name, a hero for each world (a king or a hero for მამული, a pirate for the archipelago), and
-// the world last played here (a new room starts in it)
+// this device's player: a name, a hero for each world (a king or a hero for მამული and ტფილისი, a pirate for the
+// archipelago), and the world last played here (a new room starts in it)
 const PROFILE = (() => {
   const p = store.get('profile') || {}, of = (h, t) => HEROES[h] && HEROES[h].t === t;
   return { hero: of(p.hero, 'mamuli') ? p.hero : 'david', pirate: of(p.pirate, 'archipelago') ? p.pirate : 'blackbeard',
     theme: THEMES[p.theme] ? p.theme : 'mamuli', name: Engine.cleanName(p.name || '') };
 })();
 const saveProfile = () => store.set('profile', PROFILE);
-// both worlds are offered in the lobby (a world still being made could be held back here)
+// all the worlds are offered in the lobby (a world still being made could be held back here)
 const WORLDS_OPEN = true;
-const heroPrefs = () => ({ mamuli: PROFILE.hero, archipelago: PROFILE.pirate });
+const heroPrefs = () => ({ mamuli: PROFILE.hero, archipelago: PROFILE.pirate, tbilisi: PROFILE.hero });
 const myName = () => PROFILE.name || HEROES[myHero()].s;
 
-// ----- the first screen: the world first (მამული's towns or the pirates' islands), then the hero, then the game -----
-// the two worlds as the first screen shows them: a picture, and what one does there
+// ----- the first screen: the world first (მამული's towns, the pirates' islands or Tbilisi's districts), then the hero, then
+// the game -----
+// the worlds as the first screen shows them: a picture, and what one does there
 const WORLD_CARDS = {
   mamuli: { pic: 'g_svan', at: '50% 32%', pitch: 'იყიდე ციხე-ქალაქები, ააშენე კოშკები და ივაჭრე მეგობრებთან' },
-  archipelago: { pic: 'bg_sea', at: '50% 38%', pitch: 'იყიდე განძის კუნძულები, ააშენე ქოხები და გააკოტრე მეტოქე მეკობრეები' }
+  archipelago: { pic: 'bg_sea', at: '50% 38%', pitch: 'იყიდე განძის კუნძულები, ააშენე ქოხები და გააკოტრე მეტოქე მეკობრეები' },
+  tbilisi: { pic: 'g_tbilisi', at: '50% 12%', pitch: 'იყიდე თბილისის უბნები, ააშენე სახლები და სასტუმროები და გააკოტრე მეტოქეები' }
 };
 const myHero = () => PROFILE.theme === 'archipelago' ? PROFILE.pirate : PROFILE.hero;
 const Menu = (() => {

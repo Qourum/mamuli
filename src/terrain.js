@@ -93,12 +93,13 @@ const Terrain = (() => {
   // the height of the land inside the board, before the flat places
   function raw(x, z) {
     if (!bins) binIt();
-    let h = sea ? BED + 0.035 * fbm(x * 0.9 + 3, z * 0.9 - 2) : 0.03 + 0.028 * fbm(x * 1.15 + 3, z * 1.15 - 2);
+    let h = sea ? BED + 0.035 * fbm(x * 0.9 + 3, z * 0.9 - 2) : 0.03 + 0.028 * fbm(x * 1.15 + 3, z * 1.15 - 2), late = 0;
     const i = Math.floor((x - B0) / BIN), j = Math.floor((z - B0) / BIN);
-    if (i >= 0 && j >= 0 && i < NB && j < NB) for (const f of bins[j * NB + i]) h += value(f, x, z);
-    // along the ring of squares the land comes down to meet them (the sea's floor comes up to a shallow lagoon there)
+    if (i >= 0 && j >= 0 && i < NB && j < NB) for (const f of bins[j * NB + i]) { const v = value(f, x, z); if (f.late) late = Math.min(late, v); else h += v; }
+    // along the ring of squares the land comes down to meet them (the sea's floor comes up to a shallow lagoon there);
+    // a river's bed (late) goes on under them
     const m = Math.max(Math.abs(x), Math.abs(z)), rim = sea ? RIM_SEA : RIM_Y;
-    return rim + (h - rim) * smooth(RIM, RIM - 0.34, m);
+    return rim + (h - rim) * smooth(RIM, RIM - 0.34, m) + late;
   }
   function height(x, z) {
     let h = raw(x, z);
@@ -117,6 +118,15 @@ const Terrain = (() => {
     return h;
   }
 
+  function curve(ctrl, n) {
+    const out = [], P = k => ctrl[Math.max(0, Math.min(ctrl.length - 1, k))];
+    for (let k = 0; k < ctrl.length - 1; k++) for (let j = 0; j < n; j++) {
+      const t = j / n, t2 = t * t, t3 = t2 * t, a = P(k - 1), b = P(k), c = P(k + 1), e = P(k + 2);
+      out.push([0, 1].map(q => 0.5 * (2 * b[q] + (c[q] - a[q]) * t + (2 * a[q] - 5 * b[q] + 4 * c[q] - e[q]) * t2 + (3 * b[q] - a[q] - 3 * c[q] + e[q]) * t3)));
+    }
+    out.push(ctrl[ctrl.length - 1].slice());
+    return out;
+  }
   // ----- what the regions call (board coordinates) -----
   const api = {
     peak: (x, z, reach, h, seed = 1) => put({ t: 'peak', x, z, reach, h, seed }),
@@ -128,6 +138,14 @@ const Terrain = (() => {
     // a lake (its water: true for the sea's colour, 'lava' for a volcano's crater)
     lake: (x, z, rx, rz, d, rotation = 0, kind = false) => { const f = put({ t: 'lake', x, z, rx, rz, d, rot: rotation }); waters.push({ k: 'lake', f, sea: kind === true || kind === 'sea', lava: kind === 'lava' }); return f; },
     fall: (x1, y1, z1, x2, y2, z2, w) => waters.push({ k: 'fall', a: [x1, y1, z1], b: [x2, y2, z2], w }),
+    // a river at one level (a city's): a smooth line through the points, its bed dug w either side of it and d deep
+    // (under the squares too), its water at height y, ww wide; colour its own
+    flow: (ctrl, w, d, y, ww, color = 0x4f8a8c) => {
+      const pts = curve(ctrl, 8);
+      for (let k = 1; k < pts.length; k++) put({ t: 'dig', x1: pts[k - 1][0], z1: pts[k - 1][1], x2: pts[k][0], z2: pts[k][1], w, d, late: true });
+      waters.push({ k: 'flow', pts, y, hw: ww / 2, c: new T.Color(color) });
+      return pts;
+    },
     // level ground for a building: the land around it is brought to the height at its middle
     pad: (x, z, r) => { pads.push({ x, z, r, y: null }); },
     path: (x1, z1, x2, z2, w, color = 0xa48c64) => paths.push({ x1, z1, x2, z2, w, c: new T.Color(color) }),
@@ -253,6 +271,18 @@ const Terrain = (() => {
         C1.set(w.lava ? LAVA : w.sea ? SEA : WATER);
         const at = k => { const a = k / n * Math.PI * 2, lx = Math.cos(a) * f.rx * 0.97, lz = Math.sin(a) * f.rz * 0.97; return [f.x + lx * c + lz * s, y, f.z - lx * s + lz * c]; };
         for (let k = 0; k < n; k++) tri([f.x, y, f.z], at(k + 1), at(k), C1, w.lava ? 5 : 1);
+      } else if (w.k === 'flow') {
+        // a ribbon along the line at the river's level, its sides turned halfway between one piece and the next
+        const p = w.pts, n = p.length, side = [];
+        for (let k = 0; k < n; k++) {
+          const a = p[Math.max(0, k - 1)], b = p[Math.min(n - 1, k + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1;
+          side.push([-dz / l * w.hw, dx / l * w.hw]);
+        }
+        for (let k = 1; k < n; k++) {
+          const L0 = [p[k - 1][0] + side[k - 1][0], w.y, p[k - 1][1] + side[k - 1][1]], R0 = [p[k - 1][0] - side[k - 1][0], w.y, p[k - 1][1] - side[k - 1][1]];
+          const L1 = [p[k][0] + side[k][0], w.y, p[k][1] + side[k][1]], R1 = [p[k][0] - side[k][0], w.y, p[k][1] - side[k][1]];
+          tri(L0, L1, R0, w.c, 1); tri(R0, L1, R1, w.c, 1);
+        }
       } else if (w.k === 'fall') {
         // off the lip it arcs out, clear of the rock, and spreads as it falls
         const [a, b] = [w.a, w.b], dx = b[0] - a[0], dz = b[2] - a[2], l = Math.hypot(dx, dz) || 1, ux = dx / l, uz = dz / l, px = -uz * w.w / 2, pz = ux * w.w / 2;
@@ -417,6 +447,11 @@ const Terrain = (() => {
   // the water's surface where (x, z) lies in a lake (or the sea), or null
   function waterAt(x, z) {
     for (const w of waters) {
+      if (w.k === 'flow') {
+        const p = w.pts;
+        for (let k = 1; k < p.length; k++) if (segQ({ x1: p[k - 1][0], z1: p[k - 1][1], x2: p[k][0], z2: p[k][1], w: w.hw }, x, z)[0] < 1) return w.y;
+        continue;
+      }
       if (w.k !== 'lake' || w.lava) continue;
       const f = w.f, [lx, lz] = rot(f, x, z);
       if ((lx / f.rx) ** 2 + (lz / f.rz) ** 2 < 1) { const y = height(f.x, f.z) + f.d * 0.55; if (!sea || y > SEA_Y + 0.01) return y; }

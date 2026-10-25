@@ -644,6 +644,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       sea: living(new T.MeshPhongMaterial({ vertexColors: true, shininess: 28, specular: 0x31565a, transparent: true, depthWrite: false }), true),
       cloud: new T.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.86 }),
       wing: new T.MeshLambertMaterial({ vertexColors: true, side: T.DoubleSide }),
+      glow: new T.MeshBasicMaterial({ vertexColors: true }),          // (a lamp that is lit: its colour whatever the light)
       plinthTop: new T.MeshLambertMaterial({ color: 0x4a2e1a }),
       plinthSide: new T.MeshLambertMaterial({ color: 0x6b4528 }),
       gold: new T.MeshLambertMaterial({ color: 0xe0ad45 }),
@@ -1235,7 +1236,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     }
     // walking, patrolling, sailing: there and back (into the tunnel: one way, again and again)
     const boat = a.k === 'boat';
-    const P = boat ? (x, z) => { const p = at(x, z), w = Terrain.waterAt(p.x, p.z); p.y = w != null ? w - 0.004 : p.y + 0.008; return p; }   // a lake's level, or a river's
+    const P = boat ? (x, z) => { const p = at(x, z), w = a.water != null ? a.water : Terrain.waterAt(p.x, p.z); p.y = w != null ? w - 0.004 : p.y + 0.008; return p; }   // a lake's level, or a river's (or its own: under a bridge too)
       : a.tunnel ? (x, z) => { const p = at(x, z); if (z < -0.06) p.y = at(x, -0.06).y; return p; }
       : (x, z) => at(x, z, a.h || 0);
     const way = wayOf(P, a.a, a.b), per = Math.max(1, way.len / (a.speed || 0.05)), k = boat && a.sail ? 'sail' : a.k, start = a.phase != null ? a.phase : ph;
@@ -1297,6 +1298,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     else for (const [x, z, h] of CF.mist) emit(ground(x, z, h), 3, 16);
     for (const [x, z] of CF.sheep) add(actorOf({ k: 'sheep', at: [x, z], r: 0.09, s: 1.35 }, (xx, zz) => ground(xx, zz), null, -1, rnd() * 20));
     for (const a of CF.actors || []) add(actorOf(a, ground, null, -1, rnd() * 20));
+    if (MOD.traffic) for (const a of MOD.traffic({ lite: mobile })) add(a);        // (the city's: cars on its roads)
     const [px, pz] = MOD.CENTER.peak, isl = MOD.world === 'sea';       // the volcano's clouds: fewer, smaller and higher
     for (let k = 0; k < (MOD.clouds != null ? MOD.clouds : isl && MOD.centerModel && MOD.centerModel.animated ? 0 : isl ? 3 : 4); k++) {
       const r = (isl ? 1.45 : 1.0) + 0.3 * (k % 2) + 0.08 * k, h = landTop * (isl ? 0.86 + 0.08 * k : 0.56 + 0.06 * k), w = 0.045 + 0.012 * k, a0 = k * 1.7, cs = (isl ? 0.4 : 0.6) + 0.12 * (k % 3), ph = k * 2.1;
@@ -1308,7 +1310,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     for (const k of MOD.LIFE) {
       const list = groups[k];
       if (!list) continue;
-      const im = new T.InstancedMesh(MOD.actor(k), k === 'cloud' ? mats.cloud : k === 'wing' || k === 'gwing' ? mats.wing : mats.scenery, list.length);
+      const im = new T.InstancedMesh(MOD.actor(k), k === 'cloud' ? mats.cloud : k === 'wing' || k === 'gwing' ? mats.wing : MOD.GLOW && MOD.GLOW.includes(k) ? mats.glow : mats.scenery, list.length);
       im.frustumCulled = false; im.receiveShadow = k !== 'cloud';
       root.add(im);
       life.groups.push({ k, mesh: im, list });

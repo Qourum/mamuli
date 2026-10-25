@@ -11,9 +11,11 @@
 //   3. its triangles sorted by place: the middle first, then each district (by its tile: TILES below; a corner's tile
 //      is shared by the two districts beside it, each taking the half nearer its own squares); the mesh's extras say
 //      which run of triangles is whose ([name, first index, index count]), glb.js passes them on
-//   4. the height of its top surface on a grid over the board (city.js: where things walk, sail and fly)
+//   4. the height of its top surface on a grid over the board (city.js: where things walk, sail and fly), and the roads
+//      the mends laid along the river's banks (city.js: where the cars drive)
 // node city_make.mjs IN.glb OUTDIR [--only desktop|mobile] [--k K] [--ground G] [--tris N --tex N --mtris N --mtex N
-//   --htris N] [--layout box|xatlas] [--clean 0] [--edits mends.json] [--city ../src/city.js (its height map put in)]
+//   --htris N] [--layout box|xatlas] [--clean 0] [--edits mends.json] [--city ../src/city.js (its height map and the
+//   embankments' roads put in)]
 // It needs, next to it: npm i @gltf-transform/core @gltf-transform/functions @gltf-transform/extensions meshoptimizer
 // sharp three@0.149 three-mesh-bvh@0.5 watlas; and python3 with opencv (paint_clean.py)
 import { NodeIO, VertexLayout } from '@gltf-transform/core';
@@ -59,7 +61,10 @@ const RING = 3.25;                                  // (inside it the middle)
 // (t: by [dx, dy, dz]; r: { axis 'x' | 'y' | 'z', deg, about [x, y, z] }; s: { k, about }), in that order; 'copy': the
 // same, the originals kept. Or a shape added, coloured by MENDS.SWATCHES[color]: 'box' (at: the middle of its bottom,
 // size, ry degrees, shift: moved in its own frame), 'cone' (at: its base's middle, r, h, n sides); 'fill': the holes in
-// the box (x, z, y ranges) closed; 'flatten': the points in the box within its y range brought to the height `to`
+// the box (x, z, y ranges; or near a path: { pts, half }) closed (down: holes in a surface facing down); 'flatten': the
+// points in the box within its y range brought to the height `to`; 'clear' and 'flattenPath': what stands along a path
+// taken away, the ground along it levelled; 'strip': a road's own surface laid along a path; 'disc': a hole covered
+// with a flat round patch (see them below)
 const EDITS = [...(F.mends === '0' ? [] : MENDS.EDITS), ...JSON.parse(F.edits ? fs.readFileSync(F.edits, 'utf8') : '[]')];
 const PAINT = F.mends === '0' ? null : MENDS.PAINT, SWATCHES = MENDS.SWATCHES;
 
@@ -117,11 +122,14 @@ if (EDITS.length) {
     for (const f of [[0, 1, 2], [0, 2, 3], [4, 6, 5], [4, 7, 6], [0, 5, 1], [0, 4, 5], [1, 6, 2], [1, 5, 6], [2, 7, 3], [2, 6, 7], [3, 4, 0], [3, 7, 4]]) I.push(v[f[0]], v[f[1]], v[f[2]]);
   }
   // the holes left where something was taken away (a loop of open edges inside the box, its points within its y range):
-  // closed with a flat patch, ear by ear (seen from above); the patch takes a picture coordinate of its edge (it is
-  // painted again anyway, or of the colour round it)
+  // closed with a flat patch, ear by ear (seen from above); the patch's points are its own, their picture coordinates
+  // past 4 down: bake.mjs gives it the colours of what is round it (and it may be painted again)
   function fill(e) {
+    const own = new Map(), mine = v => { if (!own.has(v)) { P.push(P[v * 3], P[v * 3 + 1], P[v * 3 + 2]); UVa.push(0.5, 4.5); own.set(v, P.length / 3 - 1); } return own.get(v); };
     const key = v => `${Math.round(P[v * 3] * 1e4)},${Math.round(P[v * 3 + 1] * 1e4)},${Math.round(P[v * 3 + 2] * 1e4)}`;
     const canon = new Map(), cid = v => { const k = key(v); let c = canon.get(k); if (c === undefined) { c = v; canon.set(k, c); } return c; };
+    if (e.path) { const b = pathFor(e.path).box, h = e.path.half; e = Object.assign({}, e, { x: [b[0] - h, b[1] + h], z: [b[2] - h, b[3] + h] }); }
+    const onPath = e.path ? (v => pathFor(e.path).near(P[v * 3], P[v * 3 + 2]).d ** 2 <= e.path.half ** 2) : () => true, up = e.down ? -1 : 1;
     const nt = I.length / 3, near = { x: [e.x[0] - 0.05, e.x[1] + 0.05], z: [e.z[0] - 0.05, e.z[1] + 0.05] }, dir = new Set();
     for (let t = 0; t < nt; t++) {
       if (!inside(near, t)) continue;
@@ -132,7 +140,7 @@ if (EDITS.length) {
     const out = new Map();
     for (const k of dir) { const [u, v] = k.split(',').map(Number); if (!dir.has(v + ',' + u)) { if (!out.has(v)) out.set(v, []); out.get(v).push(u); } }
     const inBox = v => P[v * 3] >= e.x[0] && P[v * 3] <= e.x[1] && P[v * 3 + 2] >= e.z[0] && P[v * 3 + 2] <= e.z[1] && P[v * 3 + 1] >= e.y[0] && P[v * 3 + 1] <= e.y[1];
-    const xz = v => [P[v * 3], P[v * 3 + 2]], turnUp = (a, b, c) => { const [ax, az] = xz(a), [bx, bz] = xz(b), [cx, cz] = xz(c); return (bz - az) * (cx - ax) - (bx - ax) * (cz - az); };
+    const xz = v => [P[v * 3], P[v * 3 + 2]], turnUp = (a, b, c) => { const [ax, az] = xz(a), [bx, bz] = xz(b), [cx, cz] = xz(c); return up * ((bz - az) * (cx - ax) - (bx - ax) * (cz - az)); };
     const inTri = (p, a, b, c) => turnUp(a, b, p) >= 0 && turnUp(b, c, p) >= 0 && turnUp(c, a, p) >= 0;
     let holes = 0, tris = 0, open = 0;
     for (const [s0, list] of out) while (list.length) {
@@ -140,9 +148,9 @@ if (EDITS.length) {
       let v = list.pop();
       while (v !== s0 && loop.length < 20000) { loop.push(v); const l = out.get(v); if (!l || !l.length) { v = undefined; break; } v = l.pop(); }
       if (v !== s0) { open++; continue; }
-      if (loop.length < 3 || !loop.every(inBox)) continue;
+      if (loop.length < 3 || !loop.every(inBox) || !loop.every(onPath)) continue;
       let area = 0; for (let k = 1; k + 1 < loop.length; k++) area += turnUp(loop[0], loop[k], loop[k + 1]);
-      if (area <= 0) continue;                               // (not a hole in a surface facing up)
+      if (area <= 0) continue;                               // (not a hole in a surface facing up, or with `down`, down)
       // ears: a corner turning the surface's way (up) with no other point of the loop inside it; what is left when no
       // ear is found, a fan round its middle
       const poly = loop.slice();
@@ -152,20 +160,90 @@ if (EDITS.length) {
           const a = poly[(k + poly.length - 1) % poly.length], b = poly[k], c = poly[(k + 1) % poly.length];
           if (turnUp(a, b, c) <= 1e-12) continue;
           if (poly.some(p => p !== a && p !== b && p !== c && inTri(p, a, b, c))) continue;
-          I.push(a, b, c); tris++; poly.splice(k, 1); cut = true; break;
+          I.push(mine(a), mine(b), mine(c)); tris++; poly.splice(k, 1); cut = true; break;
         }
         if (!cut) break;
       }
-      if (poly.length === 3) { I.push(poly[0], poly[1], poly[2]); tris++; }
+      if (poly.length === 3) { I.push(mine(poly[0]), mine(poly[1]), mine(poly[2])); tris++; }
       else if (poly.length > 3) {
         const m = [0, 1, 2].map(q => poly.reduce((a, v) => a + P[v * 3 + q], 0) / poly.length);
-        P.push(...m); UVa.push(UVa[poly[0] * 2], UVa[poly[0] * 2 + 1]);
+        P.push(...m); UVa.push(0.5, 4.5);
         const c = P.length / 3 - 1;
-        for (let k = 0; k < poly.length; k++) { I.push(c, poly[k], poly[(k + 1) % poly.length]); tris++; }
+        for (let k = 0; k < poly.length; k++) { I.push(c, mine(poly[k]), mine(poly[(k + 1) % poly.length])); tris++; }
       }
       holes++;
     }
     log(`mend: ${e.name || ''}: ${holes} holes closed, ${tris} triangles${open ? `, ${open} open edges left` : ''}`);
+  }
+  // a road's line (MENDS.pathOf), made once; `keep`: boxes whose triangles a mend leaves alone
+  const paths = new Map(), pathFor = q => { if (!paths.has(q.pts)) paths.set(q.pts, MENDS.pathOf(q.pts)); return paths.get(q.pts); };
+  const kept = (e, x, y, z) => (e.keep || []).some(b => (!b.x || (x >= b.x[0] && x <= b.x[1])) && (!b.y || (y >= b.y[0] && y <= b.y[1])) && (!b.z || (z >= b.z[0] && z <= b.z[1])));
+  const centre = t => [0, 1, 2].map(q => (P[I[t * 3] * 3 + q] + P[I[t * 3 + 1] * 3 + q] + P[I[t * 3 + 2] * 3 + q]) / 3);
+  // what stands along a path cleared away: the triangles above `above` near it, in pieces (joined by their corners); a
+  // piece no wider than `small` that reaches the path goes whole (a tree, a lamp). Of a bigger one (a hill's foot, a
+  // building, a raised square), what is on the path is pressed down to the height `to`: no hole is left, from what
+  // stays down to the path a wall (painted as one: city_mends.mjs). Only a bridge's low parts on the path go (a piece
+  // joined to what a `keep` box keeps: the path passes under it). Past the path's ends nothing is touched.
+  function clear(e) {
+    const W = pathFor(e.path), h = e.path.half, reach = h + e.small, [bx0, bx1, bz0, bz1] = W.box, nt = I.length / 3, cand = [], dist = new Map();
+    const key = v => `${Math.round(P[v * 3] * 1e4)},${Math.round(P[v * 3 + 1] * 1e4)},${Math.round(P[v * 3 + 2] * 1e4)}`, root = new Map(), keptAt = new Set();
+    for (let t = 0; t < nt; t++) {
+      const [x, y, z] = centre(t);
+      if (y < e.above || x < bx0 - reach || x > bx1 + reach || z < bz0 - reach || z > bz1 + reach) continue;
+      if (kept(e, x, y, z)) { for (let j = 0; j < 3; j++) keptAt.add(key(I[t * 3 + j])); continue; }      // (a bridge's high parts)
+      const q = W.near(x, z), d = Math.abs(q.d);
+      if (d <= reach && !q.end) { cand.push(t); dist.set(t, d); }
+    }
+    const find = k => { let r = k; while (root.get(r) !== r) r = root.get(r); let q = k; while (root.get(q) !== r) { const n = root.get(q); root.set(q, r); q = n; } return r; };
+    for (const t of cand) { const ks = [0, 1, 2].map(j => key(I[t * 3 + j])); for (const k of ks) if (!root.has(k)) root.set(k, k); root.set(find(ks[1]), find(ks[0])); root.set(find(ks[2]), find(ks[0])); }
+    const pieces = new Map();
+    for (const t of cand) { const r = find(key(I[t * 3])); if (!pieces.has(r)) pieces.set(r, []); pieces.get(r).push(t); }
+    const gone = new Set(), press = new Set();
+    let whole = 0, cut = 0, pressed = 0;
+    for (const list of pieces.values()) {
+      if (!list.some(t => dist.get(t) <= h)) continue;
+      let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+      for (const t of list) { const [x, , z] = centre(t); x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+      // (a piece that goes on past what was looked at is part of something bigger)
+      if (Math.max(x1 - x0, z1 - z0) <= e.small && !list.some(t => dist.get(t) > reach - 0.04)) { for (const t of list) gone.add(t); whole++; continue; }
+      const bridge = list.some(t => [0, 1, 2].some(j => keptAt.has(key(I[t * 3 + j]))));     // (it holds up what is kept)
+      if (bridge || e.to == null) { for (const t of list) if (dist.get(t) <= h) gone.add(t); cut++; }
+      else {
+        for (const t of list) if (dist.get(t) <= h) for (let j = 0; j < 3; j++) {
+          const v = I[t * 3 + j], q = W.near(P[v * 3], P[v * 3 + 2]);
+          if (Math.abs(q.d) <= h && !q.end) press.add(key(v));
+        }
+        pressed++;
+      }
+      if (F.verbose) log(`  ${bridge || e.to == null ? 'cut' : 'pressed'}: ${list.length} triangles over x ${x0.toFixed(2)}..${x1.toFixed(2)}, z ${z0.toFixed(2)}..${z1.toFixed(2)}`);
+    }
+    I = I.filter((_, k) => !gone.has(Math.floor(k / 3)));
+    // (every point at a pressed place goes down, the copies of a point along a seam in the picture too)
+    let n = 0;
+    if (press.size) for (let v = 0; v < P.length / 3; v++) {
+      const x = P[v * 3], z = P[v * 3 + 2];
+      if (x < bx0 - h - 0.01 || x > bx1 + h + 0.01 || z < bz0 - h - 0.01 || z > bz1 + h + 0.01) continue;
+      if (press.has(key(v))) { P[v * 3 + 1] = e.to; n++; }
+    }
+    log(`mend: ${e.name || ''}: ${gone.size} triangles taken away (${whole} small things whole, ${cut} bridges' low parts), ${pressed} big ones pressed down (${n} points)`);
+  }
+  // the ground along a path levelled: its points within `half` of it, within the y range, set to `to`
+  function flattenPath(e) {
+    const W = pathFor(e.path), h = e.path.half, [bx0, bx1, bz0, bz1] = W.box, seen = new Set();
+    // (the points of what is kept stay where they are, all of them)
+    for (let t = 0; t < I.length / 3; t++) { const [x, y, z] = centre(t); if (kept(e, x, y, z)) for (let j = 0; j < 3; j++) seen.add(I[t * 3 + j]); }
+    let n = 0;
+    for (let k = 0; k < I.length; k++) {
+      const v = I[k];
+      if (seen.has(v)) continue;
+      seen.add(v);
+      const x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2];
+      if (y < e.y[0] || y > e.y[1] || x < bx0 - h || x > bx1 + h || z < bz0 - h || z > bz1 + h) continue;
+      const q = W.near(x, z);
+      if (q.end || Math.abs(q.d) > h) continue;
+      P[v * 3 + 1] = e.to; n++;
+    }
+    log(`mend: ${e.name || ''}: ${n} points levelled`);
   }
   // the bumps of what was taken away pressed flat: the points in the box (x, z) within the y range set to `to`
   function flatten(e) {
@@ -178,6 +256,29 @@ if (EDITS.length) {
       if (x >= e.x[0] && x <= e.x[1] && z >= e.z[0] && z <= e.z[1] && y >= e.y[0] && y <= e.y[1]) P[v * 3 + 1] = e.to;
     }
     log(`mend: ${e.name || ''}: pressed flat`);
+  }
+  // a road's own surface, laid over what was levelled along its path (whatever is left under it, a fold or a hole, is
+  // covered, and left out as never seen): a strip `half` either side of the path at the height `y`, its points every
+  // point of the path and at `n` places across; a patch (its colours from what is round it, painted again)
+  function strip(e) {
+    const pts = e.path.pts, h = e.path.half, n = e.n || 6, row = [], m = pts.length;
+    for (let k = 0; k < m; k++) {
+      const a = pts[Math.max(0, k - 1)], b = pts[Math.min(m - 1, k + 1)], l = Math.hypot(b[0] - a[0], b[1] - a[1]), fx = (b[0] - a[0]) / l, fz = (b[1] - a[1]) / l;
+      const r = [];
+      for (let j = 0; j <= n; j++) { const d = -h + 2 * h * j / n; P.push(pts[k][0] - fz * d, e.y, pts[k][1] + fx * d); UVa.push(0.5, 4.5); r.push(P.length / 3 - 1); }
+      row.push(r);
+    }
+    const tri = (a, b, c) => { const ux = P[b * 3] - P[a * 3], uz = P[b * 3 + 2] - P[a * 3 + 2], wx = P[c * 3] - P[a * 3], wz = P[c * 3 + 2] - P[a * 3 + 2]; if (uz * wx - ux * wz > 0) I.push(a, b, c); else I.push(a, c, b); };
+    for (let k = 1; k < m; k++) for (let j = 0; j < n; j++) { const a = row[k - 1][j], b = row[k - 1][j + 1], c = row[k][j], d = row[k][j + 1]; tri(a, b, c); tri(b, d, c); }
+    log(`mend: ${e.name || ''}: ${(m - 1) * n * 2} triangles`);
+  }
+  // a hole a fill cannot close (its edge not one loop), covered: a flat round patch (at: its middle, r, n sides)
+  function disc(e) {
+    const [x, y, z] = e.at, n = e.n || 16, c = P.length / 3, ring = [];
+    P.push(x, y, z); UVa.push(0.5, 4.5);
+    for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2; P.push(x + e.r * Math.cos(a), y, z + e.r * Math.sin(a)); UVa.push(0.5, 4.5); ring.push(c + 1 + k); }
+    for (let k = 0; k < n; k++) I.push(c, ring[(k + 1) % n], ring[k]);       // (facing up)
+    log(`mend: ${e.name || ''}: covered`);
   }
   function cone(e) {
     const [x, y, z] = e.at, n = e.n || 10, base = vert(x, y, z, e.color), top = vert(x, y + e.h, z, e.color), ring = [];
@@ -193,6 +294,10 @@ if (EDITS.length) {
     if (e.op === 'box' || e.op === 'cone') { (e.op === 'box' ? box : cone)(e); continue; }
     if (e.op === 'fill') { fill(e); continue; }
     if (e.op === 'flatten') { flatten(e); continue; }
+    if (e.op === 'clear') { clear(e); continue; }
+    if (e.op === 'flattenPath') { flattenPath(e); continue; }
+    if (e.op === 'strip') { strip(e); continue; }
+    if (e.op === 'disc') { disc(e); continue; }
     const nt = I.length / 3, sel = [];
     for (let t = 0; t < nt; t++) if (inside(e, t)) sel.push(t);
     if (e.op === 'delete') { const gone = new Set(sel); I = I.filter((_, k) => !gone.has(Math.floor(k / 3))); log(`mend: ${e.name || ''}: ${sel.length} triangles taken away`); continue; }
@@ -236,6 +341,7 @@ const prim = d => d.getRoot().listMeshes()[0].listPrimitives()[0];
 const count = d => prim(d).getIndices().getCount() / 3;
 if (count(doc) > HTRIS) await doc.transform(simplify({ simplifier: MeshoptSimplifier, ratio: HTRIS / count(doc), error: 0.0005, lockBorder: false }));
 const p0 = prim(doc), HD = { pos: Float32Array.from(p0.getAttribute('POSITION').getArray()), uv: Float32Array.from(p0.getAttribute('TEXCOORD_0').getArray()), idx: Uint32Array.from(p0.getIndices().getArray()) };
+if (F.dumpHD) fs.writeFileSync(F.dumpHD, Buffer.concat([Buffer.from(new Uint32Array([HD.pos.length, HD.uv.length, HD.idx.length]).buffer), Buffer.from(HD.pos.buffer), Buffer.from(HD.uv.buffer), Buffer.from(HD.idx.buffer)]));
 const tex0 = root.listTextures()[0], img0 = await sharp(Buffer.from(tex0.getImage()), { limitInputPixels: false }).raw().toBuffer({ resolveWithObject: true });
 const TX = { data: img0.data, width: img0.info.width, height: img0.info.height, channels: img0.info.channels };
 log(`bake source: ${HD.idx.length / 3} triangles, picture ${TX.width}x${TX.height}`);
@@ -322,9 +428,16 @@ for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
 }
 const HM = { N, half, lo: LO, hi: HI, top: top.map(v => +v.toFixed(3)), data: Buffer.from(q).toString('base64') };
 fs.writeFileSync(path.join(OUTDIR, 'city_heights.json'), JSON.stringify(HM));
+// and the embankments' roads, where city.js's cars drive (only when the mends made them)
 if (F.city) {
-  const src = fs.readFileSync(F.city, 'utf8'), out = src.replace(/\/\*HEIGHTS\*\/[\s\S]*?\/\*HEIGHTS\*\//, () => '/*HEIGHTS*/' + JSON.stringify(HM) + '/*HEIGHTS*/');
-  if (out === src) log(`${F.city}: no /*HEIGHTS*/ place in it`); else { fs.writeFileSync(F.city, out); log(`${F.city}: its height map written in`); }
+  let src = fs.readFileSync(F.city, 'utf8');
+  for (const [name, data] of [['HEIGHTS', HM], ['ROADS', F.mends === '0' ? null : MENDS.ROADS]]) {
+    const re = new RegExp(`/\\*${name}\\*/[\\s\\S]*?/\\*${name}\\*/`);
+    if (!re.test(src)) { log(`${F.city}: no /*${name}*/ place in it`); continue; }
+    src = src.replace(re, () => `/*${name}*/` + JSON.stringify(data) + `/*${name}*/`);
+    log(`${F.city}: ${name.toLowerCase()} written in`);
+  }
+  fs.writeFileSync(F.city, src);
 }
 log(`height map ${N}x${N}; the highest point ${top.map(v => v.toFixed(2)).join(', ')}`);
 log('done');

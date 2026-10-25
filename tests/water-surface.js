@@ -181,7 +181,7 @@ function validateGeometry(g) {
 }
 // Evaluate production resolution expressions so a future caller change cannot
 // silently invalidate the tested phone budget or change the other world.
-const boardArgs = /Terrain\.board\(([^\n]+?)\);/.exec(source)[1];
+const boardArgs = /Terrain\.board\(([^,\n]+?)(?:, [^\n]*)?\);/.exec(source)[1];      // (its first argument: the bed's size)
 const oceanArgs = /Terrain\.outer\(([^\n]+?)\), MOD\.world/.exec(source)[1];
 const lagoonArgs = /Terrain\.seaGeo\(([^\n]+?)\), mats\.sea/.exec(source)[1];
 function settings(mobile, world) {

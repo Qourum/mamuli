@@ -1,7 +1,8 @@
 // Which faces of a model on the board can ever be seen: the camera is always above the board, so a face counts as seen
 // when, from a few points on it, at least one of a few dozen directions up into the sky (from low over the horizon to
 // straight up) gets out without hitting the model; the squares round the board (from `edge` out, `wall` high) hide
-// what lies under them. The tiles' bottoms, the soil inside, a roof's underside: never seen, left out.
+// what lies under them. The tiles' bottoms, the soil inside, a roof's underside: never seen, left out. (A face is drawn
+// from its front only: one facing away from the sky, an overhang's underside, hides nothing under it.)
 // seen(P, I) -> Uint8Array, 1 for each face that can be seen
 import * as THREE from 'three';
 import { MeshBVH } from 'three-mesh-bvh';
@@ -20,7 +21,7 @@ export function seen(P, I, { edge = 4.5, wall = 0.2, log = () => { } } = {}) {
   // a ray from q along d: out into the sky (not into the squares)
   const free = d => {
     ray.origin.copy(q); ray.direction.copy(d);
-    if (bvh.raycastFirst(ray, THREE.DoubleSide)) return false;
+    if (bvh.raycastFirst(ray, THREE.BackSide)) return false;           // (only a face whose front looks up at the sky)
     let t = Infinity;
     if (d.x) t = Math.min(t, ((d.x > 0 ? edge : -edge) - q.x) / d.x);
     if (d.z) t = Math.min(t, ((d.z > 0 ? edge : -edge) - q.z) / d.z);

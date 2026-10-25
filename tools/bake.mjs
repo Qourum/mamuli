@@ -88,10 +88,13 @@ export async function bake(H, tex, { tris, size, err = 0.01, maxCost = 2, pad = 
     b.toArray(out.normal, k * 3);
   }
 
-  // 3. the colours: each point of the new picture from the nearest point of the detailed model
-  const geo = new THREE.BufferGeometry();
+  // 3. the colours: each point of the new picture from the nearest point of the detailed model (not of a patch over a
+  // hole, picture coordinates past 4 down: it takes the colours of what is round it)
+  const geo = new THREE.BufferGeometry(), CI = [];
+  for (let t = 0; t < H.idx.length; t += 3) if (!(H.uv[H.idx[t] * 2 + 1] >= 4 && H.uv[H.idx[t + 1] * 2 + 1] >= 4 && H.uv[H.idx[t + 2] * 2 + 1] >= 4)) CI.push(H.idx[t], H.idx[t + 1], H.idx[t + 2]);
+  const Ci = Uint32Array.from(CI);
   geo.setAttribute('position', new THREE.BufferAttribute(H.pos, 3));
-  geo.setIndex(new THREE.BufferAttribute(H.idx, 1));
+  geo.setIndex(new THREE.BufferAttribute(Ci.slice(), 1));                  // (the tree reorders its own copy)
   const bvh = new MeshBVH(geo), hit = {}, P = new THREE.Vector3(), tri = new THREE.Triangle(), bary = new THREE.Vector3();
   const img = new Uint8ClampedArray(size * size * 4), done = new Uint8Array(size * size);
   const { data, width: TW, height: TH, channels: CH } = tex;
@@ -137,7 +140,7 @@ export async function bake(H, tex, { tris, size, err = 0.01, maxCost = 2, pad = 
       if (!inside) { w0 = Math.max(0, w0); w1 = Math.max(0, w1); w2 = Math.max(0, w2); const s = w0 + w1 + w2; w0 /= s; w1 /= s; w2 /= s; }
       P.set(out.pos[i0 * 3] * w0 + out.pos[i1 * 3] * w1 + out.pos[i2 * 3] * w2, out.pos[i0 * 3 + 1] * w0 + out.pos[i1 * 3 + 1] * w1 + out.pos[i2 * 3 + 1] * w2, out.pos[i0 * 3 + 2] * w0 + out.pos[i1 * 3 + 2] * w1 + out.pos[i2 * 3 + 2] * w2);
       bvh.closestPointToPoint(P, hit);
-      const f = hit.faceIndex, j0 = H.idx[f * 3], j1 = H.idx[f * 3 + 1], j2 = H.idx[f * 3 + 2];
+      const f = hit.faceIndex, gi = geo.index.array, j0 = gi[f * 3], j1 = gi[f * 3 + 1], j2 = gi[f * 3 + 2];
       tri.set(Hv(j0, A), Hv(j1, B), Hv(j2, C)); tri.getBarycoord(hit.point, bary);
       const u = H.uv[j0 * 2] * bary.x + H.uv[j1 * 2] * bary.y + H.uv[j2 * 2] * bary.z, v = H.uv[j0 * 2 + 1] * bary.x + H.uv[j1 * 2 + 1] * bary.y + H.uv[j2 * 2 + 1] * bary.z;
       sample(u, v, o * 4);

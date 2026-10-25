@@ -39,7 +39,21 @@ const Terrain = (() => {
   const BIN = 1, B0 = -7, NB = 14;
   const SEA_Y = 0.02, BED = -0.16, RIM_SEA = -0.06, OCEAN_Y = -0.3;     // the water, the sea floor, along the squares, the ocean
   const VORTEX = { x: 3.45, z: 3.0, radius: 0.55, depth: 0.82 };
-  function reset() { feats.length = pads.length = waters.length = paths.length = tints.length = 0; bins = null; seaField = null; }
+  function reset() { feats.length = pads.length = waters.length = paths.length = tints.length = 0; bins = null; seaField = null; hmap = null; }
+  // a model's own ground (the city's, made in one piece): the height of its top surface on a grid over the board's inside
+  // (N x N cells over -half..half, each 0..255 between lo and hi; base64 or bytes); inside it, the land's height is its
+  let hmap = null;
+  function useHeights(m) {
+    if (!m) { hmap = null; return; }
+    const data = typeof m.data === 'string' ? Uint8Array.from(atob(m.data), c => c.charCodeAt(0)) : m.data;
+    hmap = { N: m.N, half: m.half, lo: m.lo, hi: m.hi, data };
+  }
+  function mapHeight(x, z) {
+    const { N, half, lo, hi, data } = hmap, s = N / (2 * half);
+    const fx = Math.max(0, Math.min(N - 1.001, (x + half) * s - 0.5)), fz = Math.max(0, Math.min(N - 1.001, (z + half) * s - 0.5));
+    const i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j, at = (a, b) => data[b * N + a];
+    return lo + (at(i, j) * (1 - u) * (1 - v) + at(i + 1, j) * u * (1 - v) + at(i, j + 1) * (1 - u) * v + at(i + 1, j + 1) * u * v) / 255 * (hi - lo);
+  }
   function setWorld(w) { sea = w === 'sea'; city = w === 'city'; reset(); }
   function put(f) { feats.push(f); bins = null; return f; }
   function rot(f, x, z) { const dx = x - f.x, dz = z - f.z, c = Math.cos(f.rot || 0), s = Math.sin(f.rot || 0); return [dx * c - dz * s, dx * s + dz * c]; }
@@ -102,6 +116,7 @@ const Terrain = (() => {
     return rim + (h - rim) * smooth(RIM, RIM - 0.34, m) + late;
   }
   function height(x, z) {
+    if (hmap && Math.abs(x) <= hmap.half && Math.abs(z) <= hmap.half) return mapHeight(x, z);
     let h = raw(x, z);
     for (const p of pads) {
       if (Math.abs(x - p.x) > p.r || Math.abs(z - p.z) > p.r) continue;
@@ -203,12 +218,14 @@ const Terrain = (() => {
   }
 
   // ----- the ground inside the board: a grid, made a few rows at a time (each yield is a pause) -----
-  function* board(N = 132) {
+  // (under: the land lies flat at that height, under a model that is the board's whole inside: if the model is not
+  // read, the board is not empty)
+  function* board(N = 132, under = null) {
     const n = N + 1, pos = new Float32Array(n * n * 3), col = new Float32Array(n * n * 3), hs = new Float32Array(n * n);
     const step = (EDGE * 2) / N;
     for (let j = 0; j < n; j++) {
       for (let i = 0; i < n; i++) {
-        const x = -EDGE + i * step, z = -EDGE + j * step, y = height(x, z), k = j * n + i;
+        const x = -EDGE + i * step, z = -EDGE + j * step, y = under != null ? under : height(x, z), k = j * n + i;
         pos[k * 3] = x; pos[k * 3 + 1] = y; pos[k * 3 + 2] = z; hs[k] = y;
       }
       if (j % 4 === 3) yield;
@@ -473,5 +490,5 @@ const Terrain = (() => {
     if (sea) { const r = Math.max(Math.abs(x), Math.abs(z)); return r > 6.2 ? OCEAN_Y : height(x, z) < SEA_Y ? SEA_Y : null; }
     return null;
   }
-  return Object.assign(api, { reset, setWorld, board, waterGeo, seaGeo, seaShore, waterAt, outer, outY, groves, noise, fbm, RIM, SEA_Y, BED, OCEAN_Y, VORTEX, get sea() { return sea; } });
+  return Object.assign(api, { reset, setWorld, useHeights, board, waterGeo, seaGeo, seaShore, waterAt, outer, outY, groves, noise, fbm, RIM, SEA_Y, BED, OCEAN_Y, VORTEX, get sea() { return sea; } });
 })();

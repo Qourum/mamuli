@@ -27,9 +27,9 @@ SEA_ART = ([f'por_p_{p}' for p in PIRATES] + ['bg_sea'] + [f'sc_{n}' for n in ['
 # the archipelago's 3D models, made from the Higgsfield pictures with tools/glb_prep.mjs (art/m_*.glb; sea.js says where)
 MODELS = ['m_heligoland_animated', 'm_cocos_animated', 'm_volcano_animated', 'm_gotland_animated', 'm_customs_animated', 'm_gramvousa_animated', 'm_lighthouse_animated', 'm_shipyard_animated', 'm_cheungchau_animated', 'm_oak_animated',
           'm_port_animated', 'm_castaway_animated', 'm_tavern_animated', 'm_kraken_animated', 'm_qar_animated', 'm_whydah_animated', 'm_galley_animated', 'm_fortune_animated', 'm_shark', 'm_orca', 'm_bluewhale', 'm_dolphin']
-# ტფილისი's landmarks, from the Meshy models with tools/tb_make.mjs (art/m_tb_*.glb, and a phone's in art/mobile; city.js says where)
-TB_MODELS = ['m_tb_freedom', 'm_tb_bank', 'm_tb_sameba', 'm_tb_courtyard', 'm_tb_bench', 'm_tb_rustaveli', 'm_tb_mtatsminda', 'm_tb_baths',
-             'm_tb_narikala', 'm_tb_kartlisdeda', 'm_tb_peace', 'm_tb_metekhi', 'm_tb_stonebridge']
+# ტფილისი: the whole city in one model (tools/city_make.mjs) and two corners' models (tools/tb_make.mjs): art/m_tb_*.glb, and a
+# phone's in art/mobile; city.js says where
+TB_MODELS = ['m_tb_city', 'm_tb_freedom', 'm_tb_bench']
 MODELS += TB_MODELS
 # Old Tiflis's people (ტფილისი's heroes): their portraits, as they are made (art/por_t_*.webp)
 TIFLIS_ART = sorted(n[:-5] for n in os.listdir(os.path.join(ROOT, 'art')) if n.startswith('por_t_') and n.endswith('.webp'))

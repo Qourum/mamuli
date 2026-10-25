@@ -197,8 +197,10 @@ const GLB = (() => {
   }
   async function make(buf) {
     const g = chunks(buf), parts = [];
-    let mat = null;
+    let mat = null, runs = null;
     for (const { mesh, m } of placed(g.json)) {
+      const ex = g.json.meshes[mesh].extras;
+      if (ex && Array.isArray(ex.parts)) runs = ex.parts;               // (whose each run of its triangles is: tools/city_make.mjs)
       for (const p of g.json.meshes[mesh].primitives) {
         if (p.mode != null && p.mode !== 4) continue;            // triangles only
         const geo = new T.BufferGeometry(), at = p.attributes;
@@ -215,6 +217,7 @@ const GLB = (() => {
     }
     if (!parts.length) throw new Error('a GLB without a mesh');
     const geometry = parts.length === 1 ? parts[0] : merge(parts);
+    if (runs && parts.length === 1) geometry.userData.parts = runs.map(([name, start, count]) => ({ name, start, count }));
     geometry.computeBoundingBox(); geometry.computeBoundingSphere();
     const pbr = (mat && mat.pbrMetallicRoughness) || {}, f = pbr.baseColorFactor || [1, 1, 1, 1];
     const map = pbr.baseColorTexture ? await picture(g, pbr.baseColorTexture) : null;

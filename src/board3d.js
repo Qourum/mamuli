@@ -520,6 +520,9 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
         vec3 c = diffuseColor.rgb;
         #ifndef DRY
         float wet = smoothstep( 0.1, 0.24, c.b - c.r ) * smoothstep( -0.06, 0.04, c.b - c.g );
+        #ifdef LOWWATER
+        wet *= 1.0 - smoothstep( -0.07, 0.0, vWP.y );          // (a city's water lies low; its blue glass stands higher)
+        #endif
         float steep = 1.0 - smoothstep( 0.5, 0.8, abs( normalize( vWN ).y ) );
         float fall = wet * steep, pool = wet * ( 1.0 - steep );
         // falling water: bright streaks run down it, two sets at their own speeds
@@ -547,15 +550,16 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     sh.vertexShader = sh.vertexShader.replace('#include <common>', MODEL_WATER.vp).replace('#include <begin_vertex>', MODEL_WATER.v);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', MODEL_WATER.fp).replace('#include <map_fragment>', MODEL_WATER.f);
   };
-  const modelWaterKey = () => 'modelwater', modelLavaKey = () => 'modellava', modelDryKey = () => 'modeldry';
+  const modelWaterKey = () => 'modelwater', modelLavaKey = () => 'modellava', modelDryKey = () => 'modeldry', modelLowKey = () => 'modellow';
   // (lava only where the model says it has some: elsewhere an orange sail would glow; the city's models have no water of
   // their own, so their blue glass and balconies stay as they are: only their leaves sway)
   function modelWater(m, lava) {
-    const dry = !lava && MOD && MOD.world === 'city';
+    const low = !lava && m.userData && m.userData.lowWater, dry = !lava && !low && MOD && MOD.world === 'city';
     m.onBeforeCompile = modelWaterPatch;
-    m.customProgramCacheKey = lava ? modelLavaKey : dry ? modelDryKey : modelWaterKey;
+    m.customProgramCacheKey = lava ? modelLavaKey : dry ? modelDryKey : low ? modelLowKey : modelWaterKey;
     if (lava) m.defines = Object.assign({}, m.defines, { LAVA: '' });
     if (dry) m.defines = Object.assign({}, m.defines, { DRY: '' });
+    if (low) m.defines = Object.assign({}, m.defines, { LOWWATER: '' });
     return m;
   }
 
@@ -727,7 +731,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     MOD.centerRelief(Terrain);
     fallFoot = MOD.centerWater(Terrain);
     yield;
-    const lg = yield* Terrain.board(mobile ? MOD.world === 'sea' ? 112 : 136 : 160);
+    const lg = yield* Terrain.board(mobile ? MOD.world === 'sea' ? 112 : 136 : 160, MOD.boardModel ? -0.3 : null);
     const land = new T.Mesh(lg, mats.scenery);
     land.castShadow = true; land.receiveShadow = true; land.userData.ground = true;
     landG.add(land); lotGround.push(land);
@@ -763,6 +767,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
     // the middle's own model, when there is one (then nothing is made for it here); the city's landmarks in the middle
     if (MOD.centerModel && typeof GLB !== 'undefined' && GLB) { placeCenter(MOD.centerModel); landTop = Math.max(landTop, MOD.centerModel.top); }
     if (MOD.freeModels && typeof GLB !== 'undefined' && GLB) for (const d of MOD.freeModels) { if (d.topY) landTop = Math.max(landTop, d.topY); placeFree(d); }
+    if (MOD.boardModel && typeof GLB !== 'undefined' && GLB) { landTop = Math.max(landTop, MOD.boardModel.top); placeBoard(MOD.boardModel); }
     // the great mountain's church, village, forest and lake shore
     const ctr = MOD.center(Terrain.height);
     for (const step of ctr.steps) { yield; step(); }
@@ -986,6 +991,32 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       shadowDirty = true;
       Diag.note('3d', `model ${d.url}: ${geometry.index ? geometry.index.count / 3 : 0} triangles`);
     }).catch(e => Diag.note('3d', `model ${d.url} not read: ${e && e.message}`));
+  }
+  // a model that is the board's whole inside (ტფილისი's city, tools/city_make.mjs): already in the board's units and
+  // place; its triangles come in runs, the middle's and each district's: each district its own mesh on the same shape
+  // and picture (it greys when mortgaged, it jumps when bought, a tap on it opens its card)
+  function placeBoard(d) {
+    const land = landG;
+    GLB.load(d.url, 3).then(({ geometry, material }) => {
+      if (landG !== land) return;
+      geometry.userData.keep = material.userData.keep = true;
+      material.userData.lowWater = true; modelWater(material);              // (its river and lakes glitter)
+      const runs = geometry.userData.parts || [{ name: 'middle', start: 0, count: geometry.index ? geometry.index.count : geometry.attributes.position.count }];
+      for (const r of runs) {
+        const g = new T.BufferGeometry();
+        for (const k of Object.keys(geometry.attributes)) g.setAttribute(k, geometry.attributes[k]);
+        if (geometry.index) g.setIndex(geometry.index);
+        g.setDrawRange(r.start, r.count); g.boundingSphere = geometry.boundingSphere; g.boundingBox = geometry.boundingBox; g.userData.keep = true;
+        const m = new T.Mesh(g, material), lot = /^lot(\d+)$/.exec(r.name);
+        m.castShadow = true; m.receiveShadow = true; m.userData.model = true;
+        if (lot) { const i = +lot[1]; m.userData.i = i; lotMesh[i] = m; } else { m.userData.ground = true; lotGround.push(m); }
+        landG.add(m);
+      }
+      prepareMaterials(landG);
+      for (let i = 0; i < 40; i++) if (mark[i] && mark[i].m) setMort(i, true, false);
+      shadowDirty = true;
+      Diag.note('3d', `board model ${d.url}: ${(geometry.index ? geometry.index.count : geometry.attributes.position.count) / 3} triangles, ${runs.length} parts`);
+    }).catch(e => Diag.note('3d', `board model ${d.url} not read: ${e && e.message}`));
   }
   // the middle's model: in the board's middle, its water line on the sea's, made lower by sy
   function placeCenter(d) {

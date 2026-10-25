@@ -5,7 +5,7 @@
 // is in the room. If the host disappears, the next player in seat order takes over with their copy of the state.
 // "local" is a game on this device only (people taking turns and computer players), without any network.
 
-const PROTO = 5;                 // 5: ტფილისი, a third world (4: themes and the chest's questions; 3: auctions, the dice's throw from the game's seed)
+const PROTO = 6;                 // 6: ტფილისი's own people (5: ტფილისი, a third world; 4: themes and the chest's questions; 3: auctions, the dice's throw from the game's seed)
 const ONLINE = {
   ws: 'wss://wnpqmcucnqcpcceqwega.supabase.co/realtime/v1',
   key: 'sb_publishable_DEGb_dkdj1s3QEJFrxc-Aw_apfCzfNx',

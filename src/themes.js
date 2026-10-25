@@ -325,7 +325,7 @@ const QUIZ_WIN = 100, QUIZ_SHARE = 20;   // for the one who opened the chest, fo
     { q: 'სად დასახლდნენ 1818 წელს გერმანელი კოლონისტები?', a: ['ვაკეში', 'დღევანდელ აღმაშენებლის გამზირზე', 'სოლოლაკში'], c: 1, x: 'შვაბიელი კოლონისტები მტკვრის მარცხენა ნაპირზე დასახლდნენ; მათ სახლებს დღესაც ნახავ.' }
   ];
   THEMES.tbilisi = {
-    key: 'tbilisi', name: 'ტფილისი', tag: 'თბილისის უბნები, ნამდვილი ამბებით', world: 'city', heroes: 'mamuli',
+    key: 'tbilisi', name: 'ტფილისი', tag: 'თბილისის უბნები, ნამდვილი ამბებით', world: 'city',
     names: BOARD.map((t, i) => { const v = TB[i]; return Array.isArray(v) ? { n: v[0], s: v[1] } : { n: v }; }),
     groups: [
       { n: 'ქვემო სანაპირო', c: '#9a7452' }, { n: 'აღმოსავლეთი', c: '#72bde6' }, { n: 'მარცხენა სანაპირო', c: '#55ad5f' }, { n: 'ჩრდილოეთი', c: '#ee8f3e' },
@@ -381,7 +381,7 @@ const QUIZ_WIN = 100, QUIZ_SHARE = 20;   // for the one who opened the chest, fo
     }
   };
 
-  // ----- the heroes: Metekhi's for მამული (ტფილისი borrows them), real pirates for the archipelago (b: who they were) -----
+  // ----- the heroes: Metekhi's for მამული, real pirates for the archipelago, Old Tiflis's people for ტფილისი (b: who they were) -----
   for (const k in HEROES) HEROES[k].t = 'mamuli';
   const PIRATES = {
     blackbeard: { n: 'შავწვერა', s: 'შავწვერა', b: 'ედვარდ ტიჩი, დაახლ. 1680–1718. კარიბებს და ამერიკის სანაპიროს აშინებდა.', c: '#2b2a33' },
@@ -398,8 +398,7 @@ const QUIZ_WIN = 100, QUIZ_SHARE = 20;   // for the one who opened the chest, fo
     stortebeker: { n: 'კლაუს შტორტებეკერი', s: 'კლაუსი', b: 'დაახლ. 1360–1401. ჩრდილოეთის ზღვის და ბალტიის მეკობრე.', c: '#8a6a2f' }
   };
   for (const k in PIRATES) HEROES[k] = Object.assign({ t: 'archipelago' }, PIRATES[k]);
-  // Old Tiflis's people, for ტფილისი (b: who they were); the city plays with them (its heroes: 'tbilisi') once their
-  // portraits are in art/por_t_*
+  // Old Tiflis's people, for ტფილისი (their portraits: art/por_t_*, cut from Meshy's pictures by tools/tb_portraits.py)
   const TIFLIS = {
     kinto: { n: 'კინტო', s: 'კინტო', b: 'ქუჩის ვაჭარი და ხუმარა: თავზე ხილის ტაბლა, ენაზე სიმღერა და ოხუნჯობა.', c: '#2b2a33' },
     karachokheli: { n: 'ყარაჩოხელი', s: 'ყარაჩოხელი', b: 'შავჩოხიანი ხელოსანი: სიტყვის კაცი, ქეიფის და ღირსების მცოდნე.', c: '#1f2027' },
@@ -418,7 +417,7 @@ const QUIZ_WIN = 100, QUIZ_SHARE = 20;   // for the one who opened the chest, fo
 })();
 
 const BID_STEP_RULE = 10;          // (the auction's step, for the rules' text; the engine has its own)
-// whose heroes a theme plays with: its own, or (ტფილისი) another theme's
+// whose heroes a theme plays with: its own (or, with heroes: KEY, another theme's)
 const heroSet = theme => { const th = THEMES[theme] || THEMES.mamuli; return th.heroes || th.key; };
 const heroKeys = theme => Object.keys(HEROES).filter(h => HEROES[h].t === heroSet(theme));
 const themeOf = st => THEMES[st && st.theme] || THEMES.mamuli;

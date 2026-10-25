@@ -928,7 +928,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       const m = new T.Mesh(geometry, material);
       m.castShadow = true; m.receiveShadow = true; m.userData.i = i; m.userData.model = true;
       g.add(m); prepareMaterials(g); landG.add(g);
-      if (!lotMesh[i]) lotMesh[i] = m;
+      if (!lotMesh[i] || d.main) lotMesh[i] = m;                  // (main: the model is the place, not what is made round it)
       if (mark[i] && mark[i].m) setMort(i, true, false);
       shadowDirty = true;
       Diag.note('3d', `model ${d.url}: ${geometry.index ? geometry.index.count / 3 : 0} triangles`);
@@ -1208,6 +1208,7 @@ void seaWave( vec2 p, vec2 d, float len, float amp, float speed, inout float h, 
       : a.tunnel ? (x, z) => { const p = at(x, z); if (z < -0.06) p.y = at(x, -0.06).y; return p; }
       : (x, z) => at(x, z, a.h || 0);
     const way = wayOf(P, a.a, a.b), per = Math.max(1, way.len / (a.speed || 0.05)), k = boat && a.sail ? 'sail' : a.k, start = a.phase != null ? a.phase : ph;
+    if (a.level) { const y = Math.min(way.pts[0].y, way.pts[way.n].y); for (const q of way.pts) q.y = Math.max(q.y, y); }   // over a bridge: where the land dips under its way, it keeps level
     return { k, up(t, o) {
       const q = t / per + start;
       if (a.tunnel) {

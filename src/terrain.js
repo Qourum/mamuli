@@ -118,15 +118,18 @@ const Terrain = (() => {
     return h;
   }
 
+  // a smooth line through the points (each [x, z], or [x, z, k] with k carried along it too)
   function curve(ctrl, n) {
-    const out = [], P = k => ctrl[Math.max(0, Math.min(ctrl.length - 1, k))];
+    const out = [], P = k => ctrl[Math.max(0, Math.min(ctrl.length - 1, k))], dims = ctrl[0].length > 2 ? [0, 1, 2] : [0, 1];
     for (let k = 0; k < ctrl.length - 1; k++) for (let j = 0; j < n; j++) {
       const t = j / n, t2 = t * t, t3 = t2 * t, a = P(k - 1), b = P(k), c = P(k + 1), e = P(k + 2);
-      out.push([0, 1].map(q => 0.5 * (2 * b[q] + (c[q] - a[q]) * t + (2 * a[q] - 5 * b[q] + 4 * c[q] - e[q]) * t2 + (3 * b[q] - a[q] - 3 * c[q] + e[q]) * t3)));
+      out.push(dims.map(q => 0.5 * (2 * b[q] + (c[q] - a[q]) * t + (2 * a[q] - 5 * b[q] + 4 * c[q] - e[q]) * t2 + (3 * b[q] - a[q] - 3 * c[q] + e[q]) * t3)));
     }
     out.push(ctrl[ctrl.length - 1].slice());
     return out;
   }
+  // how wide a river is at its point k (its points' third number, when they have one: 1 its full width)
+  const widthAt = (p, k) => p[k].length > 2 ? p[k][2] : 1;
   // ----- what the regions call (board coordinates) -----
   const api = {
     peak: (x, z, reach, h, seed = 1) => put({ t: 'peak', x, z, reach, h, seed }),
@@ -140,10 +143,11 @@ const Terrain = (() => {
     fall: (x1, y1, z1, x2, y2, z2, w) => waters.push({ k: 'fall', a: [x1, y1, z1], b: [x2, y2, z2], w }),
     // a river at one level (a city's): a smooth line through the points, its bed dug w either side of it and d deep
     // (under the squares too), its water at height y, ww wide; colour its own
-    // (color: its middle's; bank: its banks', with foam along them, when given)
+    // (color: its middle's; bank: its banks', with foam along them, when given; a point [x, z, k]: the river k times as
+    // wide there)
     flow: (ctrl, w, d, y, ww, color = 0x4f8a8c, bank = null) => {
       const pts = curve(ctrl, 8);
-      for (let k = 1; k < pts.length; k++) put({ t: 'dig', x1: pts[k - 1][0], z1: pts[k - 1][1], x2: pts[k][0], z2: pts[k][1], w, d, late: true });
+      for (let k = 1; k < pts.length; k++) put({ t: 'dig', x1: pts[k - 1][0], z1: pts[k - 1][1], x2: pts[k][0], z2: pts[k][1], w: w * (widthAt(pts, k - 1) + widthAt(pts, k)) / 2, d, late: true });
       waters.push({ k: 'flow', pts, y, hw: ww / 2, c: new T.Color(color), cb: bank == null ? null : new T.Color(bank) });
       return pts;
     },
@@ -280,8 +284,8 @@ const Terrain = (() => {
         // a ribbon along the line at the river's level, its sides turned halfway between one piece and the next
         const p = w.pts, n = p.length, side = [];
         for (let k = 0; k < n; k++) {
-          const a = p[Math.max(0, k - 1)], b = p[Math.min(n - 1, k + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1;
-          side.push([-dz / l * w.hw, dx / l * w.hw]);
+          const a = p[Math.max(0, k - 1)], b = p[Math.min(n - 1, k + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1, hw = w.hw * widthAt(p, k);
+          side.push([-dz / l * hw, dx / l * hw]);
         }
         // (in three strips across: its middle deeper, its banks lighter, the shader's foam along them: anim.y 1.4 at the
         // banks, 1 in the middle)
@@ -459,7 +463,7 @@ const Terrain = (() => {
     for (const w of waters) {
       if (w.k === 'flow') {
         const p = w.pts;
-        for (let k = 1; k < p.length; k++) if (segQ({ x1: p[k - 1][0], z1: p[k - 1][1], x2: p[k][0], z2: p[k][1], w: w.hw }, x, z)[0] < 1) return w.y;
+        for (let k = 1; k < p.length; k++) if (segQ({ x1: p[k - 1][0], z1: p[k - 1][1], x2: p[k][0], z2: p[k][1], w: w.hw * (widthAt(p, k - 1) + widthAt(p, k)) / 2 }, x, z)[0] < 1) return w.y;
         continue;
       }
       if (w.k !== 'lake' || w.lava) continue;

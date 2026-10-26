@@ -13,6 +13,8 @@
 //      which run of triangles is whose ([name, first index, index count]), glb.js passes them on
 //   4. the height of its top surface on a grid over the board (city.js: where things walk, sail and fly), and the roads
 //      the mends laid along the river's banks (city.js: where the cars drive)
+// Then tools/city_tiles.mjs, once on each of the two files: on the right side Meshy set the districts one tile off,
+// and it moves the tiles behind their own squares (and gives Sololaki an old house for its block of flats)
 // node city_make.mjs IN.glb OUTDIR [--only desktop|mobile] [--k K] [--ground G] [--tris N --tex N --mtris N --mtex N
 //   --htris N] [--layout box|xatlas] [--clean 0] [--edits mends.json] [--city ../src/city.js (its height map and the
 //   embankments' roads put in)]
